@@ -1,0 +1,28 @@
+{
+  "name": "ibi-ren",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ibi.ren (Idol Bank IP) - AI 虚拟人资产与版权交易平台",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:api": "pnpm --filter @ibi-ren/api run start:dev",
+    "dev:web": "pnpm --filter @ibi-ren/web run dev",
+    "dev:admin": "pnpm --filter @ibi-ren/admin run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "prisma:generate": "pnpm --filter @ibi-ren/api run prisma:generate",
+    "prisma:migrate": "pnpm --filter @ibi-ren/api run prisma:migrate",
+    "prisma:deploy": "pnpm --filter @ibi-ren/api run prisma:deploy",
+    "prisma:studio": "pnpm --filter @ibi-ren/api run prisma:studio",
+    "seed:ips": "pnpm --filter @ibi-ren/api run seed:ips",
+    "seed:users": "pnpm --filter @ibi-ren/api run seed:users",
+    "seed:all": "pnpm seed:users && pnpm seed:ips",
+    "gen:images": "pnpm --filter @ibi-ren/api run gen:images",
+    "upload:thumbs": "pnpm --filter @ibi-ren/api run upload:thumbs"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.12.0"
+}

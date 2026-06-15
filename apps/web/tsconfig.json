@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": false,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@ibi-ren/shared-types": ["../../packages/shared-types/src"]
+    }
+  },
+  "include": ["src/**/*", "src/**/*.vue", "vite.config.ts"]
+}

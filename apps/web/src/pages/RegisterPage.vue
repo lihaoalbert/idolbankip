@@ -1,0 +1,88 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+
+const router = useRouter();
+const auth = useAuthStore();
+
+const form = ref({
+  email: '',
+  password: '',
+  displayName: '',
+  role: 'CREATOR' as 'CREATOR' | 'BUYER',
+  companyName: '',
+  agree: false,
+});
+const error = ref('');
+const loading = ref(false);
+
+async function submit() {
+  if (!form.value.agree) { error.value = '请先同意用户协议'; return; }
+  error.value = '';
+  loading.value = true;
+  try {
+    await auth.register({
+      email: form.value.email,
+      password: form.value.password,
+      role: form.value.role,
+      displayName: form.value.displayName,
+      companyName: form.value.role === 'BUYER' ? form.value.companyName : undefined,
+    });
+    router.push(form.value.role === 'CREATOR' ? '/creator' : '/');
+  } catch (e: any) {
+    error.value = e?.response?.data?.message || '注册失败';
+  } finally { loading.value = false; }
+}
+</script>
+
+<template>
+  <div class="max-w-md mx-auto px-6 py-16">
+    <h1 class="font-display text-3xl mb-2">注册</h1>
+    <p class="text-sm text-ink/60 mb-6">加入 ibi.ren 虚拟人资产银行</p>
+
+    <div class="flex gap-2 mb-6 bg-white rounded-full p-1 border border-line">
+      <button
+        @click="form.role = 'CREATOR'"
+        :class="form.role === 'CREATOR' ? 'bg-ink text-cream' : 'text-ink/60'"
+        class="flex-1 py-2 text-sm rounded-full transition"
+      >我是创作者 (A 端)</button>
+      <button
+        @click="form.role = 'BUYER'"
+        :class="form.role === 'BUYER' ? 'bg-ink text-cream' : 'text-ink/60'"
+        class="flex-1 py-2 text-sm rounded-full transition"
+      >我是采购方 (B 端)</button>
+    </div>
+
+    <form @submit.prevent="submit" class="space-y-4 bg-white p-6 rounded-2xl border border-line">
+      <div>
+        <label class="text-xs text-ink/60 block mb-1">邮箱</label>
+        <input v-model="form.email" type="email" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
+      </div>
+      <div>
+        <label class="text-xs text-ink/60 block mb-1">密码 (至少 8 位)</label>
+        <input v-model="form.password" type="password" required minlength="8" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
+      </div>
+      <div>
+        <label class="text-xs text-ink/60 block mb-1">{{ form.role === 'BUYER' ? '联系人姓名' : '显示名' }}</label>
+        <input v-model="form.displayName" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
+      </div>
+      <div v-if="form.role === 'BUYER'">
+        <label class="text-xs text-ink/60 block mb-1">公司名称 (选填)</label>
+        <input v-model="form.companyName" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
+      </div>
+      <label class="flex items-start gap-2 text-xs text-ink/60">
+        <input v-model="form.agree" type="checkbox" class="mt-0.5" />
+        <span>我已阅读并同意《用户协议》《隐私政策》《AI 形象版权声明》</span>
+      </label>
+      <div v-if="error" class="p-2 bg-danger/10 text-danger text-sm rounded">{{ error }}</div>
+      <button
+        type="submit"
+        :disabled="loading"
+        class="w-full py-3 bg-ink text-cream rounded-full font-medium hover:bg-gold transition disabled:opacity-50"
+      >
+        {{ loading ? '注册中...' : '注册并进入工作台' }}
+      </button>
+    </form>
+  </div>
+</template>

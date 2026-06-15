@@ -1,0 +1,17 @@
+{
+  "name": "@ibi-ren/shared-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "echo 'shared-contracts: lint placeholder'",
+    "build": "echo 'shared-contracts: built (no-op)'"
+  },
+  "dependencies": {
+    "nanoid": "^3.3.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,338 @@
+// =================================================================
+// ibi.ren Prisma schema — v1.0 MVP
+// 数据库: MySQL 8.x on Aliyun RDS
+// 设计文档: docs/architecture.md
+// =================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== 枚举 =====================
+
+enum UserRole {
+  CREATOR // A 端创作者
+  BUYER // B 端采购方
+  ADMIN // 平台运营
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum IpStatus {
+  PENDING_REVIEW // 已上传，等待审核
+  REVIEWED_PROOFING // 审核通过，正在上链存证
+  PUBLIC_INTENT // 已存证，前台可展示，可售卖意向权
+  OFFICIAL_REGISTERED // 正式版权已登记，可全量商用
+  REJECTED
+  ARCHIVED
+}
+
+enum AssetType {
+  THREE_VIEW // 三视图
+  EXPRESSION_GRID // 表情矩阵
+  TRANSPARENT_RENDER // 立绘图
+  LORA_FILE // .safetensors
+  RECIPE_TXT // 提示词说明
+  TEST_SAMPLE // 测试样板图
+  BIO_TXT // 人物小传
+  VOICE_REF // 声音参考
+  LEGAL_PROOF // 训练截图 (平台内部可见)
+  PACKAGE_ZIP // 完整资产包
+}
+
+enum OrderType {
+  DEPOSIT_INTENT // 199 元意向金
+  FULL_LICENSE // 正式版权授权
+}
+
+enum LicenseScope {
+  SINGLE_AD // 单次广告
+  SINGLE_DRAMA // 单部短剧
+  THREE_YEAR_WEB // 全网 3 年
+  BUYOUT_EXCLUSIVE // 终身独家买断
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  CONTRACT_PENDING
+  CONTRACT_SIGNED
+  DOWNLOAD_UNLOCKED
+  DELIVERED
+  REFUNDED
+  CANCELLED
+}
+
+enum ContractStatus {
+  DRAFT
+  AWAITING_BUYER_SIGN
+  AWAITING_PLATFORM_SIGN
+  FULLY_SIGNED
+  CANCELLED
+  EXPIRED
+}
+
+// ===================== 用户 / KYC / 会话 =====================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  phone        String?  @unique
+  passwordHash String
+  role         UserRole
+  displayName  String
+  realName     String?
+  companyName  String?
+  kycStatus    KycStatus @default(NOT_SUBMITTED)
+  kycData      Json?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ipsAsCreator  IpAsset[]       @relation("CreatorIps")
+  ordersAsBuyer Order[]         @relation("BuyerOrders")
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+  kycSubs       KycSubmission[]
+
+  @@index([role])
+  @@index([kycStatus])
+}
+
+model KycSubmission {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  payload      Json
+  status       KycStatus
+  reviewedById String?
+  reviewedAt   DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, status])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  userAgent String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ===================== IP 资产 =====================
+
+model IpAsset {
+  id        String @id @default(cuid())
+  creatorId String
+  creator   User   @relation("CreatorIps", fields: [creatorId], references: [id])
+
+  // 身份
+  code        String  @unique // IBI-2026-0001
+  displayName String // 暂定名
+  tagline     String? // 一句话简介
+  description String  @db.Text // markdown 人设
+
+  // 分类
+  gender         String // male / female / nonbinary
+  visualAgeBucket String // child / young / middle / old
+  styleTags      String // 逗号分隔: "现代,赛博"
+  scenarioTags   String // "短剧群演,品牌代言"
+
+  // 定价 (单位: 分)
+  depositPriceFen     Int @default(19900) // 199 元
+  fullLicensePriceFen Int // OFFICIAL_REGISTERED 必填
+
+  // 状态机
+  status          IpStatus @default(PENDING_REVIEW)
+  rejectionReason String?
+
+  // 区块链存证 (mock)
+  blockchainHash    String?
+  blockchainTxId    String?
+  blockchainNetwork String?
+  proofTimestamp    DateTime?
+
+  // 官方著作权登记号 (admin 录入)
+  officialCertNo String?
+
+  // 展示素材
+  thumbnailKey     String // 600x600 缩略图 OSS key
+  heroVideoKey     String? // 可选 mp4
+  previewImageKeys Json // [string, ...] 预览图 OSS key 列表
+
+  // 反盗版标记
+  invisibleWatermarkApplied Boolean @default(false)
+  visibleWatermarkApplied   Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime? // 首次 PUBLIC_INTENT
+  officialAt  DateTime? // 首次 OFFICIAL_REGISTERED
+
+  files     IpFile[]
+  orders    Order[]
+  contracts Contract[]
+  proofs    BlockchainProof[]
+  watermarks WatermarkRecord[]
+
+  @@index([status])
+  @@index([creatorId])
+  @@index([gender, visualAgeBucket])
+  @@index([styleTags])
+  @@index([scenarioTags])
+}
+
+model IpFile {
+  id             String  @id @default(cuid())
+  ipId           String
+  ip             IpAsset @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  assetType      AssetType
+  originalName   String
+  ossKey         String // private bucket key
+  sizeBytes      BigInt
+  mimeType       String
+  checksumSha256 String // 用于区块链 hash 计算
+  uploadedAt     DateTime @default(now())
+  validated      Boolean  @default(false)
+
+  @@index([ipId, assetType])
+}
+
+// ===================== 订单 / 合同 =====================
+
+model Order {
+  id       String @id @default(cuid())
+  buyerId  String
+  buyer    User   @relation("BuyerOrders", fields: [buyerId], references: [id])
+  ipId     String
+  ip       IpAsset @relation(fields: [ipId], references: [id])
+
+  orderType      OrderType
+  licenseScope   LicenseScope?
+  amountFen      Int
+  platformFeeFen Int @default(0) // 全额授权 15%, 意向金 0
+  status         OrderStatus @default(CREATED)
+
+  paymentChannel String?
+  paymentRef     String?
+  paidAt         DateTime?
+
+  // 附条件生效 (30 天版权空窗期)
+  copyrightEffective Boolean @default(false)
+  buyerAcceptedRisk  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract  Contract?
+  downloads DownloadGrant[]
+
+  @@index([buyerId, status])
+  @@index([ipId, status])
+}
+
+model Contract {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  templateCode   String // SINGLE_DRAMA_V1 / FULL_LICENSE_V1 ...
+  ossTemplateKey String // OSS 中模板源文件
+  ossSignedKey   String? // 最终签署 PDF
+  status         ContractStatus @default(DRAFT)
+  variablesJson  Json
+
+  // 电子签 (mock)
+  esignProvider    String  @default("mock_fadada")
+  esignFlowId      String?
+  buyerSignedAt    DateTime?
+  platformSignedAt DateTime?
+  fullySignedAt    DateTime?
+
+  isConditional Boolean @default(true) // 版权未下发期间为 true
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================== 区块链存证 =====================
+
+model BlockchainProof {
+  id          String   @id @default(cuid())
+  ipId        String
+  ip          IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  payloadHash String // SHA-256 over sorted IpFile checksums + creatorId + ts
+  network     String
+  txId        String
+  blockHeight BigInt?
+  createdAt   DateTime @default(now())
+
+  @@unique([ipId, payloadHash])
+  @@index([ipId])
+}
+
+// ===================== 水印记录 =====================
+
+model WatermarkRecord {
+  id           String   @id @default(cuid())
+  ipId         String
+  ip           IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  sourceFileId String
+  outputFileId String?
+  algorithm    String // DWT_SVD / VISIBLE_TEXT
+  payload      String
+  extractedOk  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([ipId])
+}
+
+// ===================== 下载授权 =====================
+
+model DownloadGrant {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  assetKey  String
+  signedUrl String   @db.Text
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([orderId, expiresAt])
+}
+
+// ===================== 审计日志 =====================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String // IP_APPROVED / ORDER_PAID / DOWNLOAD_GRANTED ...
+  targetType String // IpAsset / Order / Contract
+  targetId   String
+  payload    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([actorId, createdAt])
+}

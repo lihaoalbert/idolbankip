@@ -1,0 +1,61 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
+
+  const config = app.get(ConfigService);
+
+  // 全局前缀
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health'],
+  });
+
+  // CORS
+  app.enableCors({
+    origin: (origin, cb) => cb(null, true), // dev 全部放行;prod 配置白名单
+    credentials: true,
+  });
+
+  // 全局校验
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
+  // 全局异常过滤器
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Swagger
+  if (config.get('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('ibi.ren API')
+      .setDescription('AI 虚拟人资产与版权交易平台')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const doc = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, doc);
+  }
+
+  const port = config.get<number>('API_PORT', 3000);
+  await app.listen(port);
+  Logger.log(`🚀 ibi.ren API listening on http://localhost:${port}/api/v1`, 'Bootstrap');
+  Logger.log(`📚 Swagger UI:  http://localhost:${port}/api/docs`, 'Bootstrap');
+}
+
+bootstrap().catch((err) => {
+  console.error('Fatal bootstrap error:', err);
+  process.exit(1);
+});

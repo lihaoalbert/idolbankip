@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "verbatimModuleSyntax": false,
+    "paths": {
+      "@ibi-ren/shared-contracts": ["../../packages/shared-contracts/src"],
+      "@ibi-ren/shared-contracts/*": ["../../packages/shared-contracts/src/*"]
+    }
+  },
+  "include": ["src/**/*", "prisma/**/*.ts", "../../packages/shared-contracts/src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}
