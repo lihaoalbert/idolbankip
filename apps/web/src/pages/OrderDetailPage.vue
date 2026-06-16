@@ -2,8 +2,11 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient, formatFen } from '@/api/client';
+import Skeleton from '@/components/Skeleton.vue';
+import { useToast } from '@/composables/useToast';
 
 const route = useRoute();
+const toast = useToast();
 const orderId = computed(() => route.params.id as string);
 const order = ref<any>(null);
 const loading = ref(true);
@@ -13,21 +16,31 @@ async function fetchOrder() {
   try {
     const { data } = await apiClient.get(`/orders/${orderId.value}`);
     order.value = data.order;
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '加载订单失败');
   } finally { loading.value = false; }
 }
 
 async function buyerSignContract() {
   if (!order.value.contract) return;
-  await apiClient.post(`/contracts/${order.value.contract.id}/buyer-sign`);
-  await fetchOrder();
+  try {
+    await apiClient.post(`/contracts/${order.value.contract.id}/buyer-sign`);
+    toast.success('签署成功');
+    await fetchOrder();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '签署失败');
+  }
 }
 
 async function adminSignContract() {
   if (!order.value.contract) return;
   // 仅 admin 可调;前端兜底
-  await apiClient.post(`/contracts/${order.value.contract.id}/platform-sign`).catch(e => {
-    alert(e?.response?.data?.message || '签署失败 (需要管理员权限)');
-  });
+  try {
+    await apiClient.post(`/contracts/${order.value.contract.id}/platform-sign`);
+    toast.success('平台签署成功');
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '签署失败 (需要管理员权限)');
+  }
   await fetchOrder();
 }
 
@@ -48,7 +61,16 @@ onMounted(fetchOrder);
 </script>
 
 <template>
-  <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
+  <div v-if="loading" class="max-w-4xl mx-auto px-6 py-10 space-y-6">
+    <div class="bg-white rounded-2xl border border-line p-6">
+      <Skeleton shape="line" width="30%" height-class="h-4" />
+      <Skeleton class="mt-4" shape="line" width="100%" height-class="h-1" />
+    </div>
+    <div class="bg-white rounded-2xl border border-line p-6 space-y-3">
+      <Skeleton shape="line" width="20%" height-class="h-4" />
+      <Skeleton shape="line" :lines="5" />
+    </div>
+  </div>
   <div v-else-if="order" class="max-w-4xl mx-auto px-6 py-10">
     <RouterLink to="/orders" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回订单列表</RouterLink>
 

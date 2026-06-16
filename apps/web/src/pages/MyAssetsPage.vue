@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { apiClient, ossUrl, formatFen } from '@/api/client';
 import WatermarkOverlay from '@/components/WatermarkOverlay.vue';
+import Skeleton from '@/components/Skeleton.vue';
+import EmptyState from '@/components/EmptyState.vue';
 
 const orders = ref<any[]>([]);
 const loading = ref(true);
@@ -28,11 +30,26 @@ onMounted(fetchOrders);
     <h1 class="font-display text-3xl mb-2">我的资产</h1>
     <p class="text-sm text-ink/60 mb-8">已签署合同的 IP 资产 · 可下载完整资产包</p>
 
-    <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
-    <div v-else-if="orders.length === 0" class="text-center py-20">
-      <p class="text-ink/40 mb-4">还没有可下载的资产</p>
-      <RouterLink to="/ips" class="text-gold underline">去形象库看看 →</RouterLink>
+    <div v-if="loading" class="space-y-6">
+      <div v-for="i in 3" :key="i" class="bg-white rounded-2xl border border-line p-4">
+        <div class="flex items-center gap-4 mb-3">
+          <Skeleton shape="block" aspect="1/1" width-class="w-16 h-16 rounded-lg" />
+          <div class="flex-1 space-y-2">
+            <Skeleton shape="line" width="50%" />
+            <Skeleton shape="line" width="30%" height-class="h-2" />
+          </div>
+        </div>
+        <Skeleton shape="line" :lines="2" height-class="h-2" />
+      </div>
     </div>
+    <EmptyState
+      v-else-if="orders.length === 0"
+      icon="📦"
+      title="还没有可下载的资产"
+      description="完成订单支付 + 合同签署后,这里会出现可下载的完整资产包"
+      action-label="去形象库看看"
+      action-to="/ips"
+    />
     <div v-else class="space-y-6">
       <div
         v-for="o in orders"

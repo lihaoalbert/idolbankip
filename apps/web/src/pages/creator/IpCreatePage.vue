@@ -2,8 +2,10 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
+import { useToast } from '@/composables/useToast';
 
 const router = useRouter();
+const toast = useToast();
 const form = ref({
   displayName: '',
   tagline: '',
@@ -33,9 +35,11 @@ async function submit() {
   submitting.value = true;
   try {
     const { data } = await apiClient.post('/ips', form.value);
+    toast.success('IP 创建成功');
     router.push(`/creator/ips/${data.ip.id}`);
   } catch (e: any) {
     error.value = e?.response?.data?.message || '创建失败';
+    toast.error(error.value);
   } finally { submitting.value = false; }
 }
 </script>

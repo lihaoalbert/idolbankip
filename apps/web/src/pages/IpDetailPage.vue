@@ -4,10 +4,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiClient, ossUrl, formatFen } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import WatermarkOverlay from '@/components/WatermarkOverlay.vue';
+import Skeleton from '@/components/Skeleton.vue';
+import { useToast } from '@/composables/useToast';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const toast = useToast();
 
 const code = computed(() => route.params.code as string);
 const ip = ref<any>(null);
@@ -21,12 +24,14 @@ const watermarkText = computed(() =>
 
 async function fetchDetail() {
   loading.value = true;
+  error.value = null;
   try {
     const { data } = await apiClient.get(`/ips/${code.value}`);
     ip.value = data.ip;
     files.value = data.files;
   } catch (e: any) {
     error.value = e?.response?.data?.message || '加载失败';
+    toast.error(error.value);
   } finally {
     loading.value = false;
   }
@@ -37,8 +42,8 @@ function checkout(orderType: 'DEPOSIT_INTENT' | 'FULL_LICENSE', scope?: string) 
     router.push({ name: 'login', query: { redirect: route.fullPath } });
     return;
   }
-  if (auth.role !== 'BUYER') {
-    alert('只有采购方账户可以购买');
+  if (!auth.hasAnyRole(['BUYER'])) {
+    toast.error('只有采购方账户可以购买');
     return;
   }
   router.push({
@@ -52,7 +57,16 @@ onMounted(fetchDetail);
 </script>
 
 <template>
-  <div v-if="loading" class="text-center py-32 text-ink/40">加载中...</div>
+  <div v-if="loading" class="max-w-6xl mx-auto px-6 py-10">
+    <Skeleton shape="block" aspect="16/9" width-class="w-full rounded-3xl" />
+    <div class="grid lg:grid-cols-3 gap-8 mt-8">
+      <div class="lg:col-span-2 space-y-3">
+        <Skeleton shape="line" width="40%" height-class="h-5" />
+        <Skeleton shape="line" :lines="3" height-class="h-3" />
+      </div>
+      <div class="bg-line/30 rounded-2xl h-80" />
+    </div>
+  </div>
   <div v-else-if="error" class="max-w-2xl mx-auto py-32 text-center">
     <p class="text-danger">{{ error }}</p>
     <RouterLink to="/ips" class="mt-4 inline-block text-sm underline">返回列表</RouterLink>

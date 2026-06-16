@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
 import { useAuthStore, type UserRole } from '@/stores/auth';
+import ToastContainer from '@/components/ToastContainer.vue';
 
 const auth = useAuthStore();
 
@@ -71,6 +72,8 @@ function switchRole(r: UserRole) {
         </transition>
       </RouterView>
     </main>
+
+    <ToastContainer />
 
     <footer class="border-t border-line mt-12 py-8 text-center text-xs text-ink/50">
       <p>© 2026 ibi.ren · Idol Bank IP · AI 虚拟人资产银行</p>

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiClient, formatFen } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import Skeleton from '@/components/Skeleton.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -78,7 +79,18 @@ onMounted(fetchIp);
   <div class="max-w-3xl mx-auto px-6 py-10">
     <RouterLink :to="`/ips/${code}`" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回形象详情</RouterLink>
 
-    <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
+    <div v-if="loading" class="bg-white rounded-2xl border border-line overflow-hidden">
+      <div class="p-6 border-b border-line">
+        <Skeleton shape="line" width="30%" height-class="h-5" />
+        <Skeleton class="mt-2" shape="line" width="50%" height-class="h-3" />
+      </div>
+      <div class="p-6 space-y-4 border-b border-line">
+        <Skeleton shape="line" :lines="4" height-class="h-3" />
+      </div>
+      <div class="p-6">
+        <Skeleton shape="line" width="100%" height-class="h-10" />
+      </div>
+    </div>
     <div v-else-if="ipDetail" class="bg-white rounded-2xl border border-line overflow-hidden">
       <div class="p-6 border-b border-line">
         <h1 class="font-display text-2xl mb-1">确认订单</h1>

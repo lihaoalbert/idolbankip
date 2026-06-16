@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { apiClient, formatFen, ossUrl } from '@/api/client';
+import Skeleton from '@/components/Skeleton.vue';
+import EmptyState from '@/components/EmptyState.vue';
 
 const orders = ref<any[]>([]);
 const loading = ref(true);
@@ -48,11 +50,27 @@ onMounted(fetchOrders);
     <h1 class="font-display text-3xl mb-2">我的订单</h1>
     <p class="text-sm text-ink/60 mb-8">查看所有已购与待支付订单</p>
 
-    <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
-    <div v-else-if="orders.length === 0" class="text-center py-20">
-      <p class="text-ink/40 mb-4">还没有订单</p>
-      <RouterLink to="/ips" class="text-gold underline">去形象库看看 →</RouterLink>
+    <div v-if="loading" class="bg-white rounded-2xl border border-line overflow-hidden">
+      <div class="p-4 border-b border-line bg-cream">
+        <Skeleton shape="line" width="30%" height-class="h-4" />
+      </div>
+      <div v-for="i in 4" :key="i" class="flex items-center gap-3 p-4 border-b border-line">
+        <Skeleton shape="circle" width-class="w-10 h-10" />
+        <div class="flex-1 space-y-2">
+          <Skeleton shape="line" width="40%" />
+          <Skeleton shape="line" width="20%" height-class="h-2" />
+        </div>
+        <Skeleton shape="line" width="15%" />
+      </div>
     </div>
+    <EmptyState
+      v-else-if="orders.length === 0"
+      icon="🧾"
+      title="还没有订单"
+      description="去形象库挑选一个数字人 IP,完成支付后会自动生成授权订单"
+      action-label="去形象库看看"
+      action-to="/ips"
+    />
     <div v-else class="bg-white rounded-2xl border border-line overflow-hidden">
       <table class="w-full text-sm">
         <thead class="bg-cream border-b border-line text-xs text-ink/60">

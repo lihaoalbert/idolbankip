@@ -2,6 +2,8 @@
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import IpCard from '@/components/IpCard.vue';
+import Skeleton from '@/components/Skeleton.vue';
+import EmptyState from '@/components/EmptyState.vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 
@@ -140,8 +142,23 @@ onMounted(fetchList);
       </button>
     </div>
 
-    <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
-    <div v-else-if="items.length === 0" class="text-center py-20 text-ink/40">未找到匹配的 IP</div>
+    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+      <div v-for="i in 8" :key="i" class="bg-white rounded-2xl border border-line overflow-hidden">
+        <Skeleton shape="block" aspect="1/1" />
+        <div class="p-3 space-y-2">
+          <Skeleton shape="line" width="60%" />
+          <Skeleton shape="line" width="40%" height-class="h-2" />
+        </div>
+      </div>
+    </div>
+    <EmptyState
+      v-else-if="items.length === 0"
+      icon="🔍"
+      title="未找到匹配的 IP"
+      description="试试放宽筛选条件,或者直接浏览全部形象"
+      action-label="重置筛选"
+      :action-on-click="resetFilters"
+    />
     <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
       <IpCard v-for="ip in items" :key="ip.id" :ip="ip" :watermark-text="watermarkText" />
     </div>

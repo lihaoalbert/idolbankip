@@ -2,9 +2,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useRoute, useRouter } from 'vue-router';
+import Skeleton from '@/components/Skeleton.vue';
+import { useToast } from '@/composables/useToast';
 
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
 const ipId = computed(() => route.params.id as string);
 
 const ip = ref<any>(null);
@@ -12,9 +15,11 @@ const files = ref<any[]>([]);
 const loading = ref(true);
 const submitting = ref(false);
 const error = ref('');
+const uploadingType = ref<string | null>(null);
 
 async function loadIp() {
   loading.value = true;
+  error.value = '';
   try {
     const list = await apiClient.get('/ips/mine/list');
     const found = list.data.items.find((x: any) => x.id === ipId.value);
@@ -25,6 +30,7 @@ async function loadIp() {
 }
 
 async function requestUploadPolicy(assetType: string, file: File) {
+  uploadingType.value = assetType;
   error.value = '';
   try {
     // 1) 从后端拿 OSS 直传策略 (HMAC-SHA1, 600s 过期)
@@ -54,10 +60,14 @@ async function requestUploadPolicy(assetType: string, file: File) {
       etag,
       x: policy.key,
     });
+    toast.success(`${fileTypeLabel[assetType]} 上传成功`);
     await loadIp();
   } catch (e: any) {
     error.value = e?.response?.data?.message || e?.message || '上传失败';
+    toast.error(error.value);
     throw e;
+  } finally {
+    uploadingType.value = null;
   }
 }
 
@@ -66,9 +76,11 @@ async function submitForReview() {
   error.value = '';
   try {
     await apiClient.post(`/ips/${ipId.value}/submit`);
+    toast.success('已提交审核');
     router.push('/creator');
   } catch (e: any) {
     error.value = e?.response?.data?.message || '提交失败';
+    toast.error(error.value);
   } finally { submitting.value = false; }
 }
 
@@ -103,7 +115,19 @@ onMounted(loadIp);
 </script>
 
 <template>
-  <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
+  <div v-if="loading" class="max-w-3xl mx-auto px-6 py-10 space-y-4">
+    <Skeleton shape="line" width="40%" height-class="h-6" />
+    <Skeleton shape="line" width="60%" height-class="h-3" />
+    <div class="space-y-3 mt-8">
+      <div v-for="i in 6" :key="i" class="p-4 bg-white border border-line rounded-xl flex items-center justify-between">
+        <div class="space-y-2 flex-1">
+          <Skeleton shape="line" width="30%" height-class="h-4" />
+          <Skeleton shape="line" width="20%" height-class="h-2" />
+        </div>
+        <Skeleton shape="line" width="15%" height-class="h-8" />
+      </div>
+    </div>
+  </div>
   <div v-else-if="ip" class="max-w-3xl mx-auto px-6 py-10">
     <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回</RouterLink>
 
@@ -136,15 +160,24 @@ onMounted(loadIp);
           <div v-else-if="requiredTypes.includes(t)" class="text-xs text-danger mt-1">必填,尚未上传</div>
           <div v-else class="text-xs text-ink/40 mt-1">选填</div>
         </div>
-        <label class="px-4 py-2 bg-cream border border-line rounded-full text-xs hover:bg-ink hover:text-cream transition cursor-pointer">
-          {{ fileByType[t] ? '替换' : '上传' }}
+        <label
+          :class="[
+            'px-4 py-2 border rounded-full text-xs transition cursor-pointer',
+            uploadingType === t
+              ? 'bg-line text-ink/40 border-line cursor-wait'
+              : 'bg-cream border-line hover:bg-ink hover:text-cream',
+          ]"
+        >
+          {{ uploadingType === t ? '上传中…' : (fileByType[t] ? '替换' : '上传') }}
           <input
             type="file"
             class="hidden"
+            :disabled="!!uploadingType"
             :accept="t === 'LORA_FILE' ? '.safetensors' : t === 'BIO_TXT' || t === 'RECIPE_TXT' ? '.txt,.md' : t === 'VOICE_REF' ? '.wav,.mp3' : t === 'PACKAGE_ZIP' ? '.zip' : 'image/*'"
             @change="(e) => {
               const f = (e.target as HTMLInputElement).files?.[0];
               if (f) requestUploadPolicy(t, f);
+              (e.target as HTMLInputElement).value = '';
             }"
           />
         </label>

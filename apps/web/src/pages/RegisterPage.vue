@@ -2,9 +2,11 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore, type UserRole } from '@/stores/auth';
+import { useToast } from '@/composables/useToast';
 
 const router = useRouter();
 const auth = useAuthStore();
+const toast = useToast();
 
 const form = ref({
   email: '',
@@ -43,6 +45,7 @@ async function submit() {
       displayName: form.value.displayName,
       companyName: isBuyer.value ? form.value.companyName : undefined,
     });
+    toast.success('注册成功,欢迎加入 ibi.ren');
     // 双角色用户进入工作台首页, 单角色按身份分别进 creator 或 home
     if (selectedRoles.value.length > 1) router.push('/');
     else if (isCreator.value) router.push('/creator');
@@ -50,6 +53,7 @@ async function submit() {
   } catch (e: any) {
     const msg = e?.response?.data?.message;
     error.value = Array.isArray(msg) ? msg.join('; ') : (msg || '注册失败');
+    toast.error(error.value);
   } finally { loading.value = false; }
 }
 </script>

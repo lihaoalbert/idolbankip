@@ -2,10 +2,12 @@
 import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/composables/useToast';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
+const toast = useToast();
 
 const email = ref('');
 const password = ref('');
@@ -17,10 +19,12 @@ async function submit() {
   loading.value = true;
   try {
     await auth.login(email.value, password.value);
+    toast.success(`欢迎回来,${auth.user?.displayName || auth.user?.email}`);
     const redirect = (route.query.redirect as string) || '/';
     router.push(redirect);
   } catch (e: any) {
     error.value = e?.response?.data?.message || '登录失败';
+    toast.error(error.value);
   } finally { loading.value = false; }
 }
 </script>

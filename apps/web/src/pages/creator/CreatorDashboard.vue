@@ -2,6 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import Skeleton from '@/components/Skeleton.vue';
+import EmptyState from '@/components/EmptyState.vue';
 
 const auth = useAuthStore();
 const items = ref<any[]>([]);
@@ -54,11 +56,27 @@ onMounted(fetch);
     </div>
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
 
-    <div v-if="loading" class="text-center py-20 text-ink/40">加载中...</div>
-    <div v-else-if="items.length === 0" class="text-center py-20">
-      <p class="text-ink/40 mb-4">你还没有创建任何 IP</p>
-      <RouterLink to="/creator/ips/new" class="text-gold underline">立即创建第一个 →</RouterLink>
+    <div v-if="loading" class="grid md:grid-cols-2 gap-4">
+      <div v-for="i in 4" :key="i" class="bg-white rounded-2xl border border-line p-5 space-y-3">
+        <div class="flex items-start justify-between">
+          <div class="space-y-2 flex-1">
+            <Skeleton shape="line" width="50%" height-class="h-4" />
+            <Skeleton shape="line" width="30%" height-class="h-2" />
+          </div>
+          <Skeleton shape="line" width="20%" height-class="h-4" />
+        </div>
+        <Skeleton shape="line" width="40%" height-class="h-2" />
+        <Skeleton shape="line" width="100%" height-class="h-1" />
+      </div>
     </div>
+    <EmptyState
+      v-else-if="items.length === 0"
+      icon="🎨"
+      title="你还没有创建任何 IP"
+      description="上传资产包 + 人物小传 + LoRA 模型,提交审核后就能在形象库展示"
+      action-label="立即创建第一个"
+      action-to="/creator/ips/new"
+    />
     <div v-else class="grid md:grid-cols-2 gap-4">
       <RouterLink
         v-for="ip in items"
