@@ -30,7 +30,7 @@ onMounted(fetchOrders);
     <p class="text-sm text-ink/60 mb-8">已签署合同的 IP 资产 · 可下载完整资产包</p>
 
     <div v-if="loading" class="space-y-6">
-      <div v-for="i in 3" :key="i" class="bg-white rounded-2xl border border-line p-4">
+      <div v-for="i in 3" :key="i" class="bg-surface rounded-2xl border border-line p-4">
         <div class="flex items-center gap-4 mb-3">
           <Skeleton shape="block" aspect="1/1" width-class="w-16 h-16 rounded-lg" />
           <div class="flex-1 space-y-2">
@@ -61,7 +61,7 @@ onMounted(fetchOrders);
       <div
         v-for="o in orders"
         :key="o.id"
-        class="bg-white rounded-2xl border border-line overflow-hidden"
+        class="bg-surface rounded-2xl border border-line overflow-hidden"
       >
         <div class="flex items-center gap-4 p-4 border-b border-line">
           <img

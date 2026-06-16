@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   主题色变量 — 默认浅色, .dark 类切换深色
+   tailwind.config.js 的 colors 全部映射到这些 var
+   ============================================================ */
+:root {
+  --color-cream: #F8F5F0;
+  --color-ink: #0F0F0F;
+  --color-gold: #C8A36B;
+  --color-line: #E5E0D6;
+  --color-danger: #D14343;
+  --color-success: #3F9F65;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #FAF8F3;
+  --shadow-soft: 0 4px 12px rgba(15,15,15,0.06);
+  --shadow-glow: 0 0 0 4px rgba(200,163,107,0.18);
+  --scrollbar-thumb: #C8A36B;
+  --scrollbar-track: #F8F5F0;
+  --autofill-bg: #FFFFFF;
+}
+
+.dark {
+  --color-cream: #0E0E10;
+  --color-ink: #F2F0EA;
+  --color-gold: #D9B47A;
+  --color-line: #2A2A2E;
+  --color-danger: #E87171;
+  --color-success: #4FBE7C;
+  --color-surface: #1A1A1D;
+  --color-surface-2: #222226;
+  --shadow-soft: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 0 4px rgba(217,180,122,0.25);
+  --scrollbar-thumb: #3A3A3F;
+  --scrollbar-track: #18181B;
+  --autofill-bg: #1A1A1D;
+}

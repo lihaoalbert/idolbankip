@@ -50,7 +50,7 @@ const ageLabel = computed(() => ({
 <template>
   <RouterLink
     :to="`/ips/${ip.code}`"
-    class="group relative block rounded-2xl overflow-hidden border border-line bg-white shadow-soft hover:shadow-glow transition"
+    class="group relative block rounded-2xl overflow-hidden border border-line bg-surface shadow-soft hover:shadow-glow transition"
     @mouseenter="hover = true"
     @mouseleave="hover = false"
   >

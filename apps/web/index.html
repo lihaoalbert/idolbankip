@@ -13,6 +13,17 @@
     />
   </head>
   <body class="bg-cream text-ink font-body antialiased">
+    <script>
+      // 提前在 head 注入, 避免亮/暗闪烁
+      (function () {
+        try {
+          var saved = localStorage.getItem('ibi.theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = saved || (prefersDark ? 'dark' : 'light');
+          if (theme === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

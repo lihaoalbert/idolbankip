@@ -233,7 +233,7 @@ onMounted(fetchDetail);
     <!-- ========== 版权状态 + 资产完整度 (双卡) ========== -->
     <section class="mb-6 grid md:grid-cols-3 gap-4">
       <!-- 状态时间线 -->
-      <div class="md:col-span-2 p-5 bg-white border border-line rounded-2xl">
+      <div class="md:col-span-2 p-5 bg-surface border border-line rounded-2xl">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-display text-base">版权登记进度</h3>
           <span :class="[
@@ -267,7 +267,7 @@ onMounted(fetchDetail);
       </div>
 
       <!-- 资产完整度 -->
-      <div class="p-5 bg-white border border-line rounded-2xl flex flex-col">
+      <div class="p-5 bg-surface border border-line rounded-2xl flex flex-col">
         <div class="flex items-center justify-between mb-2">
           <h3 class="font-display text-base">资产完整度</h3>
           <span :class="[
@@ -326,7 +326,7 @@ onMounted(fetchDetail);
             v-for="t in [...requiredAssetTypes, ...optionalAssetTypes]"
             :key="t"
             :class="[
-              'flex items-center justify-between p-4 bg-white border rounded-xl',
+              'flex items-center justify-between p-4 bg-surface border rounded-xl',
               presentTypes.has(t) ? 'border-line' : 'border-dashed border-line opacity-60',
             ]"
           >
@@ -411,7 +411,7 @@ onMounted(fetchDetail);
         </div>
 
         <!-- 阶梯授权 -->
-        <div class="p-5 bg-white border border-line rounded-2xl">
+        <div class="p-5 bg-surface border border-line rounded-2xl">
           <div class="text-xs text-ink/60 mb-3 font-medium">正式授权阶梯</div>
           <div class="space-y-2">
             <button
@@ -424,7 +424,7 @@ onMounted(fetchDetail);
                 tier.recommended
                   ? 'border-gold bg-gold/10 hover:bg-gold/20'
                   : 'border-line hover:border-gold hover:bg-cream/40',
-                tier.contactOnly && 'opacity-70 cursor-not-allowed hover:border-line hover:bg-white',
+                tier.contactOnly && 'opacity-70 cursor-not-allowed hover:border-line hover:bg-surface',
               ]"
             >
               <div class="flex-1 min-w-0">

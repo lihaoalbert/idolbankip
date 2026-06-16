@@ -147,7 +147,7 @@ onMounted(fetchList);
           共 <span class="font-mono">{{ total }}</span> 个 IP · 已存证可商用
         </p>
       </div>
-      <div class="flex items-center gap-1 text-xs bg-white border border-line rounded-full p-1">
+      <div class="flex items-center gap-1 text-xs bg-surface border border-line rounded-full p-1">
         <button
           @click="setSort('newest')"
           :class="sort === 'newest' ? 'bg-ink text-cream' : 'text-ink/60 hover:text-ink'"
@@ -162,7 +162,7 @@ onMounted(fetchList);
     </div>
 
     <!-- Chip 筛选条 -->
-    <div class="mb-8 p-4 bg-white rounded-2xl border border-line space-y-3">
+    <div class="mb-8 p-4 bg-surface rounded-2xl border border-line space-y-3">
       <div class="flex items-start gap-3 flex-wrap">
         <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">性别</span>
         <div class="flex flex-wrap gap-1.5">
@@ -234,7 +234,7 @@ onMounted(fetchList);
 
     <!-- 列表 / 骨架 / 空态 -->
     <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-      <div v-for="i in 8" :key="i" class="bg-white rounded-2xl border border-line overflow-hidden">
+      <div v-for="i in 8" :key="i" class="bg-surface rounded-2xl border border-line overflow-hidden">
         <Skeleton shape="block" aspect="1/1" />
         <div class="p-3 space-y-2">
           <Skeleton shape="line" width="60%" />
@@ -261,7 +261,7 @@ onMounted(fetchList);
         :key="p"
         @click="filters.page = p; fetchList()"
         class="w-9 h-9 rounded-full text-sm"
-        :class="filters.page === p ? 'bg-ink text-cream' : 'bg-white border border-line hover:bg-cream'"
+        :class="filters.page === p ? 'bg-ink text-cream' : 'bg-surface border border-line hover:bg-cream'"
       >
         {{ p }}
       </button>

@@ -285,7 +285,7 @@ const stepMeta = [
     </div>
 
     <!-- 步骤 1: 基础信息 -->
-    <section v-show="step === 1" class="bg-white rounded-2xl border border-line p-6 space-y-5">
+    <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
       <h2 class="font-display text-lg">① 基础信息</h2>
       <div>
         <label class="text-xs text-ink/60 block mb-1">IP 名称 <span class="text-danger">*</span></label>
@@ -381,7 +381,7 @@ const stepMeta = [
     </section>
 
     <!-- 步骤 2: 资产包 -->
-    <section v-show="step === 2" class="bg-white rounded-2xl border border-line p-6">
+    <section v-show="step === 2" class="bg-surface rounded-2xl border border-line p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-display text-lg">② 资产包</h2>
         <div class="text-xs text-ink/60">
@@ -455,7 +455,7 @@ const stepMeta = [
     </section>
 
     <!-- 步骤 3: 预览提交 -->
-    <section v-show="step === 3" class="bg-white rounded-2xl border border-line p-6">
+    <section v-show="step === 3" class="bg-surface rounded-2xl border border-line p-6">
       <h2 class="font-display text-lg mb-4">③ 预览提交</h2>
       <div v-if="!ip" class="p-6 bg-cream/60 rounded-xl text-center text-sm text-ink/60">
         请先完成步骤 ① + ②

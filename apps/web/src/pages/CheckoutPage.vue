@@ -79,7 +79,7 @@ onMounted(fetchIp);
   <div class="max-w-3xl mx-auto px-6 py-10">
     <RouterLink :to="`/ips/${code}`" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回形象详情</RouterLink>
 
-    <div v-if="loading" class="bg-white rounded-2xl border border-line overflow-hidden">
+    <div v-if="loading" class="bg-surface rounded-2xl border border-line overflow-hidden">
       <div class="p-6 border-b border-line">
         <Skeleton shape="line" width="30%" height-class="h-5" />
         <Skeleton class="mt-2" shape="line" width="50%" height-class="h-3" />
@@ -91,7 +91,7 @@ onMounted(fetchIp);
         <Skeleton shape="line" width="100%" height-class="h-10" />
       </div>
     </div>
-    <div v-else-if="ipDetail" class="bg-white rounded-2xl border border-line overflow-hidden">
+    <div v-else-if="ipDetail" class="bg-surface rounded-2xl border border-line overflow-hidden">
       <div class="p-6 border-b border-line">
         <h1 class="font-display text-2xl mb-1">确认订单</h1>
         <p class="text-sm text-ink/60">支付即视为接受《AI 虚拟人形象授权协议》</p>

@@ -46,7 +46,7 @@ import { RouterLink } from 'vue-router';
 
       <div class="relative aspect-square max-w-md ml-auto">
         <div class="absolute inset-0 rounded-3xl bg-gradient-to-br from-gold/30 to-cream shadow-soft" />
-        <div class="absolute inset-8 rounded-2xl bg-white shadow-soft flex items-center justify-center text-center p-8">
+        <div class="absolute inset-8 rounded-2xl bg-surface shadow-soft flex items-center justify-center text-center p-8">
           <div>
             <div class="text-6xl mb-3">🎭</div>
             <div class="font-display text-xl mb-2">「 林知夏 」</div>
@@ -62,21 +62,21 @@ import { RouterLink } from 'vue-router';
       <p class="text-ink/60 mb-12">每个上架 IP 都是标准生产力工具包，不是单张图片</p>
 
       <div class="grid md:grid-cols-3 gap-6">
-        <div class="p-6 bg-white rounded-2xl border border-line">
+        <div class="p-6 bg-surface rounded-2xl border border-line">
           <div class="text-3xl mb-3">🎨</div>
           <h3 class="font-display text-lg mb-2">视觉矩阵</h3>
           <p class="text-sm text-ink/60 leading-relaxed">
             三视图 + 5 种核心表情 + 透明 PNG。短剧分镜、海报设计、角色参考都能直接用。
           </p>
         </div>
-        <div class="p-6 bg-white rounded-2xl border border-line">
+        <div class="p-6 bg-surface rounded-2xl border border-line">
           <div class="text-3xl mb-3">🤖</div>
           <h3 class="font-display text-lg mb-2">AI 核心资产</h3>
           <p class="text-sm text-ink/60 leading-relaxed">
             LoRA / LyCORIS 模型 + 触发词 + 推荐参数。后期团队在 Stable Diffusion / ComfyUI 中无限生成新剧照。
           </p>
         </div>
-        <div class="p-6 bg-white rounded-2xl border border-line">
+        <div class="p-6 bg-surface rounded-2xl border border-line">
           <div class="text-3xl mb-3">📜</div>
           <h3 class="font-display text-lg mb-2">身份小传</h3>
           <p class="text-sm text-ink/60 leading-relaxed">
@@ -93,12 +93,12 @@ import { RouterLink } from 'vue-router';
           <div class="text-base font-medium mb-1">创作者上传标准包</div>
           <div class="text-xs text-cream/50">视觉矩阵 + AI 核心 + 身份</div>
         </div>
-        <div class="p-5 bg-white border border-line rounded-2xl">
+        <div class="p-5 bg-surface border border-line rounded-2xl">
           <div class="text-xs text-ink/40 mb-2">② 审核 + 存证</div>
           <div class="text-base font-medium mb-1">机审 + 区块链时间戳</div>
           <div class="text-xs text-ink/50">2-3 工作日</div>
         </div>
-        <div class="p-5 bg-white border border-line rounded-2xl">
+        <div class="p-5 bg-surface border border-line rounded-2xl">
           <div class="text-xs text-ink/40 mb-2">③ 阶梯授权</div>
           <div class="text-base font-medium mb-1">199 意向金 → 正式授权</div>
           <div class="text-xs text-ink/50">附条件生效</div>

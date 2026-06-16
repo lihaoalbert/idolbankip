@@ -57,7 +57,7 @@ onMounted(fetch);
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
 
     <div v-if="loading" class="grid md:grid-cols-2 gap-4">
-      <div v-for="i in 4" :key="i" class="bg-white rounded-2xl border border-line p-5 space-y-3">
+      <div v-for="i in 4" :key="i" class="bg-surface rounded-2xl border border-line p-5 space-y-3">
         <div class="flex items-start justify-between">
           <div class="space-y-2 flex-1">
             <Skeleton shape="line" width="50%" height-class="h-4" />
@@ -82,7 +82,7 @@ onMounted(fetch);
         v-for="ip in items"
         :key="ip.id"
         :to="`/creator/ips/${ip.id}`"
-        class="block bg-white rounded-2xl border border-line p-5 hover:shadow-soft transition"
+        class="block bg-surface rounded-2xl border border-line p-5 hover:shadow-soft transition"
       >
         <div class="flex items-start justify-between mb-3">
           <div>

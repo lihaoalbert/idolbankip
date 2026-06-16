@@ -65,7 +65,7 @@ async function submit() {
 
     <div class="space-y-3 mb-6">
       <p class="text-xs text-ink/60">身份 (可多选)</p>
-      <label class="flex items-start gap-3 p-3 bg-white rounded-xl border border-line cursor-pointer hover:border-gold transition"
+      <label class="flex items-start gap-3 p-3 bg-surface rounded-xl border border-line cursor-pointer hover:border-gold transition"
         :class="{ 'border-gold bg-gold/5': form.roles.CREATOR }">
         <input v-model="form.roles.CREATOR" type="checkbox" class="mt-1" />
         <div>
@@ -73,7 +73,7 @@ async function submit() {
           <div class="text-xs text-ink/60 mt-0.5">上传虚拟人资产、设置授权价格、获得收益分成</div>
         </div>
       </label>
-      <label class="flex items-start gap-3 p-3 bg-white rounded-xl border border-line cursor-pointer hover:border-gold transition"
+      <label class="flex items-start gap-3 p-3 bg-surface rounded-xl border border-line cursor-pointer hover:border-gold transition"
         :class="{ 'border-gold bg-gold/5': form.roles.BUYER }">
         <input v-model="form.roles.BUYER" type="checkbox" class="mt-1" />
         <div>
@@ -83,7 +83,7 @@ async function submit() {
       </label>
     </div>
 
-    <form @submit.prevent="submit" class="space-y-4 bg-white p-6 rounded-2xl border border-line">
+    <form @submit.prevent="submit" class="space-y-4 bg-surface p-6 rounded-2xl border border-line">
       <div>
         <label class="text-xs text-ink/60 block mb-1">邮箱</label>
         <input v-model="form.email" type="email" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />

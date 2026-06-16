@@ -34,7 +34,7 @@ async function submit() {
     <h1 class="font-display text-3xl mb-2">登录</h1>
     <p class="text-sm text-ink/60 mb-8">访问你的形象库、订单与资产</p>
 
-    <form @submit.prevent="submit" class="space-y-4 bg-white p-6 rounded-2xl border border-line">
+    <form @submit.prevent="submit" class="space-y-4 bg-surface p-6 rounded-2xl border border-line">
       <div>
         <label class="text-xs text-ink/60 block mb-1">邮箱</label>
         <input

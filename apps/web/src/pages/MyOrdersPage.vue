@@ -50,7 +50,7 @@ onMounted(fetchOrders);
     <h1 class="font-display text-3xl mb-2">我的订单</h1>
     <p class="text-sm text-ink/60 mb-8">查看所有已购与待支付订单</p>
 
-    <div v-if="loading" class="bg-white rounded-2xl border border-line overflow-hidden">
+    <div v-if="loading" class="bg-surface rounded-2xl border border-line overflow-hidden">
       <div class="p-4 border-b border-line bg-cream">
         <Skeleton shape="line" width="30%" height-class="h-4" />
       </div>
@@ -71,7 +71,7 @@ onMounted(fetchOrders);
       action-label="去形象库看看"
       action-to="/ips"
     />
-    <div v-else class="bg-white rounded-2xl border border-line overflow-hidden">
+    <div v-else class="bg-surface rounded-2xl border border-line overflow-hidden">
       <table class="w-full text-sm">
         <thead class="bg-cream border-b border-line text-xs text-ink/60">
           <tr>

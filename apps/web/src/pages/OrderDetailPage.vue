@@ -62,11 +62,11 @@ onMounted(fetchOrder);
 
 <template>
   <div v-if="loading" class="max-w-4xl mx-auto px-6 py-10 space-y-6">
-    <div class="bg-white rounded-2xl border border-line p-6">
+    <div class="bg-surface rounded-2xl border border-line p-6">
       <Skeleton shape="line" width="30%" height-class="h-4" />
       <Skeleton class="mt-4" shape="line" width="100%" height-class="h-1" />
     </div>
-    <div class="bg-white rounded-2xl border border-line p-6 space-y-3">
+    <div class="bg-surface rounded-2xl border border-line p-6 space-y-3">
       <Skeleton shape="line" width="20%" height-class="h-4" />
       <Skeleton shape="line" :lines="5" />
     </div>
@@ -77,7 +77,7 @@ onMounted(fetchOrder);
     <h1 class="font-display text-3xl mb-6">订单详情</h1>
 
     <!-- 进度时间线 -->
-    <div class="bg-white rounded-2xl border border-line p-6 mb-6">
+    <div class="bg-surface rounded-2xl border border-line p-6 mb-6">
       <div class="flex items-center justify-between text-sm">
         <span :class="['flex-1 text-center', order.status !== 'CREATED' ? 'text-success' : 'text-ink/40']">下单</span>
         <span :class="['flex-1 text-center', ['PAID','CONTRACT_PENDING','CONTRACT_SIGNED','DOWNLOAD_UNLOCKED','DELIVERED'].includes(order.status) ? 'text-success' : 'text-ink/40']">支付</span>
@@ -102,7 +102,7 @@ onMounted(fetchOrder);
     </div>
 
     <!-- 订单信息 -->
-    <div class="bg-white rounded-2xl border border-line p-6 mb-6">
+    <div class="bg-surface rounded-2xl border border-line p-6 mb-6">
       <h2 class="text-lg font-medium mb-4">订单信息</h2>
       <div class="grid grid-cols-2 gap-y-3 text-sm">
         <span class="text-ink/60">IP</span><span>{{ order.ip.displayName }} <span class="text-ink/40 font-mono text-xs">({{ order.ip.code }})</span></span>
@@ -120,7 +120,7 @@ onMounted(fetchOrder);
     </div>
 
     <!-- 合同操作 -->
-    <div v-if="order.contract" class="bg-white rounded-2xl border border-line p-6 mb-6">
+    <div v-if="order.contract" class="bg-surface rounded-2xl border border-line p-6 mb-6">
       <h2 class="text-lg font-medium mb-4">电子授权书</h2>
       <div class="text-sm mb-4">
         <div>合同编号: <span class="font-mono">{{ order.contract.id }}</span></div>
@@ -142,7 +142,7 @@ onMounted(fetchOrder);
     </div>
 
     <!-- 下载列表 -->
-    <div v-if="canDownload" class="bg-white rounded-2xl border border-line p-6">
+    <div v-if="canDownload" class="bg-surface rounded-2xl border border-line p-6">
       <h2 class="text-lg font-medium mb-4">资产包下载</h2>
       <p class="text-xs text-ink/50 mb-4">链接 5 分钟有效,过期请重新生成</p>
       <FilesToDownload :order-id="order.id" />

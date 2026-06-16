@@ -2,6 +2,13 @@ html, body, #app {
   min-height: 100vh;
 }
 
+/* 主题切换平滑过渡 */
+html {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
 /* 不可右键 + 不可拖拽图片 (B 端防盗) */
 .no-pirate {
   -webkit-user-select: none;
@@ -20,10 +27,10 @@ video::-webkit-media-controls {
 
 /* 隐藏 Webkit autofill 背景 */
 input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg) inset !important;
 }
 
 /* 滚动条美化 */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #C8A36B; border-radius: 5px; }
-::-webkit-scrollbar-track { background: #F8F5F0; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 5px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
