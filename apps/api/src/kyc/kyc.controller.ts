@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/util/roles.util';
 import { CurrentUser, JwtUser } from '../common/decorators/current-user.decorator';
+import type { PrismaService } from '../prisma/prisma.service';
 
 class SubmitKycDto {
   @IsString() realName!: string;
@@ -45,7 +46,7 @@ export class AdminKycController {
   @Get('queue')
   async queue() {
     // 简化: 直接通过 prisma 列出 PENDING 状态
-    const prisma = (this.kyc as any).prisma as import('../../prisma/prisma.service').PrismaService;
+    const prisma = (this.kyc as any).prisma as PrismaService;
     const items = await prisma.kycSubmission.findMany({
       where: { status: 'PENDING' },
       orderBy: { createdAt: 'asc' },
