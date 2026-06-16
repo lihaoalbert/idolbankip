@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { IpStatus } from '@prisma/client';
 import { UserRole } from '../common/util/roles.util';
@@ -44,6 +44,7 @@ class ListQueryDto {
   @IsOptional() @IsString() style?: string;
   @IsOptional() @IsString() scenario?: string;
   @IsOptional() @IsEnum(IpStatus) status?: IpStatus;
+  @IsOptional() @IsIn(['newest', 'popular']) sort?: 'newest' | 'popular';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) size?: number;
 }
