@@ -122,5 +122,46 @@ import { RouterLink } from 'vue-router';
         class="inline-block px-8 py-3 bg-ink text-cream rounded-full hover:bg-gold transition"
       >立即查看 100 个创世形象</RouterLink>
     </section>
+
+    <!-- 商务留资区 -->
+    <section class="bg-ink text-cream">
+      <div class="max-w-7xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-10 items-center">
+        <div>
+          <h2 class="font-display text-3xl mb-3">想直接谈? 商务 1 个工作日联系您</h2>
+          <p class="text-cream/70 leading-relaxed mb-6">
+            大量采购 / 联合开发 / IP 代理合作,留个联系方式,
+            商务团队主动对接;也可以直接下单走标准流程,两条路并行。
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <RouterLink
+              to="/contact"
+              class="px-6 py-3 bg-gold text-ink rounded-full font-medium hover:bg-cream transition"
+            >联系商务 →</RouterLink>
+            <a
+              href="mailto:biz@ibi.ren"
+              class="px-6 py-3 border border-cream/30 rounded-full hover:border-gold hover:text-gold transition"
+            >发邮件 biz@ibi.ren</a>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="p-4 bg-cream/10 border border-cream/20 rounded-2xl">
+            <div class="text-xs text-cream/50 mb-1">企业微信</div>
+            <div class="font-mono text-sm">ibi-ren-biz</div>
+          </div>
+          <div class="p-4 bg-cream/10 border border-cream/20 rounded-2xl">
+            <div class="text-xs text-cream/50 mb-1">邮箱</div>
+            <div class="font-mono text-sm">biz@ibi.ren</div>
+          </div>
+          <div class="p-4 bg-cream/10 border border-cream/20 rounded-2xl">
+            <div class="text-xs text-cream/50 mb-1">电话</div>
+            <div class="font-mono text-sm">400-xxx-xxxx</div>
+          </div>
+          <div class="p-4 bg-cream/10 border border-cream/20 rounded-2xl">
+            <div class="text-xs text-cream/50 mb-1">服务时间</div>
+            <div class="font-mono text-sm">10:00 – 19:00</div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>

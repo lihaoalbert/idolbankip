@@ -30,6 +30,7 @@ function switchRole(r: UserRole) {
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
+          <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
           <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">创作者中心</RouterLink>
           <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
           <RouterLink v-if="showBuyerLinks" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
@@ -94,9 +95,36 @@ function switchRole(r: UserRole) {
 
     <ToastContainer />
 
-    <footer class="border-t border-line mt-12 py-8 text-center text-xs text-ink/50 dark:text-ink/40">
-      <p>© 2026 ibi.ren · Idol Bank IP · AI 虚拟人资产银行</p>
-      <p class="mt-1">所有形象已通过区块链时间戳存证 · ICP 备案中</p>
+    <footer class="border-t border-line mt-12 py-10">
+      <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-sm">
+        <div>
+          <div class="flex items-center gap-2 font-display text-lg mb-2">
+            <span class="inline-block w-6 h-6 rounded-full bg-ink"></span>
+            <span>ibi<span class="text-gold">.ren</span></span>
+          </div>
+          <p class="text-xs text-ink/50 leading-relaxed">中国首个 AI 虚拟人资产银行 · 把 AI 创造的虚拟形象, 变成可确权、可授权、可交易的标准化数字资产。</p>
+        </div>
+        <div>
+          <h4 class="font-medium mb-3">商务合作</h4>
+          <ul class="space-y-1.5 text-xs text-ink/60">
+            <li>🐧 企业微信: <span class="font-mono">ibi-ren-biz</span></li>
+            <li>📧 邮箱: <a href="mailto:biz@ibi.ren" class="text-gold hover:underline">biz@ibi.ren</a></li>
+            <li>📞 电话: <span class="font-mono">400-xxx-xxxx</span> (工作日 10:00–19:00)</li>
+            <li><RouterLink to="/contact" class="text-gold hover:underline">联系商务 →</RouterLink></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-medium mb-3">产品</h4>
+          <ul class="space-y-1.5 text-xs text-ink/60">
+            <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
+            <li><RouterLink to="/register" class="hover:text-ink">成为创作者</RouterLink></li>
+            <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="max-w-7xl mx-auto px-6 mt-8 pt-6 border-t border-line text-center text-xs text-ink/40">
+        © 2026 ibi.ren · Idol Bank IP
+      </div>
     </footer>
   </div>
 </template>

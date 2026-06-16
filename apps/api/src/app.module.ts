@@ -18,6 +18,7 @@ import { DownloadModule } from './download/download.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
+import { LeadsModule } from './leads/leads.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -48,6 +49,7 @@ import { configValidationSchema } from './config/config.validation';
     DownloadModule,
     AdminModule,
     HealthModule,
+    LeadsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
