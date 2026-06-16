@@ -15,7 +15,7 @@ export class MockBlockchainClient implements BlockchainClient {
   ): Promise<BlockchainProofResult> {
     return {
       txId: `mock-tx-${nano()}`,
-      blockHeight: BigInt(Math.floor(Date.now() / 1000)),
+      blockHeight: Number(Math.floor(Date.now() / 1000)),
       network: this.network,
       submittedAt: new Date(),
     };
