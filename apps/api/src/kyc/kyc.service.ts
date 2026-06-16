@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { KYC_CLIENT, KycClient, KycStatus } from '@prisma/client';
+import { KycStatus } from '@prisma/client';
+import { KYC_CLIENT, KycClient } from '@ibi-ren/shared-contracts';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
