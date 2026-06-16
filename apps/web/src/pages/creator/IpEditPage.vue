@@ -13,7 +13,7 @@ const loading = ref(true);
 const submitting = ref(false);
 const error = ref('');
 
-async function fetch() {
+async function loadIp() {
   loading.value = true;
   try {
     const list = await apiClient.get('/ips/mine/list');
@@ -25,21 +25,40 @@ async function fetch() {
 }
 
 async function requestUploadPolicy(assetType: string, file: File) {
-  const { data: policy } = await apiClient.post('/upload/policy', {
-    ipId: ipId.value,
-    assetType,
-    filename: file.name,
-    size: file.size,
-  });
-  // 真实环境: 用 policy 直接 POST 到 OSS,再触发 callback
-  // MVP 简化: 直接调 /upload/oss-callback 模拟上传成功
-  await apiClient.post('/upload/oss-callback', {
-    filename: file.name,
-    size: file.size,
-    etag: 'mock-etag-' + Date.now(),
-    x: `ips/${ip.value.code}/raw/${assetType}/${Date.now()}/${file.name}`,
-  });
-  await fetch();
+  error.value = '';
+  try {
+    // 1) 从后端拿 OSS 直传策略 (HMAC-SHA1, 600s 过期)
+    const { data: policy } = await apiClient.post('/upload/policy', {
+      ipId: ipId.value,
+      assetType,
+      filename: file.name,
+      size: file.size,
+    });
+    // 2) 用策略直接 POST 到 OSS (浏览器 → ibi-private 桶,不经后端)
+    const fd = new FormData();
+    fd.append('key', policy.key);
+    fd.append('policy', policy.policy);
+    fd.append('OSSAccessKeyId', policy.accessKeyId);
+    fd.append('Signature', policy.signature);
+    fd.append('file', file);
+    const ossRes = await fetch(policy.host + '/', { method: 'POST', body: fd });
+    if (!ossRes.ok) {
+      throw new Error(`OSS 上传失败 HTTP ${ossRes.status}`);
+    }
+    // 3) 从 OSS 响应头拿 ETag (服务端当 checksum 用)
+    const etag = (ossRes.headers.get('ETag') || '').replace(/"/g, '');
+    // 4) 调 callback 写 DB
+    await apiClient.post('/upload/oss-callback', {
+      filename: file.name,
+      size: file.size,
+      etag,
+      x: policy.key,
+    });
+    await loadIp();
+  } catch (e: any) {
+    error.value = e?.response?.data?.message || e?.message || '上传失败';
+    throw e;
+  }
 }
 
 async function submitForReview() {
@@ -53,7 +72,9 @@ async function submitForReview() {
   } finally { submitting.value = false; }
 }
 
-const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'LORA_FILE', 'RECIPE_TXT', 'BIO_TXT'];
+// 4 个必填 (核心素材);LORA/RECIPE/VOICE/PACKAGE 改选填
+const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'BIO_TXT'];
+const allAssetTypes = [...requiredTypes, 'LORA_FILE', 'RECIPE_TXT', 'VOICE_REF', 'PACKAGE_ZIP'];
 const fileTypeLabel: Record<string, string> = {
   THREE_VIEW: '三视图 (jpg/png, ≥2048×2048)',
   EXPRESSION_GRID: '表情矩阵 (5 种表情)',
@@ -78,7 +99,7 @@ const completion = computed(() => {
 
 const canSubmit = computed(() => completion.value === 100 && ip.value?.status === 'PENDING_REVIEW');
 
-onMounted(fetch);
+onMounted(loadIp);
 </script>
 
 <template>
@@ -103,7 +124,7 @@ onMounted(fetch);
     <h2 class="font-display text-lg mb-4">资产包上传</h2>
     <div class="space-y-3">
       <div
-        v-for="t in [...requiredTypes, 'VOICE_REF', 'PACKAGE_ZIP']"
+        v-for="t in allAssetTypes"
         :key="t"
         class="p-4 bg-white border border-line rounded-xl flex items-center justify-between"
       >

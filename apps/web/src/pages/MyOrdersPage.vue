@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { apiClient, formatFen } from '@/api/client';
+import { apiClient, formatFen, ossUrl } from '@/api/client';
 
 const orders = ref<any[]>([]);
 const loading = ref(true);
+
+function thumbUrl(key?: string): string {
+  return key ? ossUrl(key) : '';
+}
 
 async function fetchOrders() {
   loading.value = true;
@@ -71,7 +75,7 @@ onMounted(fetchOrders);
               <div class="flex items-center gap-3">
                 <img
                   v-if="o.ip?.thumbnailKey"
-                  :src="`${import.meta.env.VITE_OSS_PUBLIC_BASE}/${o.ip.thumbnailKey}`"
+                  :src="thumbUrl(o.ip.thumbnailKey)"
                   class="w-10 h-10 rounded object-cover"
                 />
                 <div>

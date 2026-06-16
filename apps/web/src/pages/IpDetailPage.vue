@@ -78,6 +78,13 @@ onMounted(fetchDetail);
         draggable="false"
         @contextmenu.prevent
       />
+      <img
+        v-else-if="ip.thumbnailKey"
+        :src="ossUrl(ip.thumbnailKey)"
+        class="w-full h-full object-cover no-pirate"
+        draggable="false"
+        @contextmenu.prevent
+      />
       <WatermarkOverlay :text="watermarkText" density="high" />
       <div class="absolute top-4 left-4 px-3 py-1 bg-ink/80 text-cream text-xs rounded-full backdrop-blur">
         {{ ip.status === 'PUBLIC_INTENT' ? '版权办理中 · 已存证' : '已登记 · 可全量商用' }}
