@@ -16,7 +16,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || 'http://localhost:3000',
+          // dev proxy target — production builds inline API_BASE (相对路径);本项目 Nest 跑 3100
+          target: env.VITE_API_BASE_URL || 'http://localhost:3100',
           changeOrigin: true,
         },
       },

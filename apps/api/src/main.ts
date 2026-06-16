@@ -37,6 +37,18 @@ async function bootstrap() {
   // 全局异常过滤器
   app.useGlobalFilters(new GlobalExceptionFilter());
 
+  // BigInt → string (Prisma BigInt 字段如 sizeBytes/blockHeight 在 JSON.stringify 会抛错)
+  // 包装 express res.json,所有响应走 JSON.stringify(_, bigintReplacer)
+  const expressApp = app.getHttpAdapter().getInstance();
+  const bigintReplacer = (_key: string, value: unknown) =>
+    typeof value === 'bigint' ? value.toString() : value;
+  const originalJson = expressApp.response?.prototype?.json;
+  if (originalJson) {
+    expressApp.response.prototype.json = function (data: unknown) {
+      return originalJson.call(this, JSON.parse(JSON.stringify(data, bigintReplacer)));
+    };
+  }
+
   // Swagger
   if (config.get('NODE_ENV') !== 'production') {
     const swaggerConfig = new DocumentBuilder()

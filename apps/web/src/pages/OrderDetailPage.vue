@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { apiClient, formatFen } from '@/api/client';
 
 const route = useRoute();
@@ -128,32 +129,33 @@ onMounted(fetchOrder);
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, ref } from 'vue';
-import { apiClient } from '@/api/client';
+// 双 <script> 块子组件: 用 as 别名避免与 <script setup> 顶层 import 冲突。
+import { defineComponent as _defineComponent, onMounted as _onMounted, ref as _ref } from 'vue';
+import { apiClient as _apiClient } from '@/api/client';
 
-const FilesToDownload = defineComponent({
+const FilesToDownload = _defineComponent({
   props: { orderId: { type: String, required: true } },
   setup(props) {
-    const files = ref<any[]>([]);
-    const loading = ref(false);
+    const files = _ref<any[]>([]);
+    const loading = _ref(false);
 
     async function fetch() {
       loading.value = true;
       try {
-        const { data } = await apiClient.get('/download/list', { params: { orderId: props.orderId } });
+        const { data } = await _apiClient.get('/download/list', { params: { orderId: props.orderId } });
         files.value = data.files;
       } finally { loading.value = false; }
     }
 
     async function download(fileId: string) {
-      const { data } = await apiClient.post('/download/token', {
+      const { data } = await _apiClient.post('/download/token', {
         orderId: props.orderId,
         fileId,
       });
       window.open(data.url, '_blank');
     }
 
-    onMounted(fetch);
+    _onMounted(fetch);
     return { files, loading, download };
   },
 });

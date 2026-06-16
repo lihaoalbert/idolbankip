@@ -58,23 +58,24 @@ onMounted(fetchOrders);
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, ref } from 'vue';
-import { apiClient } from '@/api/client';
+// 双 <script> 块的子组件定义: 用 as 别名避免与 <script setup> 顶层 import 冲突 (vue-tsc 不支持重复 import)。
+import { defineComponent as _defineComponent, onMounted as _onMounted, ref as _ref } from 'vue';
+import { apiClient as _apiClient } from '@/api/client';
 
-const OrderFiles = defineComponent({
+const OrderFiles = _defineComponent({
   emits: ['download'],
   props: { orderId: { type: String, required: true } },
   setup(props, { emit }) {
-    const files = ref<any[]>([]);
-    const loading = ref(false);
+    const files = _ref<any[]>([]);
+    const loading = _ref(false);
     async function fetch() {
       loading.value = true;
       try {
-        const { data } = await apiClient.get('/download/list', { params: { orderId: props.orderId } });
+        const { data } = await _apiClient.get('/download/list', { params: { orderId: props.orderId } });
         files.value = data.files;
       } finally { loading.value = false; }
     }
-    onMounted(fetch);
+    _onMounted(fetch);
     return { files, loading, emit };
   },
 });

@@ -1,7 +1,8 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/auth';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+// 空字符串保留 — 部署用相对路径 /api/v1 (nginx 反代);localhost fallback 只用于本地 dev
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_BASE}/api/v1`,
