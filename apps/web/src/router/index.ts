@@ -42,13 +42,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/creator/ips/new',
     name: 'ip-create',
-    component: () => import('@/pages/creator/IpCreatePage.vue'),
+    component: () => import('@/pages/creator/IpWizard.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
     path: '/creator/ips/:id',
     name: 'ip-edit',
-    component: () => import('@/pages/creator/IpEditPage.vue'),
+    component: () => import('@/pages/creator/IpWizard.vue'),
     props: true,
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
