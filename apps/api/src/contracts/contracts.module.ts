@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ContractsService } from './contracts.service';
 import { ContractsController } from './contracts.controller';
+import { UploadModule } from '../upload/upload.module';
 import {
   ESIGN_CLIENT,
   MockFadadaClient,
 } from '@ibi-ren/shared-contracts';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, UploadModule],
   providers: [
     ContractsService,
     {
