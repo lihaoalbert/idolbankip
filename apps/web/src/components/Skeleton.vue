@@ -2,8 +2,8 @@
 withDefaults(defineProps<{
   /** 形状: line (文本行) / circle (头像/缩略图) / block (图片块) */
   shape?: 'line' | 'circle' | 'block';
-  /** line 变体的行宽比例, 0-100。用于让骨架行有自然的长度变化 */
-  width?: number;
+  /** line 变体的行宽比例, 0-100 (数字) 或 '30%' (字符串)。用于让骨架行有自然的长度变化 */
+  width?: number | string;
   /** block 变体的纵横比, 例如 '16/9' */
   aspect?: string;
   /** 自定义高度 (Tailwind class, 如 h-4 / h-32) */
@@ -43,8 +43,8 @@ withDefaults(defineProps<{
       :class="[heightClass, widthClass]"
       :style="{
         width: i === lines && lines > 1
-          ? `${Math.max(width * 0.6, 30)}%`
-          : `${width}%`,
+          ? (typeof width === 'string' ? width : `${Math.max(Number(width) * 0.6, 30)}%`)
+          : (typeof width === 'string' ? width : `${width}%`),
       }"
     />
   </div>

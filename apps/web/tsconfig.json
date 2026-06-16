@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "preserve",
@@ -11,7 +12,7 @@
     "verbatimModuleSyntax": false,
     "allowImportingTsExtensions": false,
     "paths": {
-      "@/*": ["./src/*"],
+      "@/*": ["src/*"],
       "@ibi-ren/shared-types": ["../../packages/shared-types/src"]
     }
   },

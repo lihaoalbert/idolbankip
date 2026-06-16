@@ -101,8 +101,9 @@ async function fetchDetail() {
     ip.value = data.ip;
     files.value = data.files;
   } catch (e: any) {
-    error.value = e?.response?.data?.message || '加载失败';
-    toast.error(error.value);
+    const msg = e?.response?.data?.message || '加载失败';
+    error.value = msg;
+    toast.error(msg);
   } finally {
     loading.value = false;
   }
