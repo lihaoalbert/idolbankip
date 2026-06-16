@@ -4,10 +4,12 @@ import axios from 'axios';
 
 const STORAGE_KEY = 'ibi-ren-admin-auth';
 
+export type UserRole = 'CREATOR' | 'BUYER' | 'ADMIN';
+
 interface User {
   id: string;
   email: string;
-  role: 'ADMIN' | 'CREATOR' | 'BUYER';
+  roles: UserRole[];
   displayName: string;
 }
 
@@ -16,8 +18,14 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(null);
   const refreshToken = ref<string | null>(null);
 
-  const isAuthenticated = computed(() => !!accessToken.value && user.value?.role === 'ADMIN');
-  const role = computed(() => user.value?.role);
+  const roles = computed(() => user.value?.roles ?? []);
+  const isAuthenticated = computed(() => !!accessToken.value && roles.value.includes('ADMIN'));
+  const role = computed(() => user.value?.roles?.[0]);
+
+  function hasAnyRole(required: UserRole[]): boolean {
+    if (!required || required.length === 0) return true;
+    return roles.value.some((r) => required.includes(r));
+  }
 
   function persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -48,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = data.accessToken;
     refreshToken.value = data.refreshToken;
     persist();
-    if (data.user.role !== 'ADMIN') {
+    if (!hasAnyRole(['ADMIN'])) {
       clear();
       throw new Error('非管理员账号,无法登录控制台');
     }
@@ -57,7 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     const { apiClient } = await import('@/api/client');
     const { data } = await apiClient.get('/users/me');
-    if (data.user.role !== 'ADMIN') { clear(); throw new Error('非管理员账号'); }
+    if (!data.user.roles?.includes('ADMIN')) { clear(); throw new Error('非管理员账号'); }
     user.value = data.user;
     persist();
   }
@@ -79,5 +87,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return { user, accessToken, refreshToken, isAuthenticated, role, bootstrap, login, refresh, logout, clear, fetchMe };
+  return { user, accessToken, refreshToken, isAuthenticated, role, roles, hasAnyRole, bootstrap, login, refresh, logout, clear, fetchMe };
 });

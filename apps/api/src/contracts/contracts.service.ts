@@ -161,7 +161,8 @@ export class ContractsService {
     const order = await this.prisma.order.findUniqueOrThrow({ where: { id: c.orderId } });
     if (order.buyerId !== requesterId) {
       const user = await this.prisma.user.findUniqueOrThrow({ where: { id: requesterId } });
-      if (user.role !== 'ADMIN') throw new ForbiddenException();
+      const roles = Array.isArray(user.roles) ? (user.roles as string[]) : [];
+      if (!roles.includes('ADMIN')) throw new ForbiddenException();
     }
     return { contract: c };
   }

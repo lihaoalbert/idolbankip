@@ -15,11 +15,8 @@ datasource db {
 
 // ===================== 枚举 =====================
 
-enum UserRole {
-  CREATOR // A 端创作者
-  BUYER // B 端采购方
-  ADMIN // 平台运营
-}
+// UserRole 之前是 Prisma enum, 现在角色存为 JSON 字符串数组, 不再在 schema 中定义 enum。
+// TS 端用 string literal type (见 common/util/roles.util.ts 的 UserRole 类型)。
 
 enum KycStatus {
   NOT_SUBMITTED
@@ -89,7 +86,12 @@ model User {
   email        String   @unique
   phone        String?  @unique
   passwordHash String
-  role         UserRole
+  // 角色数组 (MySQL 无 enum[], 用 JSON 列存 string[])。
+  // 应用层用 parseRoles/serializeRoles 读写, 严禁直查。
+  // 默认值在 application 层 (auth.service.register) 设置为 ["BUYER"];
+  // 注册时可勾选 +CREATOR 成为双角色, 管理员后台可追加 ADMIN。
+  // MySQL JSON 不支持原生 default 表达式, 列默认 NULL, 应用层负责写入。
+  roles        Json?
   displayName  String
   realName     String?
   companyName  String?
@@ -105,7 +107,7 @@ model User {
   refreshTokens RefreshToken[]
   kycSubs       KycSubmission[]
 
-  @@index([role])
+  // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
 }
 
@@ -188,7 +190,6 @@ model IpAsset {
 
   files     IpFile[]
   orders    Order[]
-  contracts Contract[]
   proofs    BlockchainProof[]
   watermarks WatermarkRecord[]
 

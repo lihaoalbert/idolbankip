@@ -53,7 +53,9 @@ onMounted(load);
               <div class="font-medium">{{ u.displayName }}</div>
               <div class="text-xs text-ink/50 font-mono">{{ u.email }}</div>
             </td>
-            <td class="table-td"><span :class="['badge', roleColor[u.role]]">{{ u.role }}</span></td>
+            <td class="table-td">
+              <span v-for="r in (u.roles || [u.role].filter(Boolean))" :key="r" :class="['badge mr-1', roleColor[r]]">{{ r }}</span>
+            </td>
             <td class="table-td"><span :class="['badge', kycColor[u.kycStatus]]">{{ u.kycStatus }}</span></td>
             <td class="table-td text-xs text-ink/50">{{ new Date(u.createdAt).toLocaleString('zh-CN') }}</td>
           </tr>

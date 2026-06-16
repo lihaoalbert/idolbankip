@@ -29,7 +29,8 @@ export class DownloadService {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.buyerId !== requesterId) {
       const u = await this.prisma.user.findUniqueOrThrow({ where: { id: requesterId } });
-      if (u.role !== 'ADMIN') throw new ForbiddenException();
+      const roles = Array.isArray(u.roles) ? (u.roles as string[]) : [];
+      if (!roles.includes('ADMIN')) throw new ForbiddenException();
     }
     if (!['CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'].includes(order.status)) {
       throw new ForbiddenException('订单尚未签署完成,无法下载');
@@ -56,7 +57,8 @@ export class DownloadService {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.buyerId !== params.requesterId) {
       const u = await this.prisma.user.findUniqueOrThrow({ where: { id: params.requesterId } });
-      if (u.role !== 'ADMIN') throw new ForbiddenException();
+      const roles = Array.isArray(u.roles) ? (u.roles as string[]) : [];
+      if (!roles.includes('ADMIN')) throw new ForbiddenException();
     }
     if (!['CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'].includes(order.status)) {
       throw new ForbiddenException('订单尚未签署完成,无法下载');

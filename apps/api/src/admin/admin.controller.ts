@@ -1,12 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { UserRole } from '@prisma/client';
+import { IpStatus } from '@prisma/client';
 import { IpsService } from '../ips/ips.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../common/util/roles.util';
 
 class UsersQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
@@ -36,6 +37,12 @@ export class AdminController {
   @Get('orders')
   async orders(@Query('status') status?: string) {
     const items = await this.ips.adminListAllOrders({ status });
+    return { items };
+  }
+
+  @Get('ips/queue')
+  async ipsQueue(@Query('status') status?: IpStatus) {
+    const items = await this.ips.adminListIps(status);
     return { items };
   }
 }

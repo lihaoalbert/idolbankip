@@ -6,7 +6,7 @@ import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '../common/util/roles.util';
 import { CurrentUser, JwtUser } from '../common/decorators/current-user.decorator';
 
 class CreateOrderDto {

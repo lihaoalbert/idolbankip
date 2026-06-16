@@ -1,0 +1,2 @@
+# Prisma migration lock — never edit manually.
+provider = "mysql"

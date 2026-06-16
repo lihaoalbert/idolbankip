@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { User, UserRole } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -17,7 +17,7 @@ export class UsersService {
   async create(params: {
     email: string;
     passwordHash: string;
-    role: UserRole;
+    roles: Prisma.InputJsonValue;
     displayName: string;
     phone?: string;
     companyName?: string;

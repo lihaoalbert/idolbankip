@@ -28,7 +28,7 @@ const counts = ref<Record<string, number>>({});
 async function load() {
   loading.value = true;
   try {
-    const { data } = await apiClient.get('/ips/queue', { params: { status: filter.value } });
+    const { data } = await apiClient.get('/admin/ips/queue', { params: { status: filter.value } });
     items.value = data.items;
   } finally { loading.value = false; }
 }
@@ -45,7 +45,8 @@ function fileSummary(ip: any): string {
 }
 
 function packComplete(ip: any): boolean {
-  const required = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'LORA_FILE', 'RECIPE_TXT', 'BIO_TXT'];
+  // 与前端/后端一致: 4 个核心必填;LORA/RECIPE 选填
+  const required = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'BIO_TXT'];
   const present = new Set((ip.files || []).filter((f: any) => f.validated).map((f: any) => f.assetType));
   return required.every((t) => present.has(t));
 }

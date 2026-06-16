@@ -29,7 +29,8 @@ const fileTypeLabel: Record<string, string> = {
   TEST_SAMPLE: '示例输出',
 };
 
-const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'LORA_FILE', 'RECIPE_TXT', 'BIO_TXT'];
+// 与前端/后端一致: 4 个核心必填;LORA/RECIPE 选填
+const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'BIO_TXT'];
 
 const fileByType = computed(() => {
   const m: Record<string, any> = {};
@@ -42,9 +43,9 @@ const packComplete = computed(() => requiredTypes.every((t) => fileByType.value[
 async function load() {
   loading.value = true;
   try {
-    // 后端 admin 端: /admin/ips/:id 拿完整信息
+    // 后端 admin 端: /admin/ips/:id 拿完整信息 (返回 { ip, files, creator })
     const { data } = await apiClient.get(`/admin/ips/${id.value}`);
-    ip.value = data.ip;
+    ip.value = { ...(data.ip || {}), files: data.files || [] };
   } catch (e: any) {
     // fallback: 从公开接口按 id 查不到(只有 code),暂时显示错误
     error.value = e?.response?.data?.message || '加载失败';
@@ -56,7 +57,7 @@ async function approve() {
   submitting.value = true;
   error.value = ''; success.value = '';
   try {
-    const { data } = await apiClient.post(`/ips/${id.value}/approve`);
+    const { data } = await apiClient.post(`/admin/ips/${id.value}/approve`);
     ip.value = data.ip;
     success.value = '审核已提交,正在执行存证...请稍后刷新';
   } catch (e: any) {
@@ -70,7 +71,7 @@ async function reject() {
   submitting.value = true;
   error.value = ''; success.value = '';
   try {
-    const { data } = await apiClient.post(`/ips/${id.value}/reject`, { reason: rejectReason.value });
+    const { data } = await apiClient.post(`/admin/ips/${id.value}/reject`, { reason: rejectReason.value });
     ip.value = data.ip;
     success.value = '已拒绝';
     rejectReason.value = '';
@@ -85,7 +86,7 @@ async function registerCert() {
   submitting.value = true;
   error.value = ''; success.value = '';
   try {
-    const { data } = await apiClient.post(`/ips/${id.value}/register-cert`, { certNo: certNo.value });
+    const { data } = await apiClient.post(`/admin/ips/${id.value}/register-cert`, { certNo: certNo.value });
     ip.value = data.ip;
     success.value = '登记号已写入,IP 已转为 OFFICIAL_REGISTERED';
     certNo.value = '';

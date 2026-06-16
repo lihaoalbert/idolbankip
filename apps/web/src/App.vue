@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { onMounted, computed } from 'vue';
+import { useAuthStore, type UserRole } from '@/stores/auth';
 
 const auth = useAuthStore();
 
 onMounted(async () => {
   await auth.restore();
 });
+
+const showCreatorLink = computed(() => auth.hasAnyRole(['CREATOR']));
+const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
+const isMultiRole = computed(() => auth.roles.length > 1);
+
+function switchRole(r: UserRole) {
+  auth.setActiveRole(r === auth.currentRole ? null : r);
+}
 </script>
 
 <template>
@@ -19,9 +27,9 @@ onMounted(async () => {
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
-          <RouterLink v-if="auth.role === 'CREATOR'" to="/creator" class="hover:text-gold">创作者中心</RouterLink>
-          <RouterLink v-if="auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
-          <RouterLink v-if="auth.isAuthenticated" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
+          <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">创作者中心</RouterLink>
+          <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
+          <RouterLink v-if="showBuyerLinks" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
           <template v-if="!auth.isAuthenticated">
             <RouterLink to="/login" class="hover:text-gold">登录</RouterLink>
             <RouterLink
@@ -31,6 +39,22 @@ onMounted(async () => {
             >
           </template>
           <div v-else class="flex items-center gap-3">
+            <div v-if="isMultiRole" class="flex items-center gap-1 text-xs">
+              <span class="text-ink/50">身份:</span>
+              <button
+                v-for="r in auth.roles"
+                :key="r"
+                @click="switchRole(r)"
+                :class="auth.currentRole === r ? 'bg-ink text-cream' : 'bg-white border border-line text-ink/70'"
+                class="px-2 py-0.5 rounded-full transition hover:border-gold"
+              >
+                {{ r === 'CREATOR' ? '创作者' : r === 'BUYER' ? '采购方' : '管理员' }}
+              </button>
+            </div>
+            <span v-else class="text-xs text-ink/60">
+              {{ auth.currentRole === 'CREATOR' ? '创作者' : auth.currentRole === 'BUYER' ? '采购方' : auth.currentRole === 'ADMIN' ? '管理员' : '' }}
+            </span>
+            <span class="text-xs text-ink/60">·</span>
             <span class="text-xs text-ink/60">{{ auth.user?.email }}</span>
             <button @click="auth.logout" class="text-xs underline text-ink/60 hover:text-danger">
               退出

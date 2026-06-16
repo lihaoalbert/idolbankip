@@ -9,17 +9,17 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { UserRole } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength, IsArray } from 'class-validator';
 import { AuthService, TokenPair } from './auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtUser } from '../common/decorators/current-user.decorator';
+import { UserRole } from '../common/util/roles.util';
 
 class RegisterDto {
   @IsEmail() email!: string;
   @IsString() @MinLength(8) password!: string;
-  @IsEnum(UserRole) role!: UserRole;
+  @IsArray() @IsEnum(UserRole, { each: true }) roles!: UserRole[];
   @IsString() displayName!: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() companyName?: string;
@@ -45,7 +45,7 @@ export class AuthController {
     const { user, tokens } = await this.auth.register({
       email: body.email,
       password: body.password,
-      role: body.role,
+      roles: body.roles,
       displayName: body.displayName,
       phone: body.phone,
       companyName: body.companyName,

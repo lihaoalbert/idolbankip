@@ -11,7 +11,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { UserRole, IpStatus } from '@prisma/client';
+import { IpStatus } from '@prisma/client';
+import { UserRole } from '../common/util/roles.util';
 import { IpsService } from './ips.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';

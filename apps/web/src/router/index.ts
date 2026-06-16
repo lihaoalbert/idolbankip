@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
-import { useAuthStore, UserRole } from '@/stores/auth';
+import { useAuthStore, type UserRole } from '@/stores/auth';
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/pages/HomePage.vue') },
@@ -12,7 +12,7 @@ const routes: RouteRecordRaw[] = [
     name: 'checkout',
     component: () => import('@/pages/CheckoutPage.vue'),
     props: true,
-    meta: { requiresAuth: true, role: 'BUYER' as UserRole },
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
   {
     path: '/orders',
@@ -31,26 +31,26 @@ const routes: RouteRecordRaw[] = [
     path: '/my-assets',
     name: 'my-assets',
     component: () => import('@/pages/MyAssetsPage.vue'),
-    meta: { requiresAuth: true, role: 'BUYER' as UserRole },
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
   {
     path: '/creator',
     name: 'creator-dashboard',
     component: () => import('@/pages/creator/CreatorDashboard.vue'),
-    meta: { requiresAuth: true, role: 'CREATOR' as UserRole },
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
     path: '/creator/ips/new',
     name: 'ip-create',
     component: () => import('@/pages/creator/IpCreatePage.vue'),
-    meta: { requiresAuth: true, role: 'CREATOR' as UserRole },
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
     path: '/creator/ips/:id',
     name: 'ip-edit',
     component: () => import('@/pages/creator/IpEditPage.vue'),
     props: true,
-    meta: { requiresAuth: true, role: 'CREATOR' as UserRole },
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/pages/NotFoundPage.vue') },
 ];
@@ -67,8 +67,8 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return next({ name: 'login', query: { redirect: to.fullPath } });
   }
-  const requiredRole = to.meta.role as UserRole | undefined;
-  if (requiredRole && auth.role !== requiredRole) {
+  const requiredRoles = to.meta.roles as UserRole[] | undefined;
+  if (requiredRoles && requiredRoles.length > 0 && !auth.hasAnyRole(requiredRoles)) {
     return next({ name: 'home' });
   }
   next();

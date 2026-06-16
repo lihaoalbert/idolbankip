@@ -9,6 +9,7 @@ import { AssetType, IpAsset, IpStatus, OrderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
+import { UserRole, rolesContains } from '../common/util/roles.util';
 
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
@@ -209,12 +210,11 @@ export class IpsService {
       where: { ipId },
       select: { assetType: true, validated: true },
     });
+    // 4 个核心素材必填;LORA/RECIPE/VOICE/PACKAGE 选填 (prompt 与人物小传可替代 LORA 训练出图)
     const required: AssetType[] = [
       AssetType.THREE_VIEW,
       AssetType.EXPRESSION_GRID,
       AssetType.TRANSPARENT_RENDER,
-      AssetType.LORA_FILE,
-      AssetType.RECIPE_TXT,
       AssetType.BIO_TXT,
     ];
     const present = Array.from(new Set(files.filter(f => f.validated).map(f => f.assetType)));
@@ -291,9 +291,16 @@ export class IpsService {
     });
     const creator = await this.prisma.user.findUnique({
       where: { id: ip.creatorId },
-      select: { id: true, email: true, displayName: true, role: true, kycStatus: true },
+      select: { id: true, email: true, displayName: true, roles: true, kycStatus: true },
     });
-    return { ip, files, creator };
+    return {
+      ip,
+      files: files.map((f) => ({
+        ...f,
+        sizeBytes: f.sizeBytes.toString(),
+      })),
+      creator,
+    };
   }
 
   async adminStats() {
@@ -301,8 +308,8 @@ export class IpsService {
       this.prisma.ipAsset.count(),
       this.prisma.ipAsset.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.user.count(),
-      this.prisma.user.count({ where: { role: 'CREATOR' } }),
-      this.prisma.user.count({ where: { role: 'BUYER' } }),
+      this.prisma.user.count({ where: { roles: rolesContains(UserRole.CREATOR) } }),
+      this.prisma.user.count({ where: { roles: rolesContains(UserRole.BUYER) } }),
       this.prisma.user.count({ where: { kycStatus: 'PENDING' } }),
       this.prisma.order.count({ where: { status: { in: ['PAID', 'CONTRACT_PENDING', 'CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'] } } }),
       this.prisma.order.count({ where: { status: { in: ['DOWNLOAD_UNLOCKED', 'DELIVERED'] } } }),
@@ -335,7 +342,7 @@ export class IpsService {
       skip: (page - 1) * size,
       take: size,
       select: {
-        id: true, email: true, displayName: true, role: true,
+        id: true, email: true, displayName: true, roles: true,
         kycStatus: true, companyName: true, createdAt: true,
       },
     });
@@ -349,6 +356,21 @@ export class IpsService {
       include: {
         ip: { select: { id: true, code: true, displayName: true } },
         buyer: { select: { id: true, email: true, displayName: true } },
+      },
+    });
+  }
+
+  /**
+   * 后台审核队列 — 返回 IP + 创作者 + 文件,按状态过滤(不传则全量)
+   */
+  async adminListIps(status?: IpStatus) {
+    return this.prisma.ipAsset.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      include: {
+        creator: { select: { id: true, email: true, displayName: true, roles: true, kycStatus: true } },
+        files: { select: { id: true, assetType: true, validated: true } },
       },
     });
   }

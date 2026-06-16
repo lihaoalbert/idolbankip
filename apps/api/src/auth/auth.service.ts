@@ -7,10 +7,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { UserRole, User } from '@prisma/client';
+import { User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
+import { UserRole, parseRoles, serializeRoles } from '../common/util/roles.util';
 
 export interface TokenPair {
   accessToken: string;
@@ -21,7 +22,7 @@ export interface TokenPair {
 export interface JwtPayload {
   sub: string; // userId
   email: string;
-  role: UserRole;
+  roles: UserRole[];
 }
 
 @Injectable()
@@ -36,7 +37,7 @@ export class AuthService {
   async register(params: {
     email: string;
     password: string;
-    role: UserRole;
+    roles: UserRole[];
     displayName: string;
     phone?: string;
     companyName?: string;
@@ -46,10 +47,12 @@ export class AuthService {
       throw new ConflictException('该邮箱已被注册');
     }
     const passwordHash = await bcrypt.hash(params.password, 10);
+    // 注册时必须至少勾选一个身份;否则默认 BUYER (单角色采购方)。
+    const rolesToSet = params.roles.length > 0 ? params.roles : ['BUYER' as UserRole];
     const user = await this.usersService.create({
       email: params.email,
       passwordHash,
-      role: params.role,
+      roles: serializeRoles(rolesToSet),
       displayName: params.displayName,
       phone: params.phone,
       companyName: params.companyName,
@@ -103,7 +106,7 @@ export class AuthService {
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       email: user.email,
-      role: user.role,
+      roles: parseRoles(user.roles),
     });
     const refreshToken = randomBytes(48).toString('hex');
     const ttl = this.config.get<string>('JWT_REFRESH_TTL', '30d');
