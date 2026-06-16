@@ -356,11 +356,14 @@ onMounted(fetchDetail);
           </div>
         </div>
 
-        <!-- AI 生成溯源 -->
+        <!-- AI 生成溯源 + 隐水印验证 -->
         <div v-if="ip.blockchainHash" class="mt-6 p-4 bg-cream/60 rounded-2xl text-sm">
-          <div class="font-medium mb-2 flex items-center gap-2">
+          <div class="font-medium mb-3 flex items-center gap-2">
             <span>🧬</span>
             <span>AI 生成溯源</span>
+            <span v-if="ip.invisibleWatermarkApplied" class="ml-auto text-[10px] px-2 py-0.5 bg-success/15 text-success rounded-full flex items-center gap-1">
+              <span>🛡️</span><span>DWT-SVD 隐水印已注入</span>
+            </span>
           </div>
           <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
             <span class="text-ink/60">存证网络</span>
@@ -374,8 +377,16 @@ onMounted(fetchDetail);
               <span class="font-mono">{{ new Date(ip.proofTimestamp).toLocaleString('zh-CN') }}</span>
             </template>
           </div>
-          <div class="mt-2 pt-2 border-t border-line/50 text-[11px] text-ink/50">
-            该 IP 所有素材的 SHA-256 校验和按字典序排序后计算哈希值, 任何后续修改都将与链上记录不一致。
+          <div class="mt-3 pt-3 border-t border-line/50 text-[11px] text-ink/60 leading-relaxed">
+            <div class="mb-1.5">
+              <strong class="text-ink">链上存证</strong>: 该 IP 所有素材的 SHA-256 校验和按字典序排序后计算哈希值,任何后续修改都将与链上记录不一致。
+            </div>
+            <div v-if="ip.invisibleWatermarkApplied">
+              <strong class="text-ink">隐水印</strong>: 每张交付图片已通过 DWT-SVD 算法嵌入隐形水印 (含版权方 ID + 购买方 ID + 时间戳)。
+              <span class="text-ink/80">裁剪、压缩、调色后仍可提取</span>, 用于盗版溯源。
+              <span class="text-ink/80 ml-1">扫码或上传图片至
+                <code class="font-mono text-gold">ibi.ren/verify</code> 可一键验证。</span>
+            </div>
           </div>
         </div>
 

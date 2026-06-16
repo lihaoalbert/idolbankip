@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { apiClient, ossUrl, formatFen } from '@/api/client';
-import WatermarkOverlay from '@/components/WatermarkOverlay.vue';
 import Skeleton from '@/components/Skeleton.vue';
 import EmptyState from '@/components/EmptyState.vue';
 
@@ -51,6 +50,14 @@ onMounted(fetchOrders);
       action-to="/ips"
     />
     <div v-else class="space-y-6">
+      <div class="p-4 bg-cream/60 border border-line rounded-2xl text-xs text-ink/70 leading-relaxed flex items-start gap-3">
+        <span class="text-base shrink-0">🛡️</span>
+        <div>
+          <strong class="text-ink">下载即溯源</strong>:每个文件均嵌入 DWT-SVD 隐水印 (含您的用户 ID + 时间戳)。
+          文件即使被裁剪、压缩、调色,平台仍可通过 <code class="font-mono text-gold">ibi.ren/verify</code> 提取水印取证。
+          请勿外传,以免被追溯至您的账户。
+        </div>
+      </div>
       <div
         v-for="o in orders"
         :key="o.id"
