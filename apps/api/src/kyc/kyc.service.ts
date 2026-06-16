@@ -11,7 +11,7 @@ export class KycService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    @Inject('KYC_CLIENT') private readonly client: any,
+    @Inject(KYC_CLIENT) private readonly client: KycClient,
   ) {}
 
   async submit(userId: string, payload: { realName: string; idNumber: string; phone?: string; livenessImageKey?: string }) {
