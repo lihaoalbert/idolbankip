@@ -12,6 +12,7 @@ import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
 import { UserRole, parseRoles, serializeRoles } from '../common/util/roles.util';
+import type { JwtUser } from '../common/decorators/current-user.decorator';
 
 export interface TokenPair {
   accessToken: string;
@@ -97,9 +98,9 @@ export class AuthService {
     });
   }
 
-  async validatePayload(payload: JwtPayload): Promise<JwtPayload> {
+  async validatePayload(payload: JwtPayload): Promise<JwtUser> {
     if (!payload?.sub) throw new UnauthorizedException();
-    return payload;
+    return { id: payload.sub, email: payload.email, roles: payload.roles };
   }
 
   private async issueTokens(user: User, userAgent: string): Promise<TokenPair> {
