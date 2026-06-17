@@ -29,10 +29,7 @@ import { configValidationSchema } from './config/config.validation';
       validationSchema: configValidationSchema,
       envFilePath: ['.env.local', '.env'],
     }),
-    ThrottlerModule.forRoot([
-      { name: 'global', ttl: 60_000, limit: 60 },
-      { name: 'auth', ttl: 60_000, limit: 10 },
-    ]),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PrismaModule,
     AuditModule,
     AuthModule,
