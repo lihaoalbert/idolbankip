@@ -18,7 +18,8 @@ export class OssCallbackController {
     // MVP: 简化签名校验;生产需解析 OSS 签名
     const result = await this.upload.handleOssCallback(body, _auth);
     if (!result.ok) {
-      return { Status: 'FAIL', Message: 'invalid callback' };
+      // 把详细校验错误回给前端(由前端 toast 提示用户)
+      return { Status: 'FAIL', Message: result.error || 'invalid callback' };
     }
     return { Status: 'OK', fileId: result.fileId };
   }

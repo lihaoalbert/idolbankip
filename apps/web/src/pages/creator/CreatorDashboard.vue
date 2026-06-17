@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import Skeleton from '@/components/Skeleton.vue';
@@ -8,6 +8,14 @@ import EmptyState from '@/components/EmptyState.vue';
 const auth = useAuthStore();
 const items = ref<any[]>([]);
 const loading = ref(true);
+
+// 4 个必填素材,创作者中心展示
+const requiredTypes = [
+  { type: 'THREE_VIEW', icon: '◰', label: '三视图' },
+  { type: 'EXPRESSION_GRID', icon: '☺', label: '表情' },
+  { type: 'TRANSPARENT_RENDER', icon: '◇', label: '立绘' },
+  { type: 'BIO_TXT', icon: '✎', label: '小传' },
+] as const;
 
 async function fetch() {
   loading.value = true;
@@ -30,17 +38,25 @@ function statusLabel(s: string): string {
 
 function statusColor(s: string): string {
   return {
+    PENDING_REVIEW: 'bg-ink/10 text-ink/60',
+    REVIEWED_PROOFING: 'bg-gold/20 text-ink',
     PUBLIC_INTENT: 'bg-gold/20 text-ink',
     OFFICIAL_REGISTERED: 'bg-success/15 text-success',
     REJECTED: 'bg-danger/10 text-danger',
   }[s] || 'bg-ink/10 text-ink/60';
 }
 
-function completionPercent(ip: any): number {
-  const required = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'LORA_FILE', 'RECIPE_TXT', 'BIO_TXT'];
-  const present = new Set(ip.files?.filter((f: any) => f.validated).map((f: any) => f.assetType) || []);
-  return Math.round((required.filter(t => present.has(t)).length / required.length) * 100);
-}
+const presentTypes = (ip: any) => {
+  return new Set(ip.files?.filter((f: any) => f.validated).map((f: any) => f.assetType) || []);
+};
+
+const completionPercent = (ip: any) => {
+  const present = presentTypes(ip);
+  return Math.round((requiredTypes.filter(t => present.has(t.type)).length / requiredTypes.length) * 100);
+};
+
+// 哪些 IP 卡在 PUBLIC_INTENT 等证书 (banner 提示)
+const waitingCertIps = computed(() => items.value.filter(ip => ip.status === 'PUBLIC_INTENT'));
 
 onMounted(fetch);
 </script>
@@ -55,6 +71,29 @@ onMounted(fetch);
       >+ 新建 IP</RouterLink>
     </div>
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
+
+    <!-- 证书登记中提示 banner -->
+    <div
+      v-if="waitingCertIps.length > 0"
+      class="mb-6 p-4 bg-gold/10 border border-gold/30 rounded-2xl"
+    >
+      <div class="flex items-start gap-3">
+        <span class="text-gold text-lg">⏳</span>
+        <div class="flex-1 text-sm">
+          <div class="font-medium text-ink mb-1">
+            {{ waitingCertIps.length }} 个 IP 正在等待版权证书登记
+          </div>
+          <div class="text-ink/70 leading-relaxed">
+            你的 IP 已通过平台审核,正在 <strong>公示中</strong>。公示期通过后,平台会代为申请国家或省级作品著作权登记证书,
+            登记完成后状态会变为 <span class="font-mono text-success">已登记</span>。整个流程通常 1-3 周,具体时间取决于版权局。
+            如需加急,请<a href="/contact" class="text-gold underline">联系商务</a>。
+          </div>
+          <div class="mt-2 text-xs text-ink/50 font-mono">
+            {{ waitingCertIps.map(ip => ip.code).join(' · ') }}
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div v-if="loading" class="grid md:grid-cols-2 gap-4">
       <div v-for="i in 4" :key="i" class="bg-surface rounded-2xl border border-line p-5 space-y-3">
@@ -85,17 +124,31 @@ onMounted(fetch);
         class="block bg-surface rounded-2xl border border-line p-5 hover:shadow-soft transition"
       >
         <div class="flex items-start justify-between mb-3">
-          <div>
-            <div class="font-medium">{{ ip.displayName }}</div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium truncate">{{ ip.displayName }}</div>
             <div class="text-xs text-ink/50 font-mono">{{ ip.code }}</div>
           </div>
-          <span :class="['px-2 py-0.5 text-xs rounded-full', statusColor(ip.status)]">{{ statusLabel(ip.status) }}</span>
+          <span :class="['px-2 py-0.5 text-xs rounded-full shrink-0 ml-2', statusColor(ip.status)]">{{ statusLabel(ip.status) }}</span>
         </div>
-        <div class="text-xs text-ink/60 mb-3">
-          完整度: {{ completionPercent(ip) }}%
+        <!-- 4 必填素材状态 -->
+        <div class="flex items-center gap-3 mb-2">
+          <div
+            v-for="t in requiredTypes"
+            :key="t.type"
+            class="flex items-center gap-1 text-xs"
+            :title="presentTypes(ip).has(t.type) ? `${t.label} 已上传` : `${t.label} 缺失`"
+          >
+            <span :class="presentTypes(ip).has(t.type) ? 'text-success' : 'text-danger/70'">
+              {{ presentTypes(ip).has(t.type) ? '✓' : '○' }}
+            </span>
+            <span class="text-ink/60">{{ t.label }}</span>
+          </div>
         </div>
         <div class="h-1 bg-cream rounded-full overflow-hidden">
           <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />
+        </div>
+        <div class="text-xs text-ink/50 mt-1 text-right">
+          完整度 {{ completionPercent(ip) }}%
         </div>
       </RouterLink>
     </div>
