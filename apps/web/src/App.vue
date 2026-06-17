@@ -3,6 +3,7 @@ import { onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
 import ToastContainer from '@/components/ToastContainer.vue';
+import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
 
 const auth = useAuthStore();
 const { theme, toggle: toggleTheme } = useDarkMode();
@@ -96,7 +97,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
           <h4 class="font-medium mb-3">产品</h4>
           <ul class="space-y-1.5 text-xs text-ink/60">
             <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
-            <li><RouterLink to="/register" class="hover:text-ink">成为创作者</RouterLink></li>
+            <li><BecomeCreatorLink class="hover:text-ink">成为创作者</BecomeCreatorLink></li>
             <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
           </ul>
         </div>

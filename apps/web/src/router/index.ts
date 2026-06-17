@@ -35,6 +35,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
   {
+    path: '/creator/onboard',
+    name: 'creator-onboard',
+    component: () => import('@/pages/creator/OnboardPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
+  {
     path: '/creator',
     name: 'creator-dashboard',
     component: () => import('@/pages/creator/CreatorDashboard.vue'),

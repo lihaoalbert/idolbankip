@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
+import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
 </script>
 
 <template>
@@ -22,10 +23,9 @@ import { RouterLink } from 'vue-router';
             to="/ips"
             class="px-6 py-3 bg-ink text-cream rounded-full hover:bg-gold transition font-medium"
           >浏览形象库 →</RouterLink>
-          <RouterLink
-            to="/register"
+          <BecomeCreatorLink
             class="px-6 py-3 border border-ink rounded-full hover:bg-ink hover:text-cream transition"
-          >成为创作者</RouterLink>
+          >成为创作者</BecomeCreatorLink>
         </div>
 
         <div class="mt-12 grid grid-cols-3 gap-6 max-w-md">
