@@ -12,7 +12,7 @@ const form = ref({
   email: '',
   password: '',
   displayName: '',
-  roles: { CREATOR: false, BUYER: false },
+  roles: { CREATOR: false, BUYER: true },
   companyName: '',
   agree: false,
 });

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
-import { useAuthStore, type UserRole } from '@/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
 import ToastContainer from '@/components/ToastContainer.vue';
 
@@ -13,11 +13,6 @@ onMounted(async () => {
 
 const showCreatorLink = computed(() => auth.hasAnyRole(['CREATOR']));
 const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
-const isMultiRole = computed(() => auth.roles.length > 1);
-
-function switchRole(r: UserRole) {
-  auth.setActiveRole(r === auth.currentRole ? null : r);
-}
 </script>
 
 <template>
@@ -43,22 +38,6 @@ function switchRole(r: UserRole) {
             >
           </template>
           <div v-else class="flex items-center gap-3">
-            <div v-if="isMultiRole" class="flex items-center gap-1 text-xs">
-              <span class="text-ink/50">身份:</span>
-              <button
-                v-for="r in auth.roles"
-                :key="r"
-                @click="switchRole(r)"
-                :class="auth.currentRole === r ? 'bg-ink text-cream' : 'bg-white dark:bg-surface border border-line text-ink/70'"
-                class="px-2 py-0.5 rounded-full transition hover:border-gold"
-              >
-                {{ r === 'CREATOR' ? '创作者' : r === 'BUYER' ? '采购方' : '管理员' }}
-              </button>
-            </div>
-            <span v-else class="text-xs text-ink/60">
-              {{ auth.currentRole === 'CREATOR' ? '创作者' : auth.currentRole === 'BUYER' ? '采购方' : auth.currentRole === 'ADMIN' ? '管理员' : '' }}
-            </span>
-            <span class="text-xs text-ink/60">·</span>
             <span class="text-xs text-ink/60">{{ auth.user?.email }}</span>
             <button @click="auth.logout" class="text-xs underline text-ink/60 hover:text-danger">
               退出
@@ -78,7 +57,7 @@ function switchRole(r: UserRole) {
             <!-- 暗色模式: 显示太阳 (点击回到亮色) -->
             <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold">
               <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41 1.41" />
             </svg>
           </button>
         </nav>
