@@ -11,10 +11,11 @@
       "depositPriceFen": 19900,
       "fullLicensePriceFen": 199900,
       "files": [
-        { "path": "./examples/suqinghe-three.png",   "assetType": "THREE_VIEW" },
-        { "path": "./examples/suqinghe-expr.png",    "assetType": "EXPRESSION_GRID" },
-        { "path": "./examples/suqinghe-render.png",  "assetType": "TRANSPARENT_RENDER" },
-        { "path": "./examples/suqinghe-bio.txt",     "assetType": "BIO_TXT" }
+        { "path": "./examples/suqinghe-face.png",      "assetType": "FACE_CLOSEUP" },
+        { "path": "./examples/suqinghe-three.png",     "assetType": "THREE_VIEW" },
+        { "path": "./examples/suqinghe-expr.png",      "assetType": "EXPRESSION_GRID" },
+        { "path": "./examples/suqinghe-render.png",    "assetType": "TRANSPARENT_RENDER" },
+        { "path": "./examples/suqinghe-bio.txt",       "assetType": "BIO_TXT" }
       ]
     }
   ]

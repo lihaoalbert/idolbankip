@@ -29,7 +29,11 @@ interface ExistingCert {
 const props = defineProps<{
   ipId: string;
   existingCert: ExistingCert | null;
+  // #31: 检查 IP.faceCloseupFileId — 无版权图就提示创作者先去补传
+  ip?: { faceCloseupFileId?: string | null; code: string };
 }>();
+
+const hasFaceCloseup = computed(() => !!props.ip?.faceCloseupFileId);
 
 const emit = defineEmits<{ (e: 'submitted', cert: any): void }>();
 
@@ -58,6 +62,7 @@ const minSize = computed(() => (certFileType.value === 'PDF' ? 1_000 : 10_000));
 const maxSize = 20 * 1024 * 1024;
 
 const canSubmit = computed(() =>
+  hasFaceCloseup.value &&
   !!file.value &&
   file.value.size >= minSize.value &&
   file.value.size <= maxSize,
@@ -152,6 +157,12 @@ async function submit() {
       <div class="font-medium text-danger">✕ 上次提交被拒</div>
       <div v-if="existingCert?.rejectionReason" class="text-xs text-ink/70">原因: {{ existingCert.rejectionReason }}</div>
       <div class="text-xs text-ink/60">请补充资料后重新提交</div>
+    </div>
+
+    <!-- #31: 无面部特写时拦截,强制先回步骤② 补传 -->
+    <div v-if="!hasFaceCloseup" class="p-3 bg-danger/10 border border-danger/30 rounded-xl text-sm space-y-1">
+      <div class="font-medium text-danger">⚠️ 需先上传【面部特写】</div>
+      <div class="text-xs text-ink/70">登记版权需以"版权图"为证据。请回 <strong>步骤 ② 资产包</strong> 上传至少 1 张面部特写并指定为版权图 (⭐)。</div>
     </div>
 
     <div>

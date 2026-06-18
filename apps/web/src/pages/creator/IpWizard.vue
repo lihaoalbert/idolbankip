@@ -79,11 +79,12 @@ const infoError = ref('');
 const customStyleInput = ref('');
 const customScenarioInput = ref('');
 
-// 3 个图片类必填;BIO_TXT 自动生成;LORA/RECIPE/VOICE/PACKAGE 选填
-const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER'];
+// 4 个图片类必填 (含 面部特写 — 版权登记证据,见 #31);BIO_TXT 自动生成;LORA/RECIPE/VOICE/PACKAGE 选填
+const requiredTypes = ['FACE_CLOSEUP', 'THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER'];
 const optionalTypes = ['LORA_FILE', 'RECIPE_TXT', 'VOICE_REF', 'PACKAGE_ZIP'];
 const allAssetTypes = [...requiredTypes, 'BIO_TXT', ...optionalTypes];
 const fileTypeLabel: Record<string, string> = {
+  FACE_CLOSEUP: '面部特写 ⭐ (jpg/png/webp, ≥2048×2048, 100KB-30MB, 单一人物正面清晰人脸 — 版权登记核心证据)',
   THREE_VIEW: '三视图 (jpg/png/webp, ≥2048×2048, 100KB-30MB)',
   EXPRESSION_GRID: '表情矩阵 (jpg/png/webp, ≥2048×2048, 100KB-30MB)',
   TRANSPARENT_RENDER: '立绘 (PNG 带 alpha, ≥2048×2048, 100KB-30MB)',
@@ -94,6 +95,7 @@ const fileTypeLabel: Record<string, string> = {
   PACKAGE_ZIP: '完整资产包 (.zip, 1KB-1GB)',
 };
 const fileTypeShort: Record<string, string> = {
+  FACE_CLOSEUP: '面部特写',
   THREE_VIEW: '三视图',
   EXPRESSION_GRID: '表情',
   TRANSPARENT_RENDER: '立绘',
@@ -115,12 +117,29 @@ const fileByType = computed(() => {
   return m;
 });
 
+// #31: 所有上传过的 FACE_CLOSEUP 文件 (供多张管理 + ⭐ 切换版权图)
+const faceCloseupFiles = computed(() =>
+  files.value.filter((f) => f.assetType === 'FACE_CLOSEUP'),
+);
+
+// 设置某张面部特写为版权图 (调后端 /upload/ips/:id/face-closeup)
+async function setAsFaceCloseup(fileId: string) {
+  if (!ipId.value) return;
+  try {
+    await apiClient.post(`/upload/ips/${ipId.value}/face-closeup`, { fileId });
+    toast.success('已设为版权图');
+    await loadIp();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '设置失败');
+  }
+}
+
 const completion = computed(() => {
-  // 3 个图片必填 + BIO_TXT 视为已生成 (因为步骤 1 保存时会自动创建)
+  // 4 个图片必填 (含 FACE_CLOSEUP, 见 #31) + BIO_TXT 视为已生成 (因为步骤 1 保存时会自动创建)
   const present = new Set(files.value.filter((f) => f.validated).map((f) => f.assetType));
   const imageCount = requiredTypes.filter(t => present.has(t)).length;
   const bioAuto = present.has('BIO_TXT') ? 1 : 0; // 通常步骤 1 后就有
-  return Math.round(((imageCount + bioAuto) / 4) * 100);
+  return Math.round(((imageCount + bioAuto) / 5) * 100);
 });
 
 const infoValid = computed(() =>
@@ -136,6 +155,7 @@ const canSubmit = computed(() =>
   step1Done.value &&
   step2Done.value &&
   ip.value?.status === 'PENDING_REVIEW' &&
+  !!ip.value?.faceCloseupFileId && // #31: 版权图必须指定才能上架
   agreedToTerms.value,
 );
 
@@ -756,12 +776,23 @@ const stepMeta = [
               <input
                 type="file"
                 class="hidden"
+                :multiple="t === 'FACE_CLOSEUP'"
                 :disabled="!!uploadingTypes[t]"
                 :accept="t === 'LORA_FILE' ? '.safetensors' : t === 'BIO_TXT' || t === 'RECIPE_TXT' ? '.txt,.md' : t === 'VOICE_REF' ? '.wav,.mp3' : t === 'PACKAGE_ZIP' ? '.zip' : t === 'TRANSPARENT_RENDER' ? 'image/png' : 'image/*'"
                 @change="(e) => {
-                  const f = (e.target as HTMLInputElement).files?.[0];
-                  if (f) requestUploadPolicy(t, f);
-                  (e.target as HTMLInputElement).value = '';
+                  const inp = e.target as HTMLInputElement;
+                  const list = inp.files ? Array.from(inp.files) : [];
+                  if (t === 'FACE_CLOSEUP') {
+                    // 逐张上传 (避免并发覆盖 uploadingTypes 状态)
+                    (async () => {
+                      for (const f of list) {
+                        await requestUploadPolicy(t, f);
+                      }
+                    })();
+                  } else if (list[0]) {
+                    requestUploadPolicy(t, list[0]);
+                  }
+                  inp.value = '';
                 }"
               />
             </label>
@@ -775,6 +806,36 @@ const stepMeta = [
               class="h-full bg-gold transition-all duration-150"
               :style="{ width: (uploadProgress[t] ?? 0) + '%' }"
             />
+          </div>
+          <!-- #31: FACE_CLOSEUP 专属 — 多张管理 + ⭐ 切换版权图 -->
+          <div
+            v-if="t === 'FACE_CLOSEUP' && faceCloseupFiles.length > 0"
+            class="mt-3 space-y-1.5"
+          >
+            <div class="text-xs text-ink/60 font-medium">
+              已上传 {{ faceCloseupFiles.length }} 张面部特写 ·
+              <span class="text-gold">⭐ 标记的为版权登记图</span>
+            </div>
+            <div
+              v-for="ff in faceCloseupFiles"
+              :key="ff.id"
+              class="flex items-center gap-2 p-2 bg-cream/40 rounded-lg text-xs"
+            >
+              <span class="truncate flex-1">{{ ff.displayName || ff.originalName }}</span>
+              <span v-if="ip?.faceCloseupFileId === ff.id" class="text-gold text-sm" title="当前版权图">⭐</span>
+              <button
+                v-else
+                type="button"
+                class="text-ink/40 hover:text-gold text-sm"
+                title="设为版权图"
+                @click="setAsFaceCloseup(ff.id)"
+              >
+                ☆
+              </button>
+            </div>
+            <div v-if="!ip?.faceCloseupFileId" class="text-xs text-danger">
+              ⚠️ 请点击 ⭐ 指定其中一张作为版权登记图(平台将以此为依据与公众人物面部库做 1:1 比对)
+            </div>
           </div>
         </div>
       </div>
@@ -841,7 +902,7 @@ const stepMeta = [
           <p v-if="ip.status === 'PUBLIC_INTENT'" class="text-xs text-ink/60">
             平台已通过基础审核, 请提交版权证书 (PDF / JPG / PNG 扫描件) 以完成国家或省级作品著作权登记。
           </p>
-          <CertSubmitSection :ipId="ip.id" :existingCert="cert" @submitted="loadIp" />
+          <CertSubmitSection :ipId="ip.id" :existingCert="cert" :ip="ip" @submitted="loadIp" />
         </div>
 
         <!-- OFFICIAL_REGISTERED 时显示下载证书按钮 (创作者需要拿到证书副本) -->

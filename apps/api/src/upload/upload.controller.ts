@@ -29,6 +29,10 @@ class AutoFileDto {
   @IsString() content!: string;
 }
 
+class SetFaceCloseupDto {
+  @IsString() fileId!: string;
+}
+
 @ApiTags('upload')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -93,5 +97,19 @@ export class UploadController {
       throw new BadRequestException('已提交审核的 IP 不允许修改资产');
     }
     return this.upload.createAutoFile(ipId, u.id, body.assetType, body.content);
+  }
+
+  /**
+   * 创作者指定/切换版权图 (IpAsset.faceCloseupFileId)
+   * body: { fileId } — 必须是该 IP 下的一张 FACE_CLOSEUP IpFile
+   * 见 [[project-post-mvp-backlog]] #31
+   */
+  @Post('ips/:id/face-closeup')
+  async setFaceCloseup(
+    @Param('id') ipId: string,
+    @Body() body: SetFaceCloseupDto,
+    @CurrentUser() u: JwtUser,
+  ) {
+    return this.upload.setFaceCloseup(ipId, body.fileId, u.id);
   }
 }

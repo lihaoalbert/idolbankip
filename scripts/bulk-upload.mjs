@@ -70,6 +70,7 @@ const ASSET_LIMITS = {
   BIO_TXT:            { minBytes: 10,         maxBytes: 1_000_000,     ext: /\.(txt|md)$/i },
   VOICE_REF:          { minBytes: 50_000,     maxBytes: 50_000_000,    ext: /\.(wav|mp3)$/i },
   PACKAGE_ZIP:        { minBytes: 1_000,      maxBytes: 1_000_000_000, ext: /\.zip$/i },
+  FACE_CLOSEUP:       { minBytes: 100_000,    maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp)$/i },
 };
 
 async function call(method, path, body) {

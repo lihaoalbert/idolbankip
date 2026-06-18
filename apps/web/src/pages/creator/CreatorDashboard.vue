@@ -12,8 +12,9 @@ const items = ref<any[]>([]);
 const loading = ref(true);
 const kycStatus = ref<string | null>(null);
 
-// 4 个必填素材,创作者中心展示
+// 5 个必填素材 (含 #31 面部特写),创作者中心展示
 const requiredTypes = [
+  { type: 'FACE_CLOSEUP', icon: '⭐', label: '面部' },
   { type: 'THREE_VIEW', icon: '◰', label: '三视图' },
   { type: 'EXPRESSION_GRID', icon: '☺', label: '表情' },
   { type: 'TRANSPARENT_RENDER', icon: '◇', label: '立绘' },
@@ -305,8 +306,8 @@ onMounted(fetch);
           >
             ✕ 原因: {{ ip.rejectionReason }}
           </div>
-          <!-- 4 必填素材状态 -->
-          <div class="flex items-center gap-3 mb-2">
+          <!-- 5 必填素材状态 -->
+          <div class="flex items-center gap-3 mb-2 flex-wrap">
             <div
               v-for="t in requiredTypes"
               :key="t.type"
@@ -318,6 +319,14 @@ onMounted(fetch);
               </span>
               <span class="text-ink/60">{{ t.label }}</span>
             </div>
+            <!-- #31: 已传面部特写但还没指定版权图 → 警告 -->
+            <span
+              v-if="presentTypes(ip).has('FACE_CLOSEUP') && !ip.faceCloseupFileId"
+              class="text-[10px] px-1.5 py-0.5 bg-warning/15 text-warning border border-warning/30 rounded"
+              title="已传面部特写,但还没指定哪张作为版权图"
+            >
+              ⚠️ 未指定版权图
+            </span>
           </div>
           <div class="h-1 bg-cream rounded-full overflow-hidden">
             <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />

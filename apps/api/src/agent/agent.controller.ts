@@ -36,6 +36,8 @@ class BatchIpItemDto {
   @IsArray() @IsString({ each: true }) scenarioTags!: string[];
   @IsOptional() @IsInt() @Min(0) depositPriceFen?: number;
   @IsInt() @Min(0) fullLicensePriceFen!: number;
+  // #31 面部特写在文件上传 callback 时由 upload.service 自动指定为 faceCloseupFileId (首张)
+  // agent 客户端只需确保至少传 1 张 FACE_CLOSEUP, 不用这里指定 index
 }
 
 class AgentUploadPolicyDto {

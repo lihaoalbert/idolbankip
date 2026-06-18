@@ -50,6 +50,10 @@ export class CertService {
     if (ip.status !== IpStatus.PUBLIC_INTENT) {
       throw new BadRequestException(`仅 PUBLIC_INTENT 状态可提交证书,当前 ${ip.status}`);
     }
+    // #31: 必须先在创作者中心上传【面部特写】并指定为版权图,才能登记版权
+    if (!ip.faceCloseupFileId) {
+      throw new BadRequestException('请先在创作者中心上传【面部特写】并指定为版权图(作品说明书 → 步骤②)');
+    }
 
     // 验证 OSS key 真实存在 + magic 校验 (防止前端伪造 key)
     const verify = await this.upload.verifyCertObject(dto.certFileKey, dto.certFileType, dto.certFileSize);

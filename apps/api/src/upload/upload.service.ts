@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
@@ -21,6 +21,7 @@ const IMAGE_TYPES = new Set<AssetType>([
   AssetType.THREE_VIEW,
   AssetType.EXPRESSION_GRID,
   AssetType.TRANSPARENT_RENDER,
+  AssetType.FACE_CLOSEUP,
 ]);
 const AUDIO_TYPES = new Set<AssetType>([AssetType.VOICE_REF]);
 const PACKAGE_TYPES = new Set<AssetType>([AssetType.PACKAGE_ZIP]);
@@ -38,6 +39,8 @@ export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: numbe
   PACKAGE_ZIP:       { minBytes: 1_000,       maxBytes: 1_000_000_000, ext: /\.zip$/i,              label: '资产包 (.zip, 1KB-1GB)' },
   TEST_SAMPLE:       { minBytes: 1_000,       maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp)$/i, label: '测试样板 (图片)' },
   LEGAL_PROOF:       { minBytes: 1_000,       maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp|pdf)$/i, label: '训练截图' },
+  // 面部特写 — 版权登记核心证据。尺寸同三视图,但必须清晰人脸 (UI 提示),不强制 sharp 验脸
+  FACE_CLOSEUP:      { minBytes: 100_000,     maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp)$/i,  label: '面部特写 (jpg/png/webp, ≥2048×2048, 100KB-30MB, 单一人物正面清晰人脸)' },
 };
 
 export const CERT_LIMITS: Record<CertFileType, { minBytes: number; maxBytes: number; ext: RegExp; label: string; magic: Buffer }> = {
@@ -294,7 +297,22 @@ export class UploadService {
       },
     });
 
-    if (IMAGE_TYPES.has(assetType) && !ip.thumbnailKey) {
+    // 4. 面部特写专属逻辑: 自动选为版权图 (首张), 并从它重新生成缩略图 (覆盖老的三视图缩略图)
+    //    创作者可在 UI 上传多张面部特写, 然后用 ⭐ 按钮切换; 切换逻辑见 IpsService.setFaceCloseup
+    if (assetType === AssetType.FACE_CLOSEUP) {
+      if (!ip.faceCloseupFileId) {
+        await this.prisma.ipAsset.update({
+          where: { id: ip.id },
+          data: { faceCloseupFileId: file.id },
+        });
+        this.logger.log(`auto-set faceCloseupFileId for ${ip.code} → ${file.id} (first FACE_CLOSEUP)`);
+      }
+      // 总是用面部特写重生成缩略图 (即使已有, 也升级到人脸版本)
+      this.generateThumbnailFromOssKey(ip.code, dir, filenameStr).catch((e) =>
+        this.logger.warn(`face-closeup thumbnail regen failed for ${ip.code}: ${e?.message ?? e}`),
+      );
+    } else if (IMAGE_TYPES.has(assetType) && !ip.thumbnailKey) {
+      // 其他图片类型只在还没缩略图时生成 (保持向后兼容, 老 IP 用三视图作缩略图)
       this.generateThumbnailFromOssKey(ip.code, dir, filenameStr).catch((e) =>
         this.logger.warn(`thumbnail gen failed for ${ip.code}: ${e?.message ?? e}`),
       );
@@ -312,11 +330,11 @@ export class UploadService {
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
       if (IMAGE_TYPES.has(type)) {
-        const url = await this.signDownloadUrl(key, 'private');
-        const res = await globalThis.fetch(url);
-        if (!res.ok) return { ok: false, reason: `OSS 拉取失败 HTTP ${res.status}` };
-        const ab = await res.arrayBuffer();
-        const meta = await sharp(Buffer.from(ab)).metadata();
+        // 用 SDK get() 直读 (避开 signatureUrl + response 头的 403 签名 bug,
+        // 跟 getContractBuffer / verifyCertObject 同样的处理)
+        const res = await this.privateClient.get(key);
+        const buf = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content as ArrayBuffer);
+        const meta = await sharp(buf).metadata();
         if (!meta.width || !meta.height) {
           return { ok: false, reason: '无法读取图片尺寸' };
         }
@@ -364,12 +382,13 @@ export class UploadService {
   }
 
   private async fetchHead(key: string, n: number): Promise<Buffer> {
-    const url = await this.signDownloadUrl(key, 'private');
-    const res = await globalThis.fetch(url, { headers: { Range: `bytes=0-${n - 1}` } });
-    if (!res.ok && res.status !== 206) {
-      throw new Error(`OSS HEAD ${key} → HTTP ${res.status}`);
+    // 用 SDK get(range) 直读首 N 字节 (避开 signatureUrl + response 头签名 bug)
+    const res = await this.privateClient.get(key, { range: `bytes=0-${n - 1}` } as any);
+    const buf = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content);
+    if (buf.length === 0) {
+      throw new Error(`OSS HEAD ${key} → 空响应`);
     }
-    return Buffer.from(await res.arrayBuffer());
+    return buf;
   }
 
   private fmtSize(b: number): string {
@@ -487,6 +506,36 @@ export class UploadService {
     if (filename) response['response-content-disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`;
     const url = client.signatureUrl(ossKey, { expires: 300, response });
     return url;
+  }
+
+  /**
+   * 创作者手动指定/切换版权图 (IpAsset.faceCloseupFileId)
+   * - fileId 必须是该 IP 下的 FACE_CLOSEUP 类型 IpFile
+   * - 自动用新的版权图重新生成缩略图 (覆盖旧的,即使老缩略图来自 THREE_VIEW)
+   *
+   * 见 [[project-post-mvp-backlog]] #31: 创作者可上传多张 FACE_CLOSEUP, ⭐ 按钮切换
+   */
+  async setFaceCloseup(ipId: string, fileId: string, creatorId: string): Promise<{ id: string; faceCloseupFileId: string | null }> {
+    const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
+    if (!ip) throw new NotFoundException('IP 不存在');
+    if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
+    const file = await this.prisma.ipFile.findUnique({ where: { id: fileId } });
+    if (!file) throw new NotFoundException('文件不存在');
+    if (file.ipId !== ipId) throw new BadRequestException('该文件不属于此 IP');
+    if (file.assetType !== AssetType.FACE_CLOSEUP) {
+      throw new BadRequestException('该文件不是【面部特写】类型,不能设为版权图');
+    }
+    const updated = await this.prisma.ipAsset.update({
+      where: { id: ipId },
+      data: { faceCloseupFileId: fileId },
+      select: { id: true, faceCloseupFileId: true },
+    });
+    // 异步重生成缩略图 (从新版权图)
+    this.generateThumbnailFromOssKey(ip.code, file.ossKey, file.originalName).catch((e) =>
+      this.logger.warn(`face-closeup switch thumbnail regen failed for ${ip.code}: ${e?.message ?? e}`),
+    );
+    this.logger.log(`faceCloseupFileId set for ${ip.code} → ${fileId} (creator ${creatorId})`);
+    return updated;
   }
 
   async uploadPublic(key: string, buffer: Buffer, mime = 'image/jpeg'): Promise<string> {

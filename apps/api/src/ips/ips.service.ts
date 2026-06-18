@@ -165,6 +165,7 @@ export class IpsService {
           blockchainTxId: true,
           status: true,
           publishedAt: true,
+          faceCloseupFileId: true, // #31
         },
       }),
       this.prisma.ipAsset.count({ where }),
@@ -207,19 +208,21 @@ export class IpsService {
   }
 
   /**
-   * 校验资产包完整性 (Visual Matrix + AI Core + Lore)
+   * 校验资产包完整性 (Visual Matrix + AI Core + Lore + 版权证据)
    */
   async validatePackCompleteness(ipId: string): Promise<{ ok: boolean; missing: AssetType[]; present: AssetType[] }> {
     const files = await this.prisma.ipFile.findMany({
       where: { ipId },
       select: { assetType: true, validated: true },
     });
-    // 4 个核心素材必填;LORA/RECIPE/VOICE/PACKAGE 选填 (prompt 与人物小传可替代 LORA 训练出图)
+    // 5 个核心素材必填;LORA/RECIPE/VOICE/PACKAGE 选填 (prompt 与人物小传可替代 LORA 训练出图)
+    // FACE_CLOSEUP 是版权登记证据,无它不能 submitForReview (见 #31)
     const required: AssetType[] = [
       AssetType.THREE_VIEW,
       AssetType.EXPRESSION_GRID,
       AssetType.TRANSPARENT_RENDER,
       AssetType.BIO_TXT,
+      AssetType.FACE_CLOSEUP,
     ];
     const present = Array.from(new Set(files.filter(f => f.validated).map(f => f.assetType)));
     const missing = required.filter(r => !present.includes(r));
@@ -488,6 +491,7 @@ export class IpsService {
         sizeBytes: f.sizeBytes.toString(),
         mimeType: f.mimeType,
         previewOnly: ip.status !== 'OFFICIAL_REGISTERED' || true, // B 端始终是 preview
+        isFaceCloseup: f.id === ip.faceCloseupFileId, // #31 — UI 可用这个高亮版权图
       })),
       availableTiers: {
         depositPriceFen: ip.depositPriceFen,

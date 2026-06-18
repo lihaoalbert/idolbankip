@@ -45,6 +45,7 @@ enum AssetType {
   VOICE_REF // 声音参考
   LEGAL_PROOF // 训练截图 (平台内部可见)
   PACKAGE_ZIP // 完整资产包
+  FACE_CLOSEUP // 面部特写 (版权登记核心证据, 唯一指针 faceCloseupFileId 指向其中一张)
 }
 
 enum OrderType {
@@ -177,9 +178,14 @@ model IpAsset {
   officialCertNo String?
 
   // 展示素材
-  thumbnailKey     String // 600x600 缩略图 OSS key
+  thumbnailKey     String // 600x600 缩略图 OSS key (FACE_CLOSEUP 优先, 否则 THREE_VIEW 兜底)
   heroVideoKey     String? // 可选 mp4
   previewImageKeys Json // [string, ...] 预览图 OSS key 列表
+
+  // 版权登记证据 — 创作者上传多张 FACE_CLOSEUP, 由其指定这一张作为版权图
+  // 存量 IP 迁移时自动用第一张 THREE_VIEW 填入 (UI 标记 "占位中", 可后补)
+  faceCloseupFileId String?  @unique
+  faceCloseupFile   IpFile?  @relation("FaceCloseupOf", fields: [faceCloseupFileId], references: [id], onDelete: SetNull)
 
   // 反盗版标记
   invisibleWatermarkApplied Boolean @default(false)
@@ -266,6 +272,9 @@ model IpFile {
   sizeBytes      BigInt
   mimeType       String
   checksumSha256 String // 用于区块链 hash 计算
+
+  // 反向关系: 一个 IpFile 最多被一个 IP 选为版权图 (IpAsset.faceCloseupFileId)
+  faceCloseupOf  IpAsset[] @relation("FaceCloseupOf")
   uploadedAt     DateTime @default(now())
   validated      Boolean  @default(false)
 
