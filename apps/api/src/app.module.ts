@@ -15,6 +15,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentModule } from './payment/payment.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { DownloadModule } from './download/download.module';
+import { CertModule } from './cert/cert.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
@@ -44,6 +45,7 @@ import { configValidationSchema } from './config/config.validation';
     PaymentModule,
     ContractsModule,
     DownloadModule,
+    CertModule,
     AdminModule,
     HealthModule,
     LeadsModule,

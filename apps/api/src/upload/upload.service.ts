@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger } from '@ne
 import { ConfigService } from '@nestjs/config';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
-import { AssetType, IpAsset, IpStatus } from '@prisma/client';
+import { AssetType, CertFileType, IpAsset, IpStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WatermarkService } from '../watermark/watermark.service';
 
@@ -38,6 +38,12 @@ export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: numbe
   PACKAGE_ZIP:       { minBytes: 1_000,       maxBytes: 1_000_000_000, ext: /\.zip$/i,              label: '资产包 (.zip, 1KB-1GB)' },
   TEST_SAMPLE:       { minBytes: 1_000,       maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp)$/i, label: '测试样板 (图片)' },
   LEGAL_PROOF:       { minBytes: 1_000,       maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp|pdf)$/i, label: '训练截图' },
+};
+
+export const CERT_LIMITS: Record<CertFileType, { minBytes: number; maxBytes: number; ext: RegExp; label: string; magic: Buffer }> = {
+  PDF: { minBytes: 1_000,  maxBytes: 20_000_000, ext: /\.pdf$/i,  label: '版权证书 PDF (100KB-20MB)', magic: Buffer.from('%PDF-') },
+  JPG: { minBytes: 10_000, maxBytes: 20_000_000, ext: /\.jpe?g$/i, label: '版权证书 JPG (10KB-20MB)', magic: Buffer.from([0xff, 0xd8, 0xff]) },
+  PNG: { minBytes: 10_000, maxBytes: 20_000_000, ext: /\.png$/i,  label: '版权证书 PNG (10KB-20MB)', magic: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
 };
 
 @Injectable()
@@ -115,6 +121,86 @@ export class UploadService {
       url: this.privateClient.options.endpoint || '',
       bucket: this.privateClient.options.bucket || '',
     };
+  }
+
+  /**
+   * 版权证书文件上传策略
+   * - 路径: ips/{code}/cert/{ts}/{filename} (与 raw 资产隔离)
+   * - 不写 IpFile, 只返回 key 给前端用于提交 cert metadata
+   * - 大小限制来自 CERT_LIMITS
+   */
+  async generateCertPolicy(params: {
+    ipCode: string;
+    certFileType: CertFileType;
+    filename: string;
+    size: number;
+  }): Promise<PolicyResult & { url: string; bucket: string; key: string }> {
+    const safeName = params.filename.replace(/[\\/\0]/g, '_').slice(-200);
+    const dir = `ips/${params.ipCode}/cert/${Date.now()}/`;
+    const key = dir + safeName;
+    const expireSeconds = 600;
+    const expireEpoch = Math.floor(Date.now() / 1000) + expireSeconds;
+    const limit = CERT_LIMITS[params.certFileType];
+    if (!limit.ext.test(params.filename)) {
+      throw new BadRequestException(`文件扩展名不合法, 期望: ${limit.label}`);
+    }
+    const maxSize = Math.min(limit.maxBytes + 1024 * 1024, 5 * 1024 * 1024 * 1024);
+
+    const policy = {
+      expiration: new Date(expireEpoch * 1000).toISOString(),
+      conditions: [
+        ['content-length-range', 0, maxSize],
+        ['eq', '$key', key],
+        ['starts-with', '$key', dir],
+      ],
+    };
+
+    const { policy: policyBase64, Signature: signature } = (
+      this.privateClient as unknown as {
+        calculatePostSignature: (p: object) => { policy: string; Signature: string };
+      }
+    ).calculatePostSignature(policy);
+
+    return {
+      host: `https://${this.privateClient.options.bucket}.${this.config.get('OSS_REGION')}.aliyuncs.com`,
+      policy: policyBase64,
+      signature,
+      dir,
+      key,
+      expire: expireEpoch,
+      accessKeyId: this.config.get<string>('OSS_ACCESS_KEY_ID') || '',
+      callback: '',
+      url: this.privateClient.options.endpoint || '',
+      bucket: this.privateClient.options.bucket || '',
+    };
+  }
+
+  /**
+   * 验证 cert OSS 对象存在 + magic 校验
+   * 创作者提交 cert metadata 时由 CertService 调用, 防止前端伪造 key
+   */
+  async verifyCertObject(ossKey: string, certFileType: CertFileType, size: number): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const limit = CERT_LIMITS[certFileType];
+    try {
+      // HEAD 拉元数据
+      const head = await this.privateClient.head(ossKey);
+      const actualSize = Number(head.res.headers['content-length'] ?? 0);
+      if (actualSize !== size) {
+        return { ok: false, reason: `OSS 实际大小 ${actualSize} 与声明 ${size} 不一致` };
+      }
+      if (actualSize < limit.minBytes || actualSize > limit.maxBytes) {
+        return { ok: false, reason: `${limit.label.split('(')[0].trim()} 大小越界 (${this.fmtSize(actualSize)})` };
+      }
+      // 拉首 8 字节做 magic 校验
+      const headBuf = await this.fetchHead(ossKey, limit.magic.length);
+      if (!headBuf.subarray(0, limit.magic.length).equals(limit.magic)) {
+        return { ok: false, reason: `文件 magic 校验失败, 不是合法的 ${certFileType}` };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      this.logger.warn(`verifyCertObject failed for ${ossKey}: ${e?.message ?? e}`);
+      return { ok: false, reason: `OSS 对象不存在或无法访问: ${e?.message ?? e}` };
+    }
   }
 
   /**
