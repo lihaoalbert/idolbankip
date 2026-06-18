@@ -41,3 +41,13 @@ packages/*/src/*.d.ts
 packages/*/src/mocks/*.js
 packages/*/src/mocks/*.js.map
 packages/*/src/mocks/*.d.ts
+
+# ===================== 项目本地文档 (per-project, 不进版本控制) =====================
+# AGENTS.md 含阿里云 live keys, 严禁 commit
+AGENTS.md
+# 创作素材 (作品说明/人物小传/形象参考图等 per-IP 内容, 本地保留)
+01-*.md
+人物小传*.md
+形象-*.md
+形象-*.pdf
+形象-*.txt
