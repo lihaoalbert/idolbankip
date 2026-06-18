@@ -11,6 +11,7 @@ import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
 import { UserRole, rolesContains } from '../common/util/roles.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UploadService } from '../upload/upload.service';
 
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
@@ -71,6 +72,7 @@ export class IpsService {
     private readonly proofing: ProofingService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly upload: UploadService,
   ) {}
 
   generateNextCode(): Promise<string> {
@@ -201,9 +203,73 @@ export class IpsService {
       where: { creatorId },
       orderBy: { createdAt: 'desc' },
       include: {
-        files: { select: { id: true, assetType: true, validated: true } },
+        files: { select: { id: true, assetType: true, validated: true, sizeBytes: true } },
       },
     });
+  }
+
+  /**
+   * #33 创作者查看自己 IP 的全部 PROCESS_EVIDENCE (description + processStep 完整)
+   * 鉴权: 必须是自己 IP, 否则 404
+   */
+  async listProcessEvidence(ipId: string, creatorId: string): Promise<{
+    items: Array<{ id: string; originalName: string; sizeBytes: string; description: string | null; processStep: string | null; uploadedAt: Date }>;
+    totalBytes: number;
+    maxBytes: number;
+  }> {
+    const ip = await this.findById(ipId);
+    if (!ip || ip.creatorId !== creatorId) throw new NotFoundException('IP 不存在');
+    const files = await this.prisma.ipFile.findMany({
+      where: { ipId, assetType: 'PROCESS_EVIDENCE' },
+      orderBy: { uploadedAt: 'desc' },
+    });
+    const totalBytes = files.reduce((s, f) => s + Number(f.sizeBytes), 0);
+    // 与 upload.service 保持一致: 600MB 上限 (避免硬编码重复, 这里直接 import)
+    const { PROCESS_EVIDENCE_TOTAL_MAX_BYTES } = await import('../upload/upload.service');
+    return {
+      items: files.map((f) => ({
+        id: f.id,
+        originalName: f.originalName,
+        sizeBytes: f.sizeBytes.toString(),
+        description: f.description,
+        processStep: f.processStep,
+        uploadedAt: f.uploadedAt,
+      })),
+      totalBytes,
+      maxBytes: PROCESS_EVIDENCE_TOTAL_MAX_BYTES,
+    };
+  }
+
+  /**
+   * #33 删除单条创作证据 — 释放累计空间
+   * 鉴权: 必须是自己 IP 的 PROCESS_EVIDENCE, 否则 404
+   * OSS 删除失败不阻塞 DB 清理 (warn-only, 见 upload.deleteOssObject)
+   */
+  async deleteProcessEvidence(ipId: string, fileId: string, creatorId: string): Promise<{ deleted: true; remainingBytes: number }> {
+    const ip = await this.findById(ipId);
+    if (!ip || ip.creatorId !== creatorId) throw new NotFoundException('IP 不存在');
+    const file = await this.prisma.ipFile.findUnique({ where: { id: fileId } });
+    if (!file || file.ipId !== ipId || file.assetType !== 'PROCESS_EVIDENCE') {
+      throw new NotFoundException('证据文件不存在');
+    }
+    // OSS 先删 (失败不抛, 至少 DB 行得清掉)
+    await this.upload.deleteOssObject(file.ossKey);
+    // DB 删
+    await this.prisma.ipFile.delete({ where: { id: fileId } });
+    // 重新算累计
+    const agg = await this.prisma.ipFile.aggregate({
+      where: { ipId, assetType: 'PROCESS_EVIDENCE' },
+      _sum: { sizeBytes: true },
+    });
+    this.logger.log(`PROCESS_EVIDENCE deleted: ip=${ip.code} file=${fileId} (${this.fmtSize(Number(file.sizeBytes))})`);
+    return { deleted: true, remainingBytes: Number(agg._sum.sizeBytes ?? 0n) };
+  }
+
+  private fmtSize(b: number): string {
+    if (b < 1024) return `${b}B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)}KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(0)}MB`;
+    return `${(b / 1024 / 1024 / 1024).toFixed(1)}GB`;
   }
 
   async transitionStatus(ip: IpAsset, next: IpStatus, actorId?: string, payload?: any): Promise<IpAsset> {
@@ -515,6 +581,10 @@ export class IpsService {
         mimeType: f.mimeType,
         previewOnly: ip.status !== 'OFFICIAL_REGISTERED' || true, // B 端始终是 preview
         isFaceCloseup: f.id === ip.faceCloseupFileId, // #31 — UI 可用这个高亮版权图
+        // #33 创作过程证据专用元数据
+        description: f.description,
+        processStep: f.processStep,
+        uploadedAt: f.uploadedAt,
       })),
       availableTiers: {
         depositPriceFen: ip.depositPriceFen,

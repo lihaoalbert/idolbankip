@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -142,6 +143,34 @@ export class IpsController {
   async listMine(@CurrentUser() user: JwtUser) {
     const items = await this.ips.listMine(user.id);
     return { items };
+  }
+
+  /**
+   * #33 创作者查看自己 IP 的全部 PROCESS_EVIDENCE (带 description + processStep)
+   * admin 也可以通过 /admin/ips/:id/files 看到
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CREATOR)
+  @Get(':id/process-evidence')
+  async processEvidence(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.ips.listProcessEvidence(id, user.id);
+  }
+
+  /**
+   * #33 删除单条创作证据 — 释放累计空间
+   * 鉴权: 创作者只能删自己 IP 的 PROCESS_EVIDENCE
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CREATOR)
+  @Delete(':id/process-evidence/:fileId')
+  async deleteProcessEvidence(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.ips.deleteProcessEvidence(id, fileId, user.id);
   }
 }
 

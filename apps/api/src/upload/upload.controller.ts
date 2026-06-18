@@ -1,8 +1,8 @@
 import { BadRequestException, Body, Controller, ForbiddenException, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsString, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { AssetType, CertFileType, IpStatus } from '@prisma/client';
-import { UploadService, CERT_LIMITS } from './upload.service';
+import { PROCESS_STEPS, UploadService, CERT_LIMITS } from './upload.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -15,6 +15,9 @@ class DirectPostPolicyDto {
   @IsEnum(AssetType) assetType!: AssetType;
   @IsString() filename!: string;
   @IsInt() @Min(0) size!: number;
+  // #33 创作过程证据 — 可选, 仅 PROCESS_EVIDENCE 校验
+  @IsOptional() @IsString() @MaxLength(500) description?: string;
+  @IsOptional() @IsIn(PROCESS_STEPS as unknown as string[]) processStep?: string;
 }
 
 class CertPolicyDto {
@@ -46,6 +49,12 @@ export class UploadController {
 
   @Post('policy')
   async policy(@Body() body: DirectPostPolicyDto) {
+    // #33 创作过程证据 — policy 阶段先校验 description/processStep, 避免无谓上传 OSS
+    if (body.assetType === AssetType.PROCESS_EVIDENCE) {
+      if (!body.processStep || !PROCESS_STEPS.includes(body.processStep as any)) {
+        throw new BadRequestException(`PROCESS_EVIDENCE 必须传 processStep (${PROCESS_STEPS.join(', ')})`);
+      }
+    }
     return this.upload.generateDirectPostPolicy(body);
   }
 

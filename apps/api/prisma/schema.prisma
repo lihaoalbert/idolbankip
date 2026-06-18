@@ -68,6 +68,7 @@ enum AssetType {
   LEGAL_PROOF // 训练截图 (平台内部可见)
   PACKAGE_ZIP // 完整资产包
   FACE_CLOSEUP // 面部特写 (版权登记核心证据, 唯一指针 faceCloseupFileId 指向其中一张)
+  PROCESS_EVIDENCE // #33 创作过程证据 (训练截图/工作流/出图序列, 200MB/file, 600MB/IP)
 }
 
 enum OrderType {
@@ -297,6 +298,10 @@ model IpFile {
   sizeBytes      BigInt
   mimeType       String
   checksumSha256 String // 用于区块链 hash 计算
+
+  // #33 创作过程证据专用元数据 (其它类型为 NULL)
+  description    String?  @db.Text
+  processStep    String?  // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
 
   // 反向关系: 一个 IpFile 最多被一个 IP 选为版权图 (IpAsset.faceCloseupFileId)
   faceCloseupOf  IpAsset[] @relation("FaceCloseupOf")

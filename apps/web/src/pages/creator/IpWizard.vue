@@ -57,6 +57,17 @@ const regeneratingBio = ref(false);
 const agreedToTerms = ref(false);
 // 证书下载
 const downloadingCert = ref(false);
+// #33 创作过程证据 — 列表 + 累计用量 (与后端 GET /ips/:id/process-evidence 同步)
+const processEvidence = ref<Array<{ id: string; originalName: string; sizeBytes: string; description: string | null; processStep: string | null; uploadedAt: string }>>([]);
+const processEvidenceTotal = ref(0);
+const processEvidenceLoading = ref(false);
+const processEvidenceUploading = ref(false);
+const processEvidenceUploadProgress = ref(0);
+// 新增证据表单
+const newEvidenceStep = ref('TRAINING_DATA_PREP');
+const newEvidenceDescription = ref('');
+const newEvidenceFile = ref<File | null>(null);
+const newEvidenceFileName = ref('');
 
 // 风格 chips — value = 内部值 = 显示值 (1:1)
 const styleOptions = ['现代', '古风', '赛博', '二次元', '民国', '未来', '复古', '国潮', '日系', '韩系', '欧美', '港风'];
@@ -110,6 +121,18 @@ const faceTagValueLabel: Record<string, string> = {
   // Vibe
   COOL: '清冷', WARM: '温暖', HEROIC: '英气', SEDUCTIVE: '妩媚', QUIET: '文静', FIERCE: '飒爽', CUTE: '可爱',
 };
+
+// #33 创作过程证据 — processStep 中文 label (value 是 const list, 与后端 1:1)
+const processStepOptions = [
+  { value: 'TRAINING_DATA_PREP', label: '数据准备 (清洗/打标)' },
+  { value: 'TRAINING',           label: '模型训练 (LoRA 跑 epoch)' },
+  { value: 'GENERATION',         label: '出图 (prompt + sampling)' },
+  { value: 'POST_PROCESSING',    label: '后期 (PS / 调色 / 修复)' },
+  { value: 'OTHER',              label: '其他工作流' },
+];
+const processStepLabel: Record<string, string> = Object.fromEntries(processStepOptions.map((o) => [o.value, o.label]));
+// 单 IP 累计证据上限 600MB — 与后端 upload.service.PROCESS_EVIDENCE_TOTAL_MAX_BYTES 保持一致
+const PROCESS_EVIDENCE_MAX_MB = 600;
 
 const infoForm = ref({
   displayName: '',
@@ -183,6 +206,134 @@ async function setAsFaceCloseup(fileId: string) {
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '设置失败');
   }
+}
+
+// #33 拉取该 IP 的全部 PROCESS_EVIDENCE 列表 + 累计用量
+async function loadProcessEvidence() {
+  if (!ipId.value) {
+    processEvidence.value = [];
+    processEvidenceTotal.value = 0;
+    return;
+  }
+  processEvidenceLoading.value = true;
+  try {
+    const { data } = await apiClient.get(`/ips/${ipId.value}/process-evidence`);
+    processEvidence.value = data.items || [];
+    processEvidenceTotal.value = Number(data.totalBytes || 0);
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '加载创作证据失败');
+    processEvidence.value = [];
+    processEvidenceTotal.value = 0;
+  } finally {
+    processEvidenceLoading.value = false;
+  }
+}
+
+// #33 添加单条创作证据 — policy → OSS 直传 → callback
+async function addProcessEvidence() {
+  if (!ipId.value || !newEvidenceFile.value) return;
+  if (!newEvidenceDescription.value.trim()) {
+    toast.error('请填写证据说明');
+    return;
+  }
+  if (newEvidenceDescription.value.length > 500) {
+    toast.error('证据说明最多 500 字');
+    return;
+  }
+  // 前端预校验: 累计 + 本次 ≤ 600MB
+  const fileSize = newEvidenceFile.value.size;
+  if (processEvidenceTotal.value + fileSize > PROCESS_EVIDENCE_MAX_MB * 1024 * 1024) {
+    toast.error(`累计将超 ${PROCESS_EVIDENCE_MAX_MB}MB, 请删除部分证据后再上传`);
+    return;
+  }
+  processEvidenceUploading.value = true;
+  processEvidenceUploadProgress.value = 0;
+  try {
+    // 1. 拿 policy
+    const { data: policy } = await apiClient.post('/upload/policy', {
+      ipId: ipId.value,
+      assetType: 'PROCESS_EVIDENCE',
+      filename: newEvidenceFile.value.name,
+      size: newEvidenceFile.value.size,
+      description: newEvidenceDescription.value.trim(),
+      processStep: newEvidenceStep.value,
+    });
+    // 2. OSS 直传 (XHR 取进度)
+    const fd = new FormData();
+    fd.append('key', policy.key);
+    fd.append('policy', policy.policy);
+    fd.append('OSSAccessKeyId', policy.accessKeyId);
+    fd.append('Signature', policy.signature);
+    fd.append('file', newEvidenceFile.value);
+    const etag = await new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          processEvidenceUploadProgress.value = Math.round((e.loaded / e.total) * 100);
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve((xhr.getResponseHeader('ETag') || '').replace(/"/g, ''));
+        } else {
+          reject(new Error(`OSS 上传失败 HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('OSS 网络错误'));
+      xhr.onabort = () => reject(new Error('上传已取消'));
+      xhr.open('POST', policy.host + '/', true);
+      xhr.send(fd);
+    });
+    // 3. 回调 — 走和普通资产相同的 /upload/oss-callback, 传 description + processStep
+    const { data: callback } = await apiClient.post('/upload/oss-callback', {
+      filename: newEvidenceFile.value.name,
+      size: newEvidenceFile.value.size,
+      etag,
+      x: policy.key,
+      description: newEvidenceDescription.value.trim(),
+      processStep: newEvidenceStep.value,
+    });
+    if (callback?.Status !== 'OK') {
+      throw new Error(callback?.Message || '上传校验失败');
+    }
+    toast.success('创作证据已上传');
+    // 重置表单
+    newEvidenceFile.value = null;
+    newEvidenceFileName.value = '';
+    newEvidenceDescription.value = '';
+    await loadProcessEvidence();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || e?.message || '上传失败');
+  } finally {
+    processEvidenceUploading.value = false;
+    processEvidenceUploadProgress.value = 0;
+  }
+}
+
+// #33 删除单条证据 — 释放累计空间
+async function deleteProcessEvidence(fileId: string) {
+  if (!ipId.value) return;
+  if (!confirm('确认删除此证据? 释放后无法恢复。')) return;
+  try {
+    await apiClient.delete(`/ips/${ipId.value}/process-evidence/${fileId}`);
+    toast.success('证据已删除');
+    await loadProcessEvidence();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '删除失败');
+  }
+}
+
+// 文件选择回调 — 存到 ref (用于后续 addProcessEvidence)
+function onNewEvidenceFileChange(e: Event) {
+  const inp = e.target as HTMLInputElement;
+  const f = inp.files?.[0] || null;
+  newEvidenceFile.value = f;
+  newEvidenceFileName.value = f?.name || '';
+  inp.value = ''; // 重置,允许重选同名文件
+}
+
+function fmtMB(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(1);
 }
 
 const completion = computed(() => {
@@ -315,6 +466,8 @@ async function loadIp() {
       depositPriceFen: Number(found.depositPriceFen),
       fullLicensePriceFen: Number(found.fullLicensePriceFen),
     };
+    // #33 拉取创作过程证据 (并行, 不阻塞主流程)
+    loadProcessEvidence();
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '加载 IP 失败');
   } finally {
@@ -949,6 +1102,120 @@ const stepMeta = [
             </div>
             <div v-if="!ip?.faceCloseupFileId" class="text-xs text-danger">
               ⚠️ 请点击 ⭐ 指定其中一张作为版权登记图(平台将以此为依据与公众人物面部库做 1:1 比对)
+            </div>
+          </div>
+        </div>
+
+        <!-- #33 创作过程证据 — 多文件列表 + 累计 ≤600MB -->
+        <div class="p-4 border border-line rounded-xl bg-cream/20">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div class="flex items-baseline gap-2">
+              <h3 class="font-medium text-sm">📂 创作过程证据</h3>
+              <span class="text-[10px] text-ink/40">(选填 · 帮助平台加速审核 + 提升版权登记证据强度)</span>
+            </div>
+            <div class="text-xs font-mono">
+              <span :class="processEvidenceTotal > PROCESS_EVIDENCE_MAX_MB * 1024 * 1024 * 0.9 ? 'text-danger' : 'text-ink/60'">
+                {{ fmtMB(processEvidenceTotal) }} / {{ PROCESS_EVIDENCE_MAX_MB }} MB
+              </span>
+            </div>
+          </div>
+          <!-- 累计进度条 -->
+          <div class="h-1 bg-line/60 rounded-full overflow-hidden mb-3">
+            <div
+              :class="processEvidenceTotal > PROCESS_EVIDENCE_MAX_MB * 1024 * 1024 * 0.9 ? 'bg-danger' : 'bg-gold'"
+              class="h-full transition-all duration-300"
+              :style="{ width: Math.min(100, (processEvidenceTotal / (PROCESS_EVIDENCE_MAX_MB * 1024 * 1024)) * 100) + '%' }"
+            />
+          </div>
+
+          <!-- 已有证据列表 -->
+          <div v-if="processEvidenceLoading" class="text-xs text-ink/50 py-2">加载中…</div>
+          <div v-else-if="processEvidence.length === 0" class="text-xs text-ink/40 py-2">
+            暂无证据 (下方表单添加 — 推荐传: 训练截图 / 工作流截图 / 出图对比 / 关键 prompt)
+          </div>
+          <div v-else class="space-y-1.5 mb-3">
+            <div
+              v-for="ev in processEvidence"
+              :key="ev.id"
+              class="flex items-center gap-2 p-2 bg-surface border border-line rounded-lg text-xs"
+            >
+              <span class="px-1.5 py-0.5 bg-gold/20 text-gold rounded text-[10px] font-mono shrink-0">
+                {{ processStepLabel[ev.processStep || ''] || ev.processStep || '?' }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="truncate text-ink/80">{{ ev.description || '(无说明)' }}</div>
+                <div class="text-[10px] text-ink/40 mt-0.5 flex items-center gap-2">
+                  <span class="truncate">{{ ev.originalName }}</span>
+                  <span>·</span>
+                  <span class="font-mono">{{ fmtMB(Number(ev.sizeBytes)) }}MB</span>
+                  <span>·</span>
+                  <span>{{ new Date(ev.uploadedAt).toLocaleString() }}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="deleteProcessEvidence(ev.id)"
+                class="text-ink/30 hover:text-danger text-base shrink-0"
+                title="删除"
+              >×</button>
+            </div>
+          </div>
+
+          <!-- 添加证据表单 -->
+          <div class="space-y-2 p-3 bg-surface border border-dashed border-line rounded-lg">
+            <div class="grid grid-cols-2 gap-2">
+              <select
+                v-model="newEvidenceStep"
+                class="px-2 py-1.5 border border-line rounded-lg bg-cream text-xs"
+                :disabled="processEvidenceUploading"
+              >
+                <option v-for="o in processStepOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+              <label
+                :class="[
+                  'px-3 py-1.5 border rounded-lg text-xs text-center cursor-pointer transition',
+                  processEvidenceUploading
+                    ? 'bg-line text-ink/30 border-line cursor-wait'
+                    : 'bg-cream border-line hover:bg-ink hover:text-cream',
+                ]"
+              >
+                <input
+                  type="file"
+                  class="hidden"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.mp4,.zip"
+                  :disabled="processEvidenceUploading"
+                  @change="onNewEvidenceFileChange"
+                />
+                {{ newEvidenceFileName || '📎 选择文件 (≤200MB)' }}
+              </label>
+            </div>
+            <input
+              v-model="newEvidenceDescription"
+              type="text"
+              maxlength="500"
+              placeholder="说明: 数据集来源 / 训练时长 / 关键参数 等 (≤500字)"
+              class="w-full px-2.5 py-1.5 border border-line rounded-lg bg-cream text-xs"
+              :disabled="processEvidenceUploading"
+            />
+            <!-- 上传中进度条 -->
+            <div v-if="processEvidenceUploading" class="h-1 bg-line rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gold transition-all duration-150"
+                :style="{ width: processEvidenceUploadProgress + '%' }"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-[10px] text-ink/40">
+                接受: jpg/png/webp/pdf/mp4/zip, 单文件 ≤200MB, 单 IP 累计 ≤{{ PROCESS_EVIDENCE_MAX_MB }}MB
+              </div>
+              <button
+                type="button"
+                @click="addProcessEvidence"
+                :disabled="processEvidenceUploading || !newEvidenceFile || !newEvidenceDescription.trim()"
+                class="px-4 py-1.5 text-xs bg-ink text-cream rounded-full font-medium hover:bg-gold transition disabled:opacity-30 shrink-0"
+              >
+                {{ processEvidenceUploading ? `上传中 ${processEvidenceUploadProgress}%` : '+ 上传证据' }}
+              </button>
             </div>
           </div>
         </div>

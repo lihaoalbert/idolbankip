@@ -26,6 +26,14 @@ const IMAGE_TYPES = new Set<AssetType>([
 const AUDIO_TYPES = new Set<AssetType>([AssetType.VOICE_REF]);
 const PACKAGE_TYPES = new Set<AssetType>([AssetType.PACKAGE_ZIP]);
 const LORA_TYPES = new Set<AssetType>([AssetType.LORA_FILE]);
+const PROCESS_TYPES = new Set<AssetType>([AssetType.PROCESS_EVIDENCE]);
+
+// #33 创作过程证据 — 步骤 const (产品可扩展, 无需 migration)
+export const PROCESS_STEPS = ['TRAINING_DATA_PREP', 'TRAINING', 'GENERATION', 'POST_PROCESSING', 'OTHER'] as const;
+export type ProcessStep = typeof PROCESS_STEPS[number];
+
+// #33 单 IP 累计证据上限 (600MB) — 限 PROCESS_EVIDENCE 类型, 其它资产包不受影响
+export const PROCESS_EVIDENCE_TOTAL_MAX_BYTES = 600 * 1024 * 1024;
 
 // 校验规则集中放这里,这样 UI 端如果要展示"最大 5MB"也能 import
 export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: number; ext: RegExp; label: string }> = {
@@ -41,6 +49,8 @@ export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: numbe
   LEGAL_PROOF:       { minBytes: 1_000,       maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp|pdf)$/i, label: '训练截图' },
   // 面部特写 — 版权登记核心证据。尺寸同三视图,但必须清晰人脸 (UI 提示),不强制 sharp 验脸
   FACE_CLOSEUP:      { minBytes: 100_000,     maxBytes: 30_000_000,    ext: /\.(jpe?g|png|webp)$/i,  label: '面部特写 (jpg/png/webp, ≥2048×2048, 100KB-30MB, 单一人物正面清晰人脸)' },
+  // #33 创作过程证据 — 训练截图/工作流/出图序列, 单文件 200MB, 单 IP 累计 600MB (在 oss-callback 里 SUM 校验)
+  PROCESS_EVIDENCE:  { minBytes: 1_000,       maxBytes: 200_000_000,   ext: /\.(jpe?g|png|webp|pdf|mp4|zip)$/i, label: '创作过程证据 (jpg/png/webp/pdf/mp4/zip, 1KB-200MB, 单 IP 累计 ≤600MB)' },
 };
 
 export const CERT_LIMITS: Record<CertFileType, { minBytes: number; maxBytes: number; ext: RegExp; label: string; magic: Buffer }> = {
@@ -248,9 +258,10 @@ export class UploadService {
       // TODO: 严格验证 OSS Authorization header
       this.logger.warn('OSS callback signature verification is simplified in MVP');
     }
-    const { filename, size, etag, x: dir } = callbackBody as Record<string, string>;
-    const ipCode = (dir ?? '').split('/')[1];
-    const assetType = (dir ?? '').split('/')[3] as AssetType;
+    const { filename, size, etag, x, description, processStep } = callbackBody as Record<string, string | undefined>;
+    const dir: string = x ?? '';
+    const ipCode = dir.split('/')[1];
+    const assetType = dir.split('/')[3] as AssetType;
     if (!ipCode || !assetType) {
       return { ok: false, error: 'OSS key 路径不合法' };
     }
@@ -259,6 +270,14 @@ export class UploadService {
 
     const sizeBytes = parseInt(size ?? '0', 10);
     const filenameStr = filename ?? 'unknown';
+
+    // 0. #33 创作过程证据 — processStep 必填 + 必须在 const list 里
+    if (assetType === AssetType.PROCESS_EVIDENCE) {
+      if (!processStep || !PROCESS_STEPS.includes(processStep as ProcessStep)) {
+        await this.deleteFromOss(dir).catch(() => undefined);
+        return { ok: false, error: `processStep 必填且必须是: ${PROCESS_STEPS.join(', ')}` };
+      }
+    }
 
     // 1. 简单校验 (size + 扩展名) — 不下文件
     const limit = ASSET_LIMITS[assetType];
@@ -273,6 +292,22 @@ export class UploadService {
     if (!limit.ext.test(filenameStr)) {
       await this.deleteFromOss(dir).catch(() => undefined);
       return { ok: false, error: `文件扩展名不合法, 期望: ${limit.label}` };
+    }
+
+    // 1b. #33 创作过程证据 — per-IP 累计 ≤ 600MB (DB SUM 现有 evidence 大小 + 本次)
+    if (assetType === AssetType.PROCESS_EVIDENCE) {
+      const agg = await this.prisma.ipFile.aggregate({
+        where: { ipId: ip.id, assetType: AssetType.PROCESS_EVIDENCE },
+        _sum: { sizeBytes: true },
+      });
+      const existing = Number(agg._sum.sizeBytes ?? 0n);
+      if (existing + sizeBytes > PROCESS_EVIDENCE_TOTAL_MAX_BYTES) {
+        await this.deleteFromOss(dir).catch(() => undefined);
+        return {
+          ok: false,
+          error: `单 IP 累计 PROCESS_EVIDENCE ≤ ${this.fmtSize(PROCESS_EVIDENCE_TOTAL_MAX_BYTES)} (已用 ${this.fmtSize(existing)}, 本次 ${this.fmtSize(sizeBytes)})`,
+        };
+      }
     }
 
     // 2. 深度校验 (magic + 尺寸) — 需要下文件
@@ -294,6 +329,8 @@ export class UploadService {
         mimeType: this.guessMime(filenameStr),
         checksumSha256: checksum ?? '',
         validated: true,
+        description: assetType === AssetType.PROCESS_EVIDENCE ? (description ?? null) : null,
+        processStep: assetType === AssetType.PROCESS_EVIDENCE ? processStep ?? null : null,
       },
     });
 
@@ -404,6 +441,14 @@ export class UploadService {
     } catch (e: any) {
       this.logger.warn(`OSS delete ${key} failed: ${e?.message ?? e}`);
     }
+  }
+
+  /**
+   * 公开的 OSS 删除 — 其它 service (如 IpsService.deleteProcessEvidence) 可调用
+   * 失败不抛异常,只 warn,让 DB 行能被清理
+   */
+  async deleteOssObject(key: string): Promise<void> {
+    return this.deleteFromOss(key);
   }
 
   /**
