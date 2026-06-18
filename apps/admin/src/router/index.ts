@@ -30,6 +30,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/KycQueuePage.vue'),
   },
   {
+    path: '/cert/queue',
+    name: 'cert-queue',
+    component: () => import('@/pages/CertQueuePage.vue'),
+  },
+  {
     path: '/orders',
     name: 'orders',
     component: () => import('@/pages/OrdersPage.vue'),

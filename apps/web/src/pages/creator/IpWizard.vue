@@ -31,6 +31,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
 import { useToast } from '@/composables/useToast';
+import CertSubmitSection from './CertSubmitSection.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -42,6 +43,7 @@ const isNew = computed(() => !ipId.value);
 const step = ref<number>(isNew.value ? 1 : 2);
 const ip = ref<any>(null);
 const files = ref<any[]>([]);
+const cert = ref<any>(null);
 const loading = ref(false);
 const submitting = ref(false);
 const savingInfo = ref(false);
@@ -170,6 +172,17 @@ async function loadIp() {
     }
     ip.value = found;
     files.value = found.files || [];
+    // status=PUBLIC_INTENT 时拉取证书状态
+    if (found.status === 'PUBLIC_INTENT') {
+      try {
+        const certRes = await apiClient.get(`/ips/${ipId.value}/cert`);
+        cert.value = certRes.data.cert;
+      } catch {
+        cert.value = null;
+      }
+    } else {
+      cert.value = null;
+    }
     // Prisma schema 把 styleTags/scenarioTags 存为逗号分隔 String,
     // 加载时统一转 string[], 模板 / 表单 / 预览都用数组 (避免 .join / .filter 抛 TypeError)
     ip.value.styleTags = splitTags(found.styleTags);
@@ -692,6 +705,18 @@ const stepMeta = [
         <div v-if="ip.status !== 'PENDING_REVIEW'" class="p-4 bg-ink/5 border border-ink/10 rounded-xl text-sm">
           当前状态: <span class="font-medium">{{ statusLabel(ip.status) }}</span>。
           <span v-if="ip.status === 'REJECTED'">如需重新提交,请联系平台管理员。</span>
+        </div>
+
+        <!-- PUBLIC_INTENT 时显示版权证书提交区 -->
+        <div v-if="ip.status === 'PUBLIC_INTENT' || ip.status === 'OFFICIAL_REGISTERED'" class="p-5 bg-cream/40 border border-gold/30 rounded-2xl space-y-3">
+          <div class="flex items-baseline justify-between">
+            <h3 class="font-display text-base">📜 版权证书登记</h3>
+            <span v-if="ip.status === 'OFFICIAL_REGISTERED'" class="text-xs text-success">已登记</span>
+          </div>
+          <p v-if="ip.status === 'PUBLIC_INTENT'" class="text-xs text-ink/60">
+            平台已通过基础审核, 请提交版权证书 (PDF / JPG / PNG 扫描件) 以完成国家或省级作品著作权登记。
+          </p>
+          <CertSubmitSection :ipId="ip.id" :existingCert="cert" @submitted="loadIp" />
         </div>
 
         <div class="flex justify-between mt-6">
