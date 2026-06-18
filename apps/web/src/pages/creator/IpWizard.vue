@@ -171,15 +171,17 @@ async function loadIp() {
     ip.value = found;
     files.value = found.files || [];
     // Prisma schema 把 styleTags/scenarioTags 存为逗号分隔 String,
-    // 加载到表单 (string[]) 时要 split, 否则 .filter/.push/.splice 会抛 TypeError
+    // 加载时统一转 string[], 模板 / 表单 / 预览都用数组 (避免 .join / .filter 抛 TypeError)
+    ip.value.styleTags = splitTags(found.styleTags);
+    ip.value.scenarioTags = splitTags(found.scenarioTags);
     infoForm.value = {
       displayName: found.displayName,
       tagline: found.tagline || '',
       description: found.description || '',
       gender: found.gender,
       visualAgeBucket: found.visualAgeBucket,
-      styleTags: splitTags(found.styleTags),
-      scenarioTags: splitTags(found.scenarioTags),
+      styleTags: [...ip.value.styleTags],
+      scenarioTags: [...ip.value.scenarioTags],
       depositPriceFen: Number(found.depositPriceFen),
       fullLicensePriceFen: Number(found.fullLicensePriceFen),
     };
