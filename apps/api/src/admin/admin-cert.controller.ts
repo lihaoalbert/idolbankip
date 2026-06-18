@@ -61,9 +61,11 @@ export class AdminCertController {
       throw new BadRequestException(`不支持的文件类型: ${cert.certFileType}`);
     }
     const buf = await this.upload.getCertBuffer(cert.certFileKey);
+    // Content-Disposition 不用 filename — admin 是预览不是下载,文件名可省
+    // (filename 含中文/特殊字符时 encodeURIComponent + filename*= RFC 5987 较麻烦, 暂省)
     res.set({
       'Content-Type': CERT_CONTENT_TYPE[cert.certFileType],
-      'Content-Disposition': `inline; filename="${(cert.certFileName || 'cert').replace(/[\\"\n\r]/g, '_')}"`,
+      'Content-Disposition': 'inline',
       'Content-Length': buf.length.toString(),
       'Cache-Control': 'private, max-age=120',
     });
