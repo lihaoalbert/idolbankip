@@ -775,8 +775,9 @@ const stepMeta = [
           <span v-if="ip.status === 'REJECTED'">如需重新提交,请联系平台管理员。</span>
         </div>
 
-        <!-- PUBLIC_INTENT 时显示版权证书提交区 -->
-        <div v-if="ip.status === 'PUBLIC_INTENT' || ip.status === 'OFFICIAL_REGISTERED'" class="p-5 bg-cream/40 border border-gold/30 rounded-2xl space-y-3">
+        <!-- 版权证书区: PUBLIC_INTENT/OFFICIAL_REGISTERED 始终显示;
+             PENDING_REVIEW + cert REJECTED 时也显示 (cert 被拒后退到此状态,让创作者看到原因 + 重提) -->
+        <div v-if="ip.status === 'PUBLIC_INTENT' || ip.status === 'OFFICIAL_REGISTERED' || (cert && cert.status === 'REJECTED')" class="p-5 bg-cream/40 border border-gold/30 rounded-2xl space-y-3">
           <div class="flex items-baseline justify-between">
             <h3 class="font-display text-base">📜 版权证书登记</h3>
             <span v-if="ip.status === 'OFFICIAL_REGISTERED'" class="text-xs text-success">已登记</span>
