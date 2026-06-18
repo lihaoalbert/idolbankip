@@ -77,7 +77,7 @@ pnpm dev                   # 同时启 api:3100 + web:5173 + admin:8081
 访问:
 
 - 主站: http://localhost:5173
-- 后台: http://localhost:8081 (admin@ibi.ren / Focus_2026!)
+- 后台: http://localhost:8081 (默认管理员账号见种子脚本或项目记忆)
 - API:  http://localhost:3100/api/v1
 - 文档: http://localhost:3100/api/docs
 
@@ -86,8 +86,8 @@ pnpm dev                   # 同时启 api:3100 + web:5173 + admin:8081
 ### 路径 A:Docker Compose (推荐)
 
 ```bash
-# 1. ECS 上拉代码
-ssh root@8.133.241.103
+# 1. ECS 上拉代码 (主机 IP / SSH key 见项目记忆: reference_ecs_deploy_paths)
+ssh root@<ECS_IP>
 cd /opt && git clone <REPO> ibi.ren && cd ibi.ren
 
 # 2. 配环境
@@ -210,9 +210,7 @@ pnpm --filter @ibi-ren/web run typecheck
 
 ## 阿里云安全配置
 
-- ✅ ECS 公网: 8.133.241.103,SSH 私钥 `intfocus-albert.pem`
-- ✅ RDS MySQL 8: rm-uf6px83tcbt52z3xc,白名单已加 ECS
-- ✅ OSS cn-shanghai: 3 bucket (public / private / contracts)
+- ECS 公网 IP / SSH 私钥 / RDS 实例 ID / OSS bucket 名: 见项目记忆 `reference_ecs_deploy_paths.md`(不入 git)
 - ✅ AccessKey 使用 RAM 子账号,权限已受控 (建议最少包含 OSS / 内容安全 / 短信)
 - ⚠️ RDS SSL 默认关闭,生产前必须启用 (控制台 → 数据安全性 → SSL → 启用)
 - ⚠️ 域名 ibi.ren 需先 ICP 备案,期间用 ECS 公网 IP 访问
