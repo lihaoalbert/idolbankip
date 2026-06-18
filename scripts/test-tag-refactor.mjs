@@ -115,13 +115,18 @@ async function main() {
     ],
   }, { token });
   if (updFace.status !== 200) throw new Error(`update faceTags failed: ${JSON.stringify(updFace.body)}`);
-  if (updFace.body.faceTags?.length !== 4) throw new Error(`expected 4 faceTags after update, got ${updFace.body.faceTags?.length}`);
+  // 响应被 controller 包成 {ip: ...}
+  const updatedIp = updFace.body.ip || updFace.body;
+  if (!Array.isArray(updatedIp.faceTags) || updatedIp.faceTags.length !== 4) {
+    throw new Error(`expected 4 faceTags after update, got ${JSON.stringify(updatedIp.faceTags)}`);
+  }
   console.log(`[6] update faceTags: 3 → 4 ✓`);
 
   // 7) Update ethnicity
   const updEth = await call('PATCH', `/ips/${ipId}`, { ethnicity: 'SOUTHEAST_ASIAN' }, { token });
   if (updEth.status !== 200) throw new Error(`update ethnicity failed`);
-  if (updEth.body.ethnicity !== 'SOUTHEAST_ASIAN') throw new Error(`ethnicity update persisted: ${updEth.body.ethnicity}`);
+  const updatedEth = updEth.body.ip || updEth.body;
+  if (updatedEth.ethnicity !== 'SOUTHEAST_ASIAN') throw new Error(`ethnicity update persisted: ${updatedEth.ethnicity}`);
   console.log(`[7] update ethnicity: EAST_ASIAN → SOUTHEAST_ASIAN ✓`);
 
   // 8) 老数据 (已存在的 IP) 不被破坏 — 随便拉一页
