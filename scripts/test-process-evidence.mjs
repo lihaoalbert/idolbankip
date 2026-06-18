@@ -189,7 +189,7 @@ async function main() {
   if (longRes.status !== 400) throw new Error(`expected 400 for long desc, got ${longRes.status}`);
   console.log(`[10] description >500 chars → 400 ✓`);
 
-  // 11) 错误: 单文件超 200MB
+  // 11) 错误: 单文件超 200MB — policy 不拒 (只 Min(0)), callback 拒
   const tooBig = await call('POST', '/upload/policy', {
     ipId,
     assetType: 'PROCESS_EVIDENCE',
@@ -198,8 +198,15 @@ async function main() {
     description: 'too big',
     processStep: 'OTHER',
   }, { token });
-  if (tooBig.status !== 400) throw new Error(`expected 400 for >200MB, got ${tooBig.status}: ${JSON.stringify(tooBig.body).slice(0, 200)}`);
-  console.log(`[11] file >200MB → 400 ✓`);
+  if (tooBig.status !== 201) throw new Error(`expected policy 201 (size 校验在 callback), got ${tooBig.status}`);
+  const bigCb = await call('POST', '/upload/oss-callback', {
+    filename: 'huge.zip', size: 201 * 1024 * 1024, etag: 'x', x: tooBig.body.key,
+    description: 'too big', processStep: 'OTHER',
+  }, { token });
+  if (bigCb.status !== 200 || bigCb.body.Status !== 'FAIL') {
+    throw new Error(`expected callback FAIL for >200MB, got ${JSON.stringify(bigCb.body).slice(0, 200)}`);
+  }
+  console.log(`[11] file >200MB → callback FAIL (${bigCb.body.Message?.slice(0, 60)}) ✓`);
 
   // 12) 错误: 跨用户访问 (用别人 token 调 list/delete) — 期待 404
   // 简单起见, 注册另一个用户, 验证 list 返回 404 (不是 403, 避免泄漏存在性)

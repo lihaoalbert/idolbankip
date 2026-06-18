@@ -27,6 +27,16 @@ const fileTypeLabel: Record<string, string> = {
   PACKAGE_ZIP: '完整资产包',
   LEGAL_PROOF: '训练流程截图',
   TEST_SAMPLE: '示例输出',
+  FACE_CLOSEUP: '面部特写',
+  PROCESS_EVIDENCE: '创作过程证据',
+};
+// #33 创作过程证据 — 步骤中文 label
+const processStepLabel: Record<string, string> = {
+  TRAINING_DATA_PREP: '数据准备',
+  TRAINING: '模型训练',
+  GENERATION: '出图',
+  POST_PROCESSING: '后期处理',
+  OTHER: '其他',
 };
 
 // #32 enum 值 → 中文 label
@@ -179,7 +189,7 @@ onMounted(load);
         <thead class="bg-cream">
           <tr>
             <th class="table-th">类型</th>
-            <th class="table-th">文件名</th>
+            <th class="table-th">文件名 / 步骤 + 描述</th>
             <th class="table-th">大小</th>
             <th class="table-th">校验</th>
             <th class="table-th">SHA-256</th>
@@ -188,7 +198,16 @@ onMounted(load);
         <tbody>
           <tr v-for="f in ip.files" :key="f.id" class="border-t border-line">
             <td class="table-td">{{ fileTypeLabel[f.assetType] || f.assetType }}</td>
-            <td class="table-td font-mono text-xs">{{ f.originalName }}</td>
+            <td class="table-td font-mono text-xs">
+              <div>{{ f.originalName }}</div>
+              <!-- #33 创作过程证据的步骤 + 描述 -->
+              <div v-if="f.processStep" class="mt-1 text-[10px] text-gold font-sans">
+                步骤: {{ processStepLabel[f.processStep] || f.processStep }}
+              </div>
+              <div v-if="f.description" class="mt-0.5 text-[10px] text-ink/70 font-sans whitespace-pre-wrap break-words">
+                {{ f.description }}
+              </div>
+            </td>
             <td class="table-td text-xs">{{ (Number(f.sizeBytes) / 1024 / 1024).toFixed(2) }} MB</td>
             <td class="table-td">
               <span v-if="f.validated" class="badge bg-success/15 text-success">通过</span>
