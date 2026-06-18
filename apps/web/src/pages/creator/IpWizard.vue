@@ -120,6 +120,16 @@ function toggle(arr: string[], v: string) {
   if (i === -1) arr.push(v); else arr.splice(i, 1);
 }
 
+/**
+ * 把 Prisma 的逗号分隔 String (或已经是数组) 规范化为 string[]
+ * 兼容 null / undefined / 空字符串
+ */
+function splitTags(v: any): string[] {
+  if (Array.isArray(v)) return v.filter(Boolean);
+  if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean);
+  return [];
+}
+
 function addCustomTag(field: 'styleTags' | 'scenarioTags', value: string) {
   const v = value.trim();
   if (!v) return;
@@ -160,14 +170,16 @@ async function loadIp() {
     }
     ip.value = found;
     files.value = found.files || [];
+    // Prisma schema 把 styleTags/scenarioTags 存为逗号分隔 String,
+    // 加载到表单 (string[]) 时要 split, 否则 .filter/.push/.splice 会抛 TypeError
     infoForm.value = {
       displayName: found.displayName,
       tagline: found.tagline || '',
       description: found.description || '',
       gender: found.gender,
       visualAgeBucket: found.visualAgeBucket,
-      styleTags: found.styleTags || [],
-      scenarioTags: found.scenarioTags || [],
+      styleTags: splitTags(found.styleTags),
+      scenarioTags: splitTags(found.scenarioTags),
       depositPriceFen: Number(found.depositPriceFen),
       fullLicensePriceFen: Number(found.fullLicensePriceFen),
     };
