@@ -331,6 +331,53 @@ export class IpsService {
     return registered;
   }
 
+  /**
+   * 批量提交审核 — 创作者 dashboard 用 (#23)。
+   * 顺序串行处理,任一失败立即停止 (避免部分提交部分失败的状态混乱)。
+   * 每步复用 submitForReview (已含完整性校验 + 链上 + 通知 + 状态流转)。
+   * 返回首个失败 ID + 原因。
+   */
+  async bulkSubmit(ids: string[], creatorId: string): Promise<{ submitted: string[]; failed: { id: string; reason: string } | null }> {
+    if (ids.length === 0) return { submitted: [], failed: null };
+    if (ids.length > 50) throw new BadRequestException('单次最多 50 个');
+    const submitted: string[] = [];
+    for (const id of ids) {
+      const ip = await this.prisma.ipAsset.findUnique({ where: { id }, select: { creatorId: true } });
+      if (!ip || ip.creatorId !== creatorId) {
+        return { submitted, failed: { id, reason: '无权操作此资产' } };
+      }
+      try {
+        await this.submitForReview(id, creatorId);
+        submitted.push(id);
+      } catch (e: any) {
+        return { submitted, failed: { id, reason: e?.message || '提交失败' } };
+      }
+    }
+    return { submitted, failed: null };
+  }
+
+  /**
+   * 批量归档 — 仅 REJECTED → ARCHIVED 可由创作者触发 (PENDING_REVIEW 走正常重提流程)。
+   * 同样顺序串行,首个失败停。
+   */
+  async bulkArchive(ids: string[], creatorId: string): Promise<{ archived: string[]; failed: { id: string; reason: string } | null }> {
+    if (ids.length === 0) return { archived: [], failed: null };
+    if (ids.length > 50) throw new BadRequestException('单次最多 50 个');
+    const archived: string[] = [];
+    for (const id of ids) {
+      const ip = await this.requireById(id);
+      if (ip.creatorId !== creatorId) {
+        return { archived, failed: { id, reason: '无权操作此资产' } };
+      }
+      if (!TRANSITIONS[ip.status]?.includes('ARCHIVED')) {
+        return { archived, failed: { id, reason: `当前状态 ${ip.status} 不允许归档` } };
+      }
+      await this.transitionStatus(ip, 'ARCHIVED', creatorId);
+      archived.push(id);
+    }
+    return { archived, failed: null };
+  }
+
   async adminGetDetail(id: string) {
     const ip = await this.requireById(id);
     const files = await this.prisma.ipFile.findMany({

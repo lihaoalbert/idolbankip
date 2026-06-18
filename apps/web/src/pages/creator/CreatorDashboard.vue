@@ -2,10 +2,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/composables/useToast';
 import Skeleton from '@/components/Skeleton.vue';
 import EmptyState from '@/components/EmptyState.vue';
 
 const auth = useAuthStore();
+const toast = useToast();
 const items = ref<any[]>([]);
 const loading = ref(true);
 const kycStatus = ref<string | null>(null);
@@ -18,6 +20,76 @@ const requiredTypes = [
   { type: 'BIO_TXT', icon: '✎', label: '小传' },
 ] as const;
 
+// 状态筛选 — #23
+const statusFilter = ref<'ALL' | 'PENDING_REVIEW' | 'PUBLIC_INTENT' | 'OFFICIAL_REGISTERED' | 'REJECTED' | 'ARCHIVED'>('ALL');
+const selected = ref<Set<string>>(new Set());
+const bulkBusy = ref(false);
+
+const filteredItems = computed(() => {
+  if (statusFilter.value === 'ALL') return items.value;
+  return items.value.filter(ip => ip.status === statusFilter.value);
+});
+
+// 按状态分组计数 — 给 chips 显示数字
+const statusCounts = computed(() => {
+  const m: Record<string, number> = { ALL: items.value.length };
+  for (const ip of items.value) m[ip.status] = (m[ip.status] || 0) + 1;
+  return m;
+});
+
+// 可批量操作的状态集合
+const selectableStatuses = new Set(['PENDING_REVIEW', 'REJECTED']);
+
+function toggleSelect(id: string) {
+  const next = new Set(selected.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selected.value = next;
+}
+
+function clearSelection() {
+  selected.value = new Set();
+}
+
+async function bulkSubmit() {
+  if (selected.value.size === 0) return;
+  bulkBusy.value = true;
+  try {
+    const res = await apiClient.post('/ips/bulk/submit', { ids: Array.from(selected.value) });
+    if (res.data.failed) {
+      toast.error(`批量提交中止 (已成功 ${res.data.submitted.length} 个): ${res.data.failed.reason}`);
+    } else {
+      toast.success(`已批量提交 ${res.data.submitted.length} 个 IP 审核`);
+    }
+    clearSelection();
+    await fetch();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '批量提交失败');
+  } finally {
+    bulkBusy.value = false;
+  }
+}
+
+async function bulkArchive() {
+  if (selected.value.size === 0) return;
+  if (!confirm(`确定归档这 ${selected.value.size} 个 IP 吗?归档后不可恢复。`)) return;
+  bulkBusy.value = true;
+  try {
+    const res = await apiClient.post('/ips/bulk/archive', { ids: Array.from(selected.value) });
+    if (res.data.failed) {
+      toast.error(`批量归档中止 (已成功 ${res.data.archived.length} 个): ${res.data.failed.reason}`);
+    } else {
+      toast.success(`已批量归档 ${res.data.archived.length} 个 IP`);
+    }
+    clearSelection();
+    await fetch();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '批量归档失败');
+  } finally {
+    bulkBusy.value = false;
+  }
+}
+
 async function fetch() {
   loading.value = true;
   try {
@@ -27,6 +99,7 @@ async function fetch() {
     ]);
     items.value = ips.items;
     kycStatus.value = kyc.status ?? null;
+    clearSelection();
   } finally { loading.value = false; }
 }
 
@@ -48,6 +121,7 @@ function statusColor(s: string): string {
     PUBLIC_INTENT: 'bg-gold/20 text-ink',
     OFFICIAL_REGISTERED: 'bg-success/15 text-success',
     REJECTED: 'bg-danger/10 text-danger',
+    ARCHIVED: 'bg-ink/5 text-ink/40',
   }[s] || 'bg-ink/10 text-ink/60';
 }
 
@@ -62,6 +136,16 @@ const completionPercent = (ip: any) => {
 
 // 哪些 IP 卡在 PUBLIC_INTENT 等证书 (banner 提示)
 const waitingCertIps = computed(() => items.value.filter(ip => ip.status === 'PUBLIC_INTENT'));
+
+// 哪些选项可显示在 chips
+const filterChips = [
+  { key: 'ALL', label: '全部' },
+  { key: 'PENDING_REVIEW', label: '待提交' },
+  { key: 'PUBLIC_INTENT', label: '公示中' },
+  { key: 'OFFICIAL_REGISTERED', label: '已登记' },
+  { key: 'REJECTED', label: '已拒绝' },
+  { key: 'ARCHIVED', label: '已归档' },
+] as const;
 
 onMounted(fetch);
 </script>
@@ -131,6 +215,24 @@ onMounted(fetch);
       </div>
     </div>
 
+    <!-- 状态筛选 chips (#23) -->
+    <div v-if="!loading && items.length > 0" class="flex items-center gap-2 mb-4 flex-wrap">
+      <button
+        v-for="c in filterChips"
+        :key="c.key"
+        @click="statusFilter = c.key as any"
+        :class="[
+          'px-3 py-1.5 text-xs rounded-full border transition',
+          statusFilter === c.key
+            ? 'bg-ink text-cream border-ink'
+            : 'border-line text-ink/60 hover:border-ink/40',
+        ]"
+      >
+        {{ c.label }}
+        <span v-if="statusCounts[c.key]" class="ml-1 text-[10px] opacity-60">({{ statusCounts[c.key] }})</span>
+      </button>
+    </div>
+
     <div v-if="loading" class="grid md:grid-cols-2 gap-4">
       <div v-for="i in 4" :key="i" class="bg-surface rounded-2xl border border-line p-5 space-y-3">
         <div class="flex items-start justify-between">
@@ -152,49 +254,111 @@ onMounted(fetch);
       action-label="立即创建第一个"
       action-to="/creator/ips/new"
     />
-    <div v-else class="grid md:grid-cols-2 gap-4">
-      <RouterLink
-        v-for="ip in items"
-        :key="ip.id"
-        :to="`/creator/ips/${ip.id}`"
-        class="block bg-surface rounded-2xl border border-line p-5 hover:shadow-soft transition"
-      >
-        <div class="flex items-start justify-between mb-3">
-          <div class="flex-1 min-w-0">
-            <div class="font-medium truncate">{{ ip.displayName }}</div>
-            <div class="text-xs text-ink/50 font-mono">{{ ip.code }}</div>
-          </div>
-          <span :class="['px-2 py-0.5 text-xs rounded-full shrink-0 ml-2', statusColor(ip.status)]">{{ statusLabel(ip.status) }}</span>
-        </div>
-        <!-- REJECTED 时显示具体原因 (card 上一眼能看) -->
-        <div
-          v-if="ip.status === 'REJECTED' && ip.rejectionReason"
-          class="mb-2 p-2 bg-danger/10 border border-danger/20 rounded text-xs text-danger/90 line-clamp-2"
-          :title="ip.rejectionReason"
-        >
-          ✕ 原因: {{ ip.rejectionReason }}
-        </div>
-        <!-- 4 必填素材状态 -->
-        <div class="flex items-center gap-3 mb-2">
-          <div
-            v-for="t in requiredTypes"
-            :key="t.type"
-            class="flex items-center gap-1 text-xs"
-            :title="presentTypes(ip).has(t.type) ? `${t.label} 已上传` : `${t.label} 缺失`"
-          >
-            <span :class="presentTypes(ip).has(t.type) ? 'text-success' : 'text-danger/70'">
-              {{ presentTypes(ip).has(t.type) ? '✓' : '○' }}
-            </span>
-            <span class="text-ink/60">{{ t.label }}</span>
-          </div>
-        </div>
-        <div class="h-1 bg-cream rounded-full overflow-hidden">
-          <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />
-        </div>
-        <div class="text-xs text-ink/50 mt-1 text-right">
-          完整度 {{ completionPercent(ip) }}%
-        </div>
-      </RouterLink>
+    <div v-else-if="filteredItems.length === 0" class="py-16 text-center">
+      <div class="text-ink/40 text-sm">该状态暂无 IP</div>
+      <button @click="statusFilter = 'ALL'" class="mt-2 text-xs text-gold hover:underline">查看全部</button>
     </div>
+    <div v-else class="grid md:grid-cols-2 gap-4">
+      <div
+        v-for="ip in filteredItems"
+        :key="ip.id"
+        :class="[
+          'relative bg-surface rounded-2xl border p-5 transition',
+          selectableStatuses.has(ip.status) ? 'cursor-pointer hover:shadow-soft' : '',
+          selected.has(ip.id) ? 'border-gold ring-2 ring-gold/30' : 'border-line',
+        ]"
+        @click="selectableStatuses.has(ip.status) && toggleSelect(ip.id)"
+      >
+        <!-- 选择 checkbox (可批量操作时显示) -->
+        <div v-if="selectableStatuses.has(ip.status)" class="absolute top-3 left-3">
+          <input
+            type="checkbox"
+            :checked="selected.has(ip.id)"
+            @click.stop="toggleSelect(ip.id)"
+            class="w-4 h-4 accent-gold cursor-pointer"
+          />
+        </div>
+        <RouterLink
+          :to="`/creator/ips/${ip.id}`"
+          class="block"
+          :class="selectableStatuses.has(ip.status) ? 'pl-7' : ''"
+          @click.stop
+        >
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate">{{ ip.displayName }}</div>
+              <div class="text-xs text-ink/50 font-mono">{{ ip.code }}</div>
+            </div>
+            <span :class="['px-2 py-0.5 text-xs rounded-full shrink-0 ml-2', statusColor(ip.status)]">{{ statusLabel(ip.status) }}</span>
+          </div>
+          <!-- REJECTED 时显示具体原因 (card 上一眼能看) -->
+          <div
+            v-if="ip.status === 'REJECTED' && ip.rejectionReason"
+            class="mb-2 p-2 bg-danger/10 border border-danger/20 rounded text-xs text-danger/90 line-clamp-2"
+            :title="ip.rejectionReason"
+          >
+            ✕ 原因: {{ ip.rejectionReason }}
+          </div>
+          <!-- 4 必填素材状态 -->
+          <div class="flex items-center gap-3 mb-2">
+            <div
+              v-for="t in requiredTypes"
+              :key="t.type"
+              class="flex items-center gap-1 text-xs"
+              :title="presentTypes(ip).has(t.type) ? `${t.label} 已上传` : `${t.label} 缺失`"
+            >
+              <span :class="presentTypes(ip).has(t.type) ? 'text-success' : 'text-danger/70'">
+                {{ presentTypes(ip).has(t.type) ? '✓' : '○' }}
+              </span>
+              <span class="text-ink/60">{{ t.label }}</span>
+            </div>
+          </div>
+          <div class="h-1 bg-cream rounded-full overflow-hidden">
+            <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />
+          </div>
+          <div class="text-xs text-ink/50 mt-1 text-right">
+            完整度 {{ completionPercent(ip) }}%
+          </div>
+        </RouterLink>
+      </div>
+    </div>
+
+    <!-- 批量操作栏 (#23) — 选中项时底部浮起 -->
+    <Transition name="slide-up">
+      <div
+        v-if="selected.size > 0"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 rounded-full shadow-xl flex items-center gap-4 z-30"
+      >
+        <span class="text-sm">已选 {{ selected.size }} 个 IP</span>
+        <div class="h-4 w-px bg-cream/30"></div>
+        <button
+          v-if="Array.from(selected).some(id => items.find(i => i.id === id)?.status === 'PENDING_REVIEW')"
+          @click="bulkSubmit"
+          :disabled="bulkBusy"
+          class="text-sm hover:text-gold disabled:opacity-40"
+        >
+          {{ bulkBusy ? '处理中...' : '批量提交审核' }}
+        </button>
+        <button
+          v-if="Array.from(selected).some(id => items.find(i => i.id === id)?.status === 'REJECTED')"
+          @click="bulkArchive"
+          :disabled="bulkBusy"
+          class="text-sm hover:text-gold disabled:opacity-40"
+        >
+          {{ bulkBusy ? '处理中...' : '批量归档' }}
+        </button>
+        <button
+          @click="clearSelection"
+          class="text-xs text-cream/60 hover:text-cream"
+        >
+          ✕
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.2s; }
+.slide-up-enter-from, .slide-up-leave-to { opacity: 0; transform: translate(-50%, 20px); }
+</style>

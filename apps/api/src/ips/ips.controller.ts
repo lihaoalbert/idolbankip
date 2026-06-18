@@ -38,6 +38,10 @@ class RegisterCertDto {
   @IsString() certNo!: string;
 }
 
+class BulkIdsDto {
+  @IsArray() @IsString({ each: true }) ids!: string[];
+}
+
 class ListQueryDto {
   @IsOptional() @IsString() gender?: string;
   @IsOptional() @IsString() visualAgeBucket?: string;
@@ -82,6 +86,22 @@ export class IpsController {
   async update(@CurrentUser() user: JwtUser, @Param('id') id: string, @Body() body: UpdateIpDto) {
     const ip = await this.ips.update(id, user.id, body);
     return { ip };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CREATOR)
+  @Post('bulk/submit')
+  async bulkSubmit(@CurrentUser() user: JwtUser, @Body() body: BulkIdsDto) {
+    return this.ips.bulkSubmit(body.ids, user.id);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CREATOR)
+  @Post('bulk/archive')
+  async bulkArchive(@CurrentUser() user: JwtUser, @Body() body: BulkIdsDto) {
+    return this.ips.bulkArchive(body.ids, user.id);
   }
 
   @ApiBearerAuth()
