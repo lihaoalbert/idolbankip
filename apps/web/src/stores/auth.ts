@@ -123,6 +123,25 @@ export const useAuthStore = defineStore('auth', {
         }
       }
     },
+    /**
+     * 强制从服务端拉一次 user,刷新 roles。用于角色后台变更后(KYC 自动补 CREATOR 等)。
+     * 401 时清空本地 auth。
+     */
+    async fetchMe() {
+      if (!this.accessToken) throw new Error('Not authenticated');
+      try {
+        const { data } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/v1/users/me`, {
+          headers: { Authorization: `Bearer ${this.accessToken}` },
+        });
+        this.user = data.user;
+        saveToStorage(this.$state);
+      } catch (e: any) {
+        if (e?.response?.status === 401) {
+          this.clear();
+        }
+        throw e;
+      }
+    },
     clear() {
       this.user = null;
       this.accessToken = null;

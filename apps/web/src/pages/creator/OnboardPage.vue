@@ -2,22 +2,27 @@
 /**
  * 升级为创作者 — 已登录 BUYER 用户的引导页
  *
- * 当前数据模型: User.roles 是数组, 注册时设定; 之后没有自助添加 CREATOR 的 API
- * (admin 手动改或后续加业务接口)。所以本页只做两件事:
+ * 流程:
  *   1. KYC 状态查询 + 提交表单 (无独立 KYC 页面, 借此补上)
- *   2. KYC 通过后提示 "联系商务开通创作者权限", 跳 /contact
+ *   2. KYC 通过后 (后端自动补 CREATOR 角色) 直接跳 /creator
+ *      见 [[project-post-mvp-backlog]] #17 — 之前 KYC 通过后只跳 /contact 是死循环
  */
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
+import { useAuthStore } from '@/stores/auth';
 import Skeleton from '@/components/Skeleton.vue';
 
 const toast = useToast();
+const router = useRouter();
+const auth = useAuthStore();
 
 const loading = ref(true);
 const kycStatus = ref<string>('NOT_SUBMITTED');
 const rejectReason = ref<string | null>(null);
 const submitting = ref(false);
+const upgrading = ref(false);
 
 const form = ref({
   realName: '',
@@ -45,14 +50,39 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await apiClient.post('/kyc/submit', form.value);
+    const { data } = await apiClient.post('/kyc/submit', form.value);
     toast.success('KYC 已提交,审核结果会通过站内通知');
+    // 后端 KYC mock 直接返回 APPROVED 时,角色已自动补 CREATOR;刷新 token + auth store
+    if (data?.submission?.status === 'APPROVED') {
+      // refresh 会重读 user.roles 重签 token;fetchMe 再刷一次 user 对象
+      try { await auth.refresh(); } catch {}
+      await auth.fetchMe();
+    }
     await fetchStatus();
   } catch (e: any) {
     const msg = e?.response?.data?.message ?? '提交失败';
     toast.error(Array.isArray(msg) ? msg.join('; ') : msg);
   } finally {
     submitting.value = false;
+  }
+}
+
+async function goToCreator() {
+  upgrading.value = true;
+  try {
+    // 用户可能从历史 tab 直接进来 KYC=APPROVED 但 token 还是旧的 BUYER-only;
+    // 刷一次 token + user,确保 CREATOR 角色生效
+    try { await auth.refresh(); } catch {}
+    await auth.fetchMe();
+    if (!auth.isCreator) {
+      toast.error('CREATOR 角色未生效,请重新登录');
+      upgrading.value = false;
+      return;
+    }
+    await router.push('/creator');
+  } catch {
+    toast.error('进入创作者中心失败');
+    upgrading.value = false;
   }
 }
 
@@ -63,7 +93,7 @@ onMounted(fetchStatus);
   <div class="max-w-2xl mx-auto px-6 py-12">
     <h1 class="font-display text-3xl mb-2">升级为创作者</h1>
     <p class="text-sm text-ink/60 mb-10">
-      想把自己创造的虚拟形象上架到 ibi.ren? 需要完成 KYC 认证, 之后联系商务开通创作者权限。
+      想把自己创造的虚拟形象上架到 ibi.ren? 完成 KYC 认证即可开通创作者权限。
     </p>
 
     <div v-if="loading" class="space-y-4">
@@ -137,7 +167,7 @@ onMounted(fetchStatus);
 
             <!-- APPROVED -->
             <div v-else-if="kycStatus === 'APPROVED'" class="text-sm text-emerald-700 bg-emerald-50 px-4 py-3 rounded-lg">
-              ✓ KYC 已通过, 完成第一步!
+              ✓ KYC 已通过, 创作者权限已自动开通!
             </div>
 
             <!-- REJECTED -->
@@ -165,26 +195,22 @@ onMounted(fetchStatus);
         </div>
       </section>
 
-      <!-- 步骤 2: 联系商务开通权限 -->
-      <section class="bg-surface rounded-2xl border border-line p-6">
+      <!-- 步骤 2: 进入创作者中心 (仅 KYC APPROVED 时) -->
+      <section v-if="kycStatus === 'APPROVED'" class="bg-surface rounded-2xl border border-line p-6">
         <div class="flex items-start gap-4">
-          <div
-            class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shrink-0"
-            :class="kycStatus === 'APPROVED' ? 'bg-gold/20 text-gold' : 'bg-ink/10 text-ink/40'"
-          >
-            {{ kycStatus === 'APPROVED' ? '2' : '2' }}
-          </div>
+          <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shrink-0 bg-gold/20 text-gold">2</div>
           <div class="flex-1">
-            <h2 class="font-medium text-lg mb-1">联系商务开通创作者权限</h2>
-            <p class="text-sm text-ink/60 mb-3">
-              KYC 通过后, 我们的商务同事会为你开通创作者权限, 即可上传虚拟人资产。
+            <h2 class="font-medium text-lg mb-1">进入创作者中心</h2>
+            <p class="text-sm text-ink/60 mb-4">
+              上传虚拟人资产、查看订单收益、申请版权证书 — 都在创作者中心完成。
             </p>
-            <RouterLink
-              to="/contact"
-              :class="kycStatus === 'APPROVED' ? 'inline-block px-5 py-2 bg-ink text-cream rounded-full hover:bg-gold transition' : 'inline-block px-5 py-2 border border-ink rounded-full text-ink/40 cursor-not-allowed'"
+            <button
+              @click="goToCreator"
+              :disabled="upgrading"
+              class="px-5 py-2 bg-ink text-cream rounded-full hover:bg-gold transition disabled:opacity-50"
             >
-              联系商务
-            </RouterLink>
+              {{ upgrading ? '进入中...' : '立即成为创作者 →' }}
+            </button>
           </div>
         </div>
       </section>
