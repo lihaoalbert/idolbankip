@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AssetType, IpAsset, IpStatus, OrderType } from '@prisma/client';
+import { AgeBucket, AssetType, Ethnicity, Gender, IpAsset, IpStatus, OrderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
@@ -22,9 +22,23 @@ const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   ARCHIVED: [],
 };
 
+// #32 标签体系常量 — 用于覆盖度网格枚举
+export const GENDER_VALUES: Gender[] = [Gender.MALE, Gender.FEMALE, Gender.NONBINARY];
+export const AGE_BUCKET_VALUES: AgeBucket[] = [AgeBucket.CHILD, AgeBucket.YOUNG, AgeBucket.MIDDLE, AgeBucket.ELDERLY];
+export const ETHNICITY_VALUES: Ethnicity[] = [
+  Ethnicity.EAST_ASIAN, Ethnicity.SOUTHEAST_ASIAN, Ethnicity.SOUTH_ASIAN,
+  Ethnicity.AFRICAN, Ethnicity.EUROPEAN, Ethnicity.MIXED,
+];
+
+// FaceTag 允许的 category — 后续若扩 enum, 在此追加
+export const FACE_TAG_CATEGORIES = [
+  'FaceShape', 'SkinTone', 'HairStyle', 'HairColor', 'EyeShape', 'Vibe',
+] as const;
+
 export interface ListFilter {
-  gender?: string;
-  visualAgeBucket?: string;
+  gender?: Gender;
+  ageBucket?: AgeBucket;
+  ethnicity?: Ethnicity;
   style?: string;
   scenario?: string;
   status?: IpStatus;
@@ -38,10 +52,12 @@ export interface CreateIpParams {
   displayName: string;
   tagline?: string;
   description: string;
-  gender: string;
-  visualAgeBucket: string;
+  gender: Gender;
+  ageBucket: AgeBucket;
+  ethnicity?: Ethnicity;
   styleTags: string[];
   scenarioTags: string[];
+  faceTags?: Array<{ category: string; value: string }>;
   depositPriceFen?: number;
   fullLicensePriceFen: number;
 }
@@ -78,9 +94,11 @@ export class IpsService {
         tagline: params.tagline,
         description: params.description,
         gender: params.gender,
-        visualAgeBucket: params.visualAgeBucket,
+        ageBucket: params.ageBucket,
+        ethnicity: params.ethnicity ?? null,
         styleTags: params.styleTags.join(','),
         scenarioTags: params.scenarioTags.join(','),
+        faceTags: params.faceTags ? (params.faceTags as any) : undefined,
         depositPriceFen: params.depositPriceFen ?? 19900,
         fullLicensePriceFen: params.fullLicensePriceFen,
         previewImageKeys: [],
@@ -103,9 +121,11 @@ export class IpsService {
         tagline: data.tagline,
         description: data.description,
         gender: data.gender,
-        visualAgeBucket: data.visualAgeBucket,
+        ageBucket: data.ageBucket,
+        ethnicity: data.ethnicity,
         styleTags: data.styleTags?.join(','),
         scenarioTags: data.scenarioTags?.join(','),
+        faceTags: data.faceTags ? (data.faceTags as any) : undefined,
         depositPriceFen: data.depositPriceFen,
         fullLicensePriceFen: data.fullLicensePriceFen,
       },
@@ -139,7 +159,8 @@ export class IpsService {
       status: filter.status ?? 'PUBLIC_INTENT',
     };
     if (filter.gender) where.gender = filter.gender;
-    if (filter.visualAgeBucket) where.visualAgeBucket = filter.visualAgeBucket;
+    if (filter.ageBucket) where.ageBucket = filter.ageBucket;
+    if (filter.ethnicity) where.ethnicity = filter.ethnicity;
     if (filter.style) where.styleTags = { contains: filter.style };
     if (filter.scenario) where.scenarioTags = { contains: filter.scenario };
 
@@ -158,7 +179,9 @@ export class IpsService {
           styleTags: true,
           scenarioTags: true,
           gender: true,
-          visualAgeBucket: true,
+          ageBucket: true,
+          ethnicity: true,
+          faceTags: true,
           depositPriceFen: true,
           fullLicensePriceFen: true,
           officialCertNo: true,
@@ -499,5 +522,102 @@ export class IpsService {
         licenseScopes: ['SINGLE_DRAMA', 'THREE_YEAR_WEB', 'BUYOUT_EXCLUSIVE'] as const,
       },
     };
+  }
+
+  // #32 形象库覆盖度 — gender × ageBucket × ethnicity 网格 (4×3×6=72 格)
+  // 仅统计公开可售 IP (PUBLIC_INTENT + OFFICIAL_REGISTERED)
+  // 60s in-memory cache (admin dashboard 用, 不需要 Redis)
+  private coverageCache: { at: number; data: any } | null = null;
+  private static COVERAGE_TTL_MS = 60_000;
+
+  async libraryCoverage() {
+    const now = Date.now();
+    if (this.coverageCache && now - this.coverageCache.at < IpsService.COVERAGE_TTL_MS) {
+      return this.coverageCache.data;
+    }
+    const rows = await this.prisma.ipAsset.groupBy({
+      by: ['gender', 'ageBucket', 'ethnicity'],
+      where: { status: { in: ['PUBLIC_INTENT', 'OFFICIAL_REGISTERED'] } },
+      _count: { _all: true },
+    });
+
+    // 构建完整网格 (72 格, count=0 也填上, 便于前端 3D 可视化)
+    const filledMap = new Map<string, number>();
+    for (const r of rows) {
+      filledMap.set(`${r.gender}|${r.ageBucket}|${r.ethnicity ?? 'NULL'}`, r._count._all);
+    }
+    const totalCells = GENDER_VALUES.length * AGE_BUCKET_VALUES.length * ETHNICITY_VALUES.length;
+    let filledCells = 0;
+    const heatmap: Array<{ gender: Gender; ageBucket: AgeBucket; ethnicity: Ethnicity | null; count: number }> = [];
+    for (const g of GENDER_VALUES) {
+      for (const a of AGE_BUCKET_VALUES) {
+        for (const e of ETHNICITY_VALUES) {
+          const c = filledMap.get(`${g}|${a}|${e}`) ?? 0;
+          if (c > 0) filledCells++;
+          heatmap.push({ gender: g, ageBucket: a, ethnicity: e, count: c });
+        }
+      }
+    }
+
+    // 子分 (by gender / by ageBucket / by ethnicity): 同时返回 单元格覆盖度 + IP 总数
+    const ipCountByGender: Record<string, number> = { FEMALE: 0, MALE: 0, NONBINARY: 0 };
+    const ipCountByAge: Record<string, number> = { CHILD: 0, YOUNG: 0, MIDDLE: 0, ELDERLY: 0 };
+    const ipCountByEth: Record<string, number> = { EAST_ASIAN: 0, SOUTHEAST_ASIAN: 0, SOUTH_ASIAN: 0, AFRICAN: 0, EUROPEAN: 0, MIXED: 0 };
+    for (const r of rows) {
+      if (r.gender) ipCountByGender[r.gender] = (ipCountByGender[r.gender] || 0) + r._count._all;
+      if (r.ageBucket) ipCountByAge[r.ageBucket] = (ipCountByAge[r.ageBucket] || 0) + r._count._all;
+      if (r.ethnicity) ipCountByEth[r.ethnicity] = (ipCountByEth[r.ethnicity] || 0) + r._count._all;
+    }
+    const byGender: Record<string, { count: number; filledCells: number; totalCells: number }> = {};
+    for (const g of GENDER_VALUES) {
+      byGender[g] = {
+        count: ipCountByGender[g] || 0,
+        filledCells: heatmap.filter((h) => h.gender === g && h.count > 0).length,
+        totalCells: AGE_BUCKET_VALUES.length * ETHNICITY_VALUES.length,
+      };
+    }
+    const byAgeBucket: Record<string, { count: number; filledCells: number; totalCells: number }> = {};
+    for (const a of AGE_BUCKET_VALUES) {
+      byAgeBucket[a] = {
+        count: ipCountByAge[a] || 0,
+        filledCells: heatmap.filter((h) => h.ageBucket === a && h.count > 0).length,
+        totalCells: GENDER_VALUES.length * ETHNICITY_VALUES.length,
+      };
+    }
+    const byEthnicity: Record<string, { count: number; filledCells: number; totalCells: number }> = {};
+    for (const e of ETHNICITY_VALUES) {
+      byEthnicity[e] = {
+        count: ipCountByEth[e] || 0,
+        filledCells: heatmap.filter((h) => h.ethnicity === e && h.count > 0).length,
+        totalCells: GENDER_VALUES.length * AGE_BUCKET_VALUES.length,
+      };
+    }
+
+    const totalIps = await this.prisma.ipAsset.count({
+      where: { status: { in: ['PUBLIC_INTENT', 'OFFICIAL_REGISTERED'] } },
+    });
+    const missingEthnicityCount = await this.prisma.ipAsset.count({
+      where: { status: { in: ['PUBLIC_INTENT', 'OFFICIAL_REGISTERED'] }, ethnicity: null },
+    });
+
+    const data = {
+      grid: {
+        genders: GENDER_VALUES,
+        ageBuckets: AGE_BUCKET_VALUES,
+        ethnicities: ETHNICITY_VALUES,
+        totalCells,
+        filledCells,
+        coveragePct: Math.round((filledCells / totalCells) * 1000) / 10, // 一位小数
+      },
+      totalIps,
+      missingEthnicityCount,
+      byGender,
+      byAgeBucket,
+      byEthnicity,
+      heatmap,
+      cachedAt: new Date().toISOString(),
+    };
+    this.coverageCache = { at: now, data };
+    return data;
   }
 }

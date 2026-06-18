@@ -5,6 +5,10 @@ import { apiClient } from '@/api/client';
 const items = ref<any[]>([]);
 const loading = ref(true);
 const filter = ref<'PENDING_REVIEW' | 'REVIEWED_PROOFING' | 'PUBLIC_INTENT' | 'OFFICIAL_REGISTERED' | 'REJECTED'>('PENDING_REVIEW');
+// #32 标签筛选
+const filterGender = ref<string>('');
+const filterAgeBucket = ref<string>('');
+const filterEthnicity = ref<string>('');
 
 const statusLabel: Record<string, string> = {
   PENDING_REVIEW: '待审核',
@@ -23,12 +27,27 @@ const statusColor: Record<string, string> = {
   REJECTED: 'bg-danger/10 text-danger',
 };
 
+// #32 enum → 中文 label
+const genderLabel: Record<string, string> = { FEMALE: '女', MALE: '男', NONBINARY: '无性别' };
+const ageLabel: Record<string, string> = { CHILD: '童颜', YOUNG: '青年', MIDDLE: '中年', ELDERLY: '银发' };
+const ethnicityLabel: Record<string, string> = {
+  EAST_ASIAN: '东亚', SOUTHEAST_ASIAN: '东南亚', SOUTH_ASIAN: '南亚',
+  AFRICAN: '非洲', EUROPEAN: '欧洲', MIXED: '混合/其他',
+};
+
 const counts = ref<Record<string, number>>({});
 
 async function load() {
   loading.value = true;
   try {
-    const { data } = await apiClient.get('/admin/ips/queue', { params: { status: filter.value } });
+    const { data } = await apiClient.get('/admin/ips/queue', {
+      params: {
+        status: filter.value,
+        gender: filterGender.value || undefined,
+        ageBucket: filterAgeBucket.value || undefined,
+        ethnicity: filterEthnicity.value || undefined,
+      },
+    });
     items.value = data.items;
   } finally { loading.value = false; }
 }
@@ -58,14 +77,27 @@ onMounted(() => { load().then(loadCounts); });
   <div class="max-w-7xl mx-auto px-6 py-8">
     <div class="flex items-baseline justify-between mb-6">
       <h1 class="font-display text-2xl">IP 审核队列</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <label class="text-xs text-ink/50">状态</label>
-        <select v-model="filter" @change="load().then(loadCounts)" class="input-base !w-44 !py-1.5 text-sm">
+        <select v-model="filter" @change="load().then(loadCounts)" class="input-base !w-36 !py-1.5 text-sm">
           <option value="PENDING_REVIEW">待审核</option>
           <option value="REVIEWED_PROOFING">存证中</option>
           <option value="PUBLIC_INTENT">公示中</option>
           <option value="OFFICIAL_REGISTERED">已登记</option>
           <option value="REJECTED">已拒绝</option>
+        </select>
+        <!-- #32 标签筛选 -->
+        <select v-model="filterGender" @change="load().then(loadCounts)" class="input-base !w-28 !py-1.5 text-sm">
+          <option value="">全部性别</option>
+          <option v-for="(label, v) in genderLabel" :key="v" :value="v">{{ label }}</option>
+        </select>
+        <select v-model="filterAgeBucket" @change="load().then(loadCounts)" class="input-base !w-28 !py-1.5 text-sm">
+          <option value="">全部年龄</option>
+          <option v-for="(label, v) in ageLabel" :key="v" :value="v">{{ label }}</option>
+        </select>
+        <select v-model="filterEthnicity" @change="load().then(loadCounts)" class="input-base !w-32 !py-1.5 text-sm">
+          <option value="">全部种族</option>
+          <option v-for="(label, v) in ethnicityLabel" :key="v" :value="v">{{ label }}</option>
         </select>
       </div>
     </div>

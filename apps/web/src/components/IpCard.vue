@@ -12,7 +12,8 @@ const props = defineProps<{
     styleTags: string;
     scenarioTags: string;
     gender: string;
-    visualAgeBucket: string;
+    ageBucket: string;
+    ethnicity?: string | null;
     depositPriceFen: number;
     fullLicensePriceFen: number;
     status: string;
@@ -38,13 +39,14 @@ const shortHash = computed(() => {
 
 const hover = ref(false);
 
+// #32 enum 值大写 → 中文 label
 const genderLabel = computed(() => ({
-  female: '女', male: '男', nonbinary: '无性别',
+  FEMALE: '女', MALE: '男', NONBINARY: '无性别',
 }[props.ip.gender] || props.ip.gender));
 
 const ageLabel = computed(() => ({
-  child: '童颜', young: '青年', middle: '熟龄', old: '银发',
-}[props.ip.visualAgeBucket] || props.ip.visualAgeBucket));
+  CHILD: '童颜', YOUNG: '青年', MIDDLE: '中年', ELDERLY: '银发',
+}[props.ip.ageBucket] || props.ip.ageBucket));
 </script>
 
 <template>

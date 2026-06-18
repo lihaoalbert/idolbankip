@@ -10,7 +10,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsEnum, IsInt, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AssetType } from '@prisma/client';
+import { AgeBucket, AssetType, Ethnicity, Gender } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -26,14 +26,23 @@ class CreateApiKeyDto {
   @IsOptional() expiresAt?: string;
 }
 
+// #32 脸特征标签: 与 controller 的 FaceTagDto 结构一致
+class AgentFaceTagDto {
+  @IsString() category!: string;
+  @IsString() value!: string;
+}
+
 class BatchIpItemDto {
   @IsString() displayName!: string;
   @IsOptional() @IsString() tagline?: string;
   @IsString() description!: string;
-  @IsString() gender!: string;
-  @IsString() visualAgeBucket!: string;
+  @IsEnum(Gender) gender!: Gender;
+  @IsEnum(AgeBucket) ageBucket!: AgeBucket;
+  @IsOptional() @IsEnum(Ethnicity) ethnicity?: Ethnicity;
   @IsArray() @IsString({ each: true }) styleTags!: string[];
   @IsArray() @IsString({ each: true }) scenarioTags!: string[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AgentFaceTagDto)
+  faceTags?: AgentFaceTagDto[];
   @IsOptional() @IsInt() @Min(0) depositPriceFen?: number;
   @IsInt() @Min(0) fullLicensePriceFen!: number;
   // #31 面部特写在文件上传 callback 时由 upload.service 自动指定为 faceCloseupFileId (首张)

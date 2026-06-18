@@ -327,6 +327,14 @@ onMounted(fetch);
             >
               ⚠️ 未指定版权图
             </span>
+            <!-- #32: 未标注种族 → 警告 -->
+            <span
+              v-if="!ip.ethnicity"
+              class="text-[10px] px-1.5 py-0.5 bg-warning/15 text-warning border border-warning/30 rounded"
+              title="为 IP 标注种族 (中/日/韩/欧/...), 否则不算进形象库覆盖度"
+            >
+              ⚠️ 未标注种族
+            </span>
           </div>
           <div class="h-1 bg-cream rounded-full overflow-hidden">
             <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />

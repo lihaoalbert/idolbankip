@@ -25,6 +25,28 @@ enum KycStatus {
   REJECTED
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  NONBINARY
+}
+
+enum AgeBucket {
+  CHILD      // 童颜
+  YOUNG      // 青年
+  MIDDLE     // 中年
+  ELDERLY    // 老年
+}
+
+enum Ethnicity {
+  EAST_ASIAN       // 东亚 (中/日/韩)
+  SOUTHEAST_ASIAN  // 东南亚
+  SOUTH_ASIAN      // 南亚
+  AFRICAN          // 非洲
+  EUROPEAN         // 欧洲
+  MIXED            // 混合 / 拉美 / 中东 / 其他
+}
+
 enum IpStatus {
   PENDING_REVIEW // 已上传，等待审核
   REVIEWED_PROOFING // 审核通过，正在上链存证
@@ -154,11 +176,14 @@ model IpAsset {
   tagline     String? // 一句话简介
   description String  @db.Text // markdown 人设
 
-  // 分类
-  gender         String // male / female / nonbinary
-  visualAgeBucket String // child / young / middle / old
-  styleTags      String // 逗号分隔: "现代,赛博"
-  scenarioTags   String // "短剧群演,品牌代言"
+  // 分类 — #32 标签体系: 核心三维 (Gender/AgeBucket/Ethnicity) 决定丰富度评分
+  gender         Gender     @default(FEMALE)
+  ageBucket      AgeBucket  @default(YOUNG)
+  ethnicity      Ethnicity? // 历史 IP 留 NULL, 新上传必填
+  styleTags      String // 逗号分隔: "现代,赛博" (次要, 用于买家场景匹配)
+  scenarioTags   String // "短剧群演,品牌代言" (次要)
+  // 脸特征 (多选) — [{category, value}] e.g. [{category:"FaceShape",value:"OVAL"}]
+  faceTags       Json?
 
   // 定价 (单位: 分)
   depositPriceFen     Int @default(19900) // 199 元
@@ -204,7 +229,7 @@ model IpAsset {
 
   @@index([status])
   @@index([creatorId])
-  @@index([gender, visualAgeBucket])
+  @@index([gender, ageBucket, ethnicity])
   @@index([styleTags])
   @@index([scenarioTags])
 }

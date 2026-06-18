@@ -29,6 +29,14 @@ const fileTypeLabel: Record<string, string> = {
   TEST_SAMPLE: '示例输出',
 };
 
+// #32 enum 值 → 中文 label
+const genderLabel: Record<string, string> = { FEMALE: '女', MALE: '男', NONBINARY: '无性别' };
+const ageLabel: Record<string, string> = { CHILD: '童颜', YOUNG: '青年', MIDDLE: '中年', ELDERLY: '银发' };
+const ethnicityLabel: Record<string, string> = {
+  EAST_ASIAN: '东亚', SOUTHEAST_ASIAN: '东南亚', SOUTH_ASIAN: '南亚',
+  AFRICAN: '非洲', EUROPEAN: '欧洲', MIXED: '混合/其他',
+};
+
 // 与前端/后端一致: 4 个核心必填;LORA/RECIPE 选填
 const requiredTypes = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER', 'BIO_TXT'];
 
@@ -121,7 +129,10 @@ onMounted(load);
           </div>
           <p v-if="ip.tagline" class="text-sm text-ink/60 mt-1">{{ ip.tagline }}</p>
           <div class="flex flex-wrap items-center gap-2 mt-3 text-xs">
-            <span class="badge bg-ink/10 text-ink/70">{{ ip.gender }} · {{ ip.visualAgeBucket }}</span>
+            <span class="badge bg-ink/10 text-ink/70">{{ genderLabel[ip.gender] || ip.gender }} · {{ ageLabel[ip.ageBucket] || ip.ageBucket }}{{ ip.ethnicity ? ' · ' + ethnicityLabel[ip.ethnicity] : ' · ⚠️未标注种族' }}</span>
+          <span v-if="Array.isArray(ip.faceTags) && ip.faceTags.length" class="badge bg-gold/15 text-ink/70">
+            脸特征 {{ ip.faceTags.length }} 个
+          </span>
             <span v-for="t in (ip.styleTags || '').split(',').filter(Boolean)" :key="t" class="badge bg-cream border border-line">{{ t }}</span>
             <span class="badge bg-warn/15 text-warn">{{ statusLabel(ip.status) }}</span>
           </div>

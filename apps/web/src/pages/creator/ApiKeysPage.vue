@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
+
+const origin = computed(() => window.location.origin);
 
 interface ApiKey {
   id: string;
@@ -207,7 +209,7 @@ onMounted(fetch);
       <pre class="bg-ink text-cream/90 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -H "x-api-key: ibi_sk_xxxxxxxxxxxxxxxx" \
      -H "Content-Type: application/json" \
      -d '{"items":[{"displayName":"苏清禾","description":"...","gender":"FEMALE","visualAgeBucket":"YOUNG_ADULT","styleTags":["realistic"],"scenarioTags":["portrait"],"fullLicensePriceFen":199900}]}' \
-     {{ window.location.origin }}/api/v1/agent/ips/batch</code></pre>
+     {{ origin }}/api/v1/agent/ips/batch</code></pre>
       <p class="text-xs text-ink/50 mt-3">
         完整 CLI 工具: <code class="font-mono">scripts/bulk-upload.mjs</code> (读 manifest.json 自动批量创建并上传)
       </p>

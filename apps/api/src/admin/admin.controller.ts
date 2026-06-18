@@ -45,4 +45,10 @@ export class AdminController {
     const items = await this.ips.adminListIps(status);
     return { items };
   }
+
+  // #32 形象库覆盖度 — gender × ageBucket × ethnicity 网格 (4×3×6=72 格)
+  @Get('library/coverage')
+  async libraryCoverage() {
+    return this.ips.libraryCoverage();
+  }
 }

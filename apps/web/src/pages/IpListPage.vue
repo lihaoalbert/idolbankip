@@ -16,7 +16,9 @@ interface IpItem {
   styleTags: string;
   scenarioTags: string;
   gender: string;
-  visualAgeBucket: string;
+  ageBucket: string;
+  ethnicity?: string | null;
+  faceTags?: Array<{ category: string; value: string }> | null;
   depositPriceFen: number;
   fullLicensePriceFen: number;
   status: string;
@@ -35,7 +37,8 @@ const auth = useAuthStore();
 
 const filters = ref({
   gender: (route.query.gender as string) || '',
-  visualAgeBucket: (route.query.visualAgeBucket as string) || '',
+  ageBucket: (route.query.ageBucket as string) || '',
+  ethnicity: (route.query.ethnicity as string) || '',
   style: (route.query.style as string) || '',
   scenario: (route.query.scenario as string) || '',
   page: parseInt((route.query.page as string) || '1', 10),
@@ -48,19 +51,28 @@ const watermarkText = computed(() =>
   auth.user?.email ? `ibi.ren · ${auth.user.email}` : 'ibi.ren · guest'
 );
 
-// Chip filter 选项
+// Chip filter 选项 — #32 enum 值大写, 与后端 1:1
 const genderChips = [
   { value: '', label: '全部性别' },
-  { value: 'female', label: '女' },
-  { value: 'male', label: '男' },
-  { value: 'nonbinary', label: '无性别' },
+  { value: 'FEMALE', label: '女' },
+  { value: 'MALE', label: '男' },
+  { value: 'NONBINARY', label: '无性别' },
 ];
 const ageChips = [
   { value: '', label: '全部年龄' },
-  { value: 'child', label: '童颜' },
-  { value: 'young', label: '青年' },
-  { value: 'middle', label: '熟龄' },
-  { value: 'old', label: '银发' },
+  { value: 'CHILD', label: '童颜' },
+  { value: 'YOUNG', label: '青年' },
+  { value: 'MIDDLE', label: '中年' },
+  { value: 'ELDERLY', label: '银发' },
+];
+const ethnicityChips = [
+  { value: '', label: '全部种族' },
+  { value: 'EAST_ASIAN', label: '东亚' },
+  { value: 'SOUTHEAST_ASIAN', label: '东南亚' },
+  { value: 'SOUTH_ASIAN', label: '南亚' },
+  { value: 'AFRICAN', label: '非洲' },
+  { value: 'EUROPEAN', label: '欧洲' },
+  { value: 'MIXED', label: '混合/其他' },
 ];
 const styleChips = [
   { value: '', label: '全部风格' },
@@ -79,7 +91,7 @@ const scenarioChips = [
 ];
 
 const activeFilterCount = computed(() =>
-  [filters.value.gender, filters.value.visualAgeBucket, filters.value.style, filters.value.scenario]
+  [filters.value.gender, filters.value.ageBucket, filters.value.ethnicity, filters.value.style, filters.value.scenario]
     .filter(Boolean).length
 );
 
@@ -89,7 +101,8 @@ async function fetchList() {
     const { data } = await apiClient.get('/ips', {
       params: {
         gender: filters.value.gender || undefined,
-        visualAgeBucket: filters.value.visualAgeBucket || undefined,
+        ageBucket: filters.value.ageBucket || undefined,
+        ethnicity: filters.value.ethnicity || undefined,
         style: filters.value.style || undefined,
         scenario: filters.value.scenario || undefined,
         sort: sort.value,
@@ -105,7 +118,8 @@ async function fetchList() {
         sort: sort.value,
         page: filters.value.page || undefined,
         gender: filters.value.gender || undefined,
-        visualAgeBucket: filters.value.visualAgeBucket || undefined,
+        ageBucket: filters.value.ageBucket || undefined,
+        ethnicity: filters.value.ethnicity || undefined,
         style: filters.value.style || undefined,
         scenario: filters.value.scenario || undefined,
       },
@@ -115,7 +129,7 @@ async function fetchList() {
   }
 }
 
-function applyFilter(key: 'gender' | 'visualAgeBucket' | 'style' | 'scenario', value: string) {
+function applyFilter(key: 'gender' | 'ageBucket' | 'ethnicity' | 'style' | 'scenario', value: string) {
   filters.value = { ...filters.value, [key]: value, page: 1 };
   fetchList();
 }
@@ -127,7 +141,7 @@ function setSort(s: 'newest' | 'popular') {
 }
 
 function resetFilters() {
-  filters.value = { gender: '', visualAgeBucket: '', style: '', scenario: '', page: 1 };
+  filters.value = { gender: '', ageBucket: '', ethnicity: '', style: '', scenario: '', page: 1 };
   sort.value = 'newest';
   fetchList();
 }
@@ -185,8 +199,23 @@ onMounted(fetchList);
             v-for="c in ageChips"
             :key="c.value || 'all'"
             type="button"
-            @click="applyFilter('visualAgeBucket', c.value)"
-            :class="filters.visualAgeBucket === c.value
+            @click="applyFilter('ageBucket', c.value)"
+            :class="filters.ageBucket === c.value
+              ? 'bg-ink text-cream'
+              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
+            class="px-3 py-1 text-xs rounded-full transition"
+          >{{ c.label }}</button>
+        </div>
+      </div>
+      <div class="flex items-start gap-3 flex-wrap">
+        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">种族</span>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="c in ethnicityChips"
+            :key="c.value || 'all'"
+            type="button"
+            @click="applyFilter('ethnicity', c.value)"
+            :class="filters.ethnicity === c.value
               ? 'bg-ink text-cream'
               : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
             class="px-3 py-1 text-xs rounded-full transition"

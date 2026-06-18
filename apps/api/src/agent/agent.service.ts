@@ -1,7 +1,7 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { IpsService } from '../ips/ips.service';
 import { UploadService } from '../upload/upload.service';
-import { AssetType } from '@prisma/client';
+import { AgeBucket, AssetType, Ethnicity, Gender } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -21,10 +21,12 @@ export class AgentService {
   async batchCreateIps(creatorId: string, items: Array<{
     displayName: string;
     description: string;
-    gender: string;
-    visualAgeBucket: string;
+    gender: Gender;
+    ageBucket: AgeBucket;
+    ethnicity?: Ethnicity;
     styleTags: string[];
     scenarioTags: string[];
+    faceTags?: Array<{ category: string; value: string }>;
     depositPriceFen?: number;
     fullLicensePriceFen: number;
     tagline?: string;

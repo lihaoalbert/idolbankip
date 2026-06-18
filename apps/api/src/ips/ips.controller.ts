@@ -9,9 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { IpStatus } from '@prisma/client';
+import { AgeBucket, Ethnicity, Gender, IpStatus } from '@prisma/client';
 import { UserRole } from '../common/util/roles.util';
 import { IpsService } from './ips.service';
 import { Public } from '../common/decorators/public.decorator';
@@ -20,14 +20,23 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtUser } from '../common/decorators/current-user.decorator';
 
+// #32 脸特征标签: {category, value} 多选
+class FaceTagDto {
+  @IsString() category!: string;  // e.g. "FaceShape" / "HairColor" / "Vibe"
+  @IsString() value!: string;     // e.g. "OVAL" / "BLACK" / "COOL"
+}
+
 class CreateIpDto {
   @IsString() displayName!: string;
   @IsOptional() @IsString() tagline?: string;
   @IsString() description!: string;
-  @IsString() gender!: string;
-  @IsString() visualAgeBucket!: string;
+  @IsEnum(Gender) gender!: Gender;
+  @IsEnum(AgeBucket) ageBucket!: AgeBucket;
+  @IsOptional() @IsEnum(Ethnicity) ethnicity?: Ethnicity;
   @IsArray() @IsString({ each: true }) styleTags!: string[];
   @IsArray() @IsString({ each: true }) scenarioTags!: string[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => FaceTagDto)
+  faceTags?: FaceTagDto[];
   @IsOptional() @IsInt() @Min(0) depositPriceFen?: number;
   @IsInt() @Min(0) fullLicensePriceFen!: number;
 }
@@ -43,8 +52,9 @@ class BulkIdsDto {
 }
 
 class ListQueryDto {
-  @IsOptional() @IsString() gender?: string;
-  @IsOptional() @IsString() visualAgeBucket?: string;
+  @IsOptional() @IsEnum(Gender) gender?: Gender;
+  @IsOptional() @IsEnum(AgeBucket) ageBucket?: AgeBucket;
+  @IsOptional() @IsEnum(Ethnicity) ethnicity?: Ethnicity;
   @IsOptional() @IsString() style?: string;
   @IsOptional() @IsString() scenario?: string;
   @IsOptional() @IsEnum(IpStatus) status?: IpStatus;
