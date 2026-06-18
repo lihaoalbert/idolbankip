@@ -49,6 +49,10 @@ const submitting = ref(false);
 const savingInfo = ref(false);
 const uploadingType = ref<string | null>(null);
 const regeneratingBio = ref(false);
+// 提交审核合规承诺 — 未勾选则禁用"提交审核"按钮
+const agreedToTerms = ref(false);
+// 证书下载
+const downloadingCert = ref(false);
 
 // 风格 chips — value = 内部值 = 显示值 (1:1)
 const styleOptions = ['现代', '古风', '赛博', '二次元', '民国', '未来', '复古', '国潮', '日系', '韩系', '欧美', '港风'];
@@ -115,7 +119,12 @@ const infoValid = computed(() =>
 
 const step1Done = computed(() => !!ip.value);
 const step2Done = computed(() => completion.value === 100);
-const canSubmit = computed(() => step1Done.value && step2Done.value && ip.value?.status === 'PENDING_REVIEW');
+const canSubmit = computed(() =>
+  step1Done.value &&
+  step2Done.value &&
+  ip.value?.status === 'PENDING_REVIEW' &&
+  agreedToTerms.value,
+);
 
 function toggle(arr: string[], v: string) {
   const i = arr.indexOf(v);
@@ -172,8 +181,13 @@ async function loadIp() {
     }
     ip.value = found;
     files.value = found.files || [];
-    // status=PUBLIC_INTENT 时拉取证书状态
-    if (found.status === 'PUBLIC_INTENT') {
+    // 拉 cert: PUBLIC_INTENT (待审) / OFFICIAL_REGISTERED (已通过,展示下载按钮)
+    // PENDING_REVIEW 也拉 (cert 拒后 IP 回退到这里,展示"上次被拒原因")
+    if (
+      found.status === 'PUBLIC_INTENT' ||
+      found.status === 'OFFICIAL_REGISTERED' ||
+      found.status === 'PENDING_REVIEW'
+    ) {
       try {
         const certRes = await apiClient.get(`/ips/${ipId.value}/cert`);
         cert.value = certRes.data.cert;
@@ -328,6 +342,43 @@ async function submitForReview() {
   }
 }
 
+/**
+ * 下载版权证书 (OFFICIAL_REGISTERED 状态可用)
+ * - 后端 /ips/:id/cert/file 流式返回,带 Content-Disposition: attachment; filename*=RFC5987
+ * - 前端拿到 blob 后用 URL.createObjectURL + a.click 触发浏览器下载
+ * - 不用 <a href> 直接下载:浏览器不会带 Bearer,会 401
+ */
+async function downloadCert() {
+  if (!ipId.value) return;
+  downloadingCert.value = true;
+  try {
+    const res = await apiClient.get(`/ips/${ipId.value}/cert/file`, { responseType: 'blob' });
+    // 从响应头尝试取后端给的 filename,失败回退到 cert.certFileName
+    const dispo = res.headers['content-disposition'] as string | undefined;
+    let filename = cert.value?.certFileName || '版权证书';
+    if (dispo) {
+      const m = /filename\*=UTF-8''([^;]+)/.exec(dispo) || /filename="?([^";]+)"?/.exec(dispo);
+      if (m) {
+        try { filename = decodeURIComponent(m[1]); } catch { /* keep original */ }
+      }
+    }
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // 100ms 后 revoke,确保浏览器开始下载
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    toast.success('证书已下载');
+  } catch (e: any) {
+    toast.error('下载失败: ' + (e?.response?.data?.message || e?.message || '未知错误'));
+  } finally {
+    downloadingCert.value = false;
+  }
+}
+
 function statusLabel(s: string): string {
   return {
     PENDING_REVIEW: '待提交',
@@ -341,8 +392,15 @@ function statusLabel(s: string): string {
 
 /**
  * 状态 banner 文案 — 解释每个非 PENDING 状态的含义
+ * - REJECTED case 会从 ip.rejectionReason 取具体原因
+ * - 模板里用 detail 字段做单独高亮展示
  */
-function statusBanner(s: string): { type: 'info' | 'warn' | 'success' | 'danger'; title: string; body: string } | null {
+function statusBanner(s: string): {
+  type: 'info' | 'warn' | 'success' | 'danger';
+  title: string;
+  body: string;
+  detail?: string;
+} | null {
   if (s === 'PUBLIC_INTENT') {
     return {
       type: 'info',
@@ -361,14 +419,18 @@ function statusBanner(s: string): { type: 'info' | 'warn' | 'success' | 'danger'
     return {
       type: 'success',
       title: '✓ 已登记',
-      body: '已完成国家或省级作品著作权登记, 你可以下载版权证书副本。',
+      body: '已完成国家或省级作品著作权登记, 可在下方下载版权证书副本。',
     };
   }
   if (s === 'REJECTED') {
+    const reason = ip.value?.rejectionReason;
     return {
       type: 'danger',
-      title: '✕ 已拒绝',
-      body: '审核未通过, 创作者中心会显示具体原因。',
+      title: '✕ 审核未通过',
+      body: reason
+        ? '平台审核未通过, 具体原因见下方:'
+        : '平台审核未通过, 请联系平台管理员了解详情。',
+      detail: reason || undefined,
     };
   }
   return null;
@@ -422,6 +484,12 @@ const stepMeta = [
     >
       <div class="font-medium mb-1">{{ statusBanner(ip.status)!.title }}</div>
       <div class="text-ink/70 leading-relaxed">{{ statusBanner(ip.status)!.body }}</div>
+      <div
+        v-if="statusBanner(ip.status)!.detail"
+        class="mt-2 p-2.5 bg-danger/15 border border-danger/30 rounded-lg text-danger text-sm whitespace-pre-line"
+      >
+        <span class="font-medium">原因:</span> {{ statusBanner(ip.status)!.detail }}
+      </div>
     </div>
 
     <!-- 步骤进度条 (sticky) -->
@@ -719,6 +787,48 @@ const stepMeta = [
           <CertSubmitSection :ipId="ip.id" :existingCert="cert" @submitted="loadIp" />
         </div>
 
+        <!-- OFFICIAL_REGISTERED 时显示下载证书按钮 (创作者需要拿到证书副本) -->
+        <div v-if="ip.status === 'OFFICIAL_REGISTERED' && cert?.status === 'APPROVED'" class="p-5 bg-success/5 border border-success/30 rounded-2xl space-y-3">
+          <h3 class="font-display text-base text-success">📄 下载版权证书</h3>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              @click="downloadCert"
+              :disabled="downloadingCert"
+              class="px-5 py-2 bg-ink text-cream rounded-full text-sm hover:bg-gold transition disabled:opacity-50"
+            >
+              {{ downloadingCert ? '下载中…' : '📄 下载证书 PDF' }}
+            </button>
+            <div class="text-xs text-ink/60 space-y-0.5">
+              <div v-if="cert.certNo">证书编号: <span class="font-mono text-ink">{{ cert.certNo }}</span></div>
+              <div v-if="cert.certIssuedAt">登记日期: {{ new Date(cert.certIssuedAt).toLocaleDateString() }}</div>
+              <div v-if="cert.certFileName" class="text-ink/40">原始文件: {{ cert.certFileName }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 提交审核合规模块 — 必须勾选才能提交 -->
+        <div v-if="ip.status === 'PENDING_REVIEW'" class="p-4 bg-cream/60 border border-line rounded-xl">
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              v-model="agreedToTerms"
+              class="mt-0.5 w-4 h-4 accent-ink cursor-pointer"
+            />
+            <span class="text-xs text-ink/70 leading-relaxed select-none">
+              我已阅读并同意
+              <a
+                href="/legal/originality-commitment"
+                target="_blank"
+                class="text-gold underline hover:text-ink"
+                @click.stop
+              >《作品原创性及自主承担侵权责任承诺书》</a>
+              ,确认上传的素材 (图片 / 模型 / 声音 / 文字) 系本人原创或已获合法授权,
+              自主承担一切因侵权引发的法律责任。
+            </span>
+          </label>
+        </div>
+
         <div class="flex justify-between mt-6">
           <button
             type="button"
@@ -735,6 +845,9 @@ const stepMeta = [
             {{ submitting ? '提交中...' : '提交审核' }}
           </button>
           <p v-else-if="!step2Done" class="text-sm text-ink/50">资产完整度需达到 100% 才能提交</p>
+          <p v-else-if="ip.status === 'PENDING_REVIEW' && !agreedToTerms" class="text-sm text-ink/50">
+            需勾选合规承诺才能提交
+          </p>
         </div>
       </div>
     </section>

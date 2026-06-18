@@ -130,6 +130,14 @@ onMounted(fetch);
           </div>
           <span :class="['px-2 py-0.5 text-xs rounded-full shrink-0 ml-2', statusColor(ip.status)]">{{ statusLabel(ip.status) }}</span>
         </div>
+        <!-- REJECTED 时显示具体原因 (card 上一眼能看) -->
+        <div
+          v-if="ip.status === 'REJECTED' && ip.rejectionReason"
+          class="mb-2 p-2 bg-danger/10 border border-danger/20 rounded text-xs text-danger/90 line-clamp-2"
+          :title="ip.rejectionReason"
+        >
+          ✕ 原因: {{ ip.rejectionReason }}
+        </div>
         <!-- 4 必填素材状态 -->
         <div class="flex items-center gap-3 mb-2">
           <div
