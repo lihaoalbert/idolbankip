@@ -16,7 +16,8 @@
  *   - 每段独立卡片, 可滚动; 完成该段才能"下一步"
  *   - 步骤 1 "下一步": 新建场景 POST /ips → 自动生成 BIO_TXT → router.replace 到 /creator/ips/:id
  *                       编辑场景 PATCH /ips/:id → 重新生成 BIO_TXT
- *   - 步骤 2 上传中保持 uploadingType 单字段锁定
+ *   - 步骤 2 支持并行上传 (uploadingTypes Set + uploadProgress),不阻塞其他 assetType
+ *     见 #20: 之前单 uploadingType 锁,创作者传 LoRA(可达 300MB)时其他文件全卡住
  *   - 步骤 3 仅当资产完整度 100% 时显示提交按钮
  *
  * P0 改进 (2026-06-17):
@@ -26,7 +27,7 @@
  *   - scenarioTags 术语优化 (短剧(单集) / 短剧(系列) / 品牌合作 等)
  *   - 上传失败时显示校验错误 (后端 deepValidate)
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
@@ -47,7 +48,10 @@ const cert = ref<any>(null);
 const loading = ref(false);
 const submitting = ref(false);
 const savingInfo = ref(false);
-const uploadingType = ref<string | null>(null);
+// 并行上传状态 — 见 #20: 改 uploadingType 单锁 → Set 多并发 + 进度
+const uploadingTypes = reactive<Record<string, boolean>>({});
+const uploadProgress = reactive<Record<string, number>>({});
+const isUploading = computed(() => Object.values(uploadingTypes).some(Boolean));
 const regeneratingBio = ref(false);
 // 提交审核合规承诺 — 未勾选则禁用"提交审核"按钮
 const agreedToTerms = ref(false);
@@ -292,7 +296,8 @@ async function regenerateBio() {
 }
 
 async function requestUploadPolicy(assetType: string, file: File) {
-  uploadingType.value = assetType;
+  uploadingTypes[assetType] = true;
+  uploadProgress[assetType] = 0;
   try {
     const { data: policy } = await apiClient.post('/upload/policy', {
       ipId: ipId.value,
@@ -306,9 +311,28 @@ async function requestUploadPolicy(assetType: string, file: File) {
     fd.append('OSSAccessKeyId', policy.accessKeyId);
     fd.append('Signature', policy.signature);
     fd.append('file', file);
-    const ossRes = await fetch(policy.host + '/', { method: 'POST', body: fd });
-    if (!ossRes.ok) throw new Error(`OSS 上传失败 HTTP ${ossRes.status}`);
-    const etag = (ossRes.headers.get('ETag') || '').replace(/"/g, '');
+
+    // 用 XHR 走 OSS 直传,可以监听 upload.onprogress (fetch 拿不到)
+    const etag = await new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          uploadProgress[assetType] = Math.round((e.loaded / e.total) * 100);
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve((xhr.getResponseHeader('ETag') || '').replace(/"/g, ''));
+        } else {
+          reject(new Error(`OSS 上传失败 HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('OSS 网络错误'));
+      xhr.onabort = () => reject(new Error('上传已取消'));
+      xhr.open('POST', policy.host + '/', true);
+      xhr.send(fd);
+    });
+
     // callback 触发后端 deepValidate, 失败时回 FAIL + 详细原因
     const { data: callback } = await apiClient.post('/upload/oss-callback', {
       filename: file.name,
@@ -325,7 +349,8 @@ async function requestUploadPolicy(assetType: string, file: File) {
     toast.error(e?.response?.data?.message || e?.message || '上传失败');
     throw e;
   } finally {
-    uploadingType.value = null;
+    uploadingTypes[assetType] = false;
+    uploadProgress[assetType] = 0;
   }
 }
 
@@ -693,7 +718,7 @@ const stepMeta = [
               v-if="t === 'BIO_TXT'"
               type="button"
               @click="regenerateBio"
-              :disabled="regeneratingBio || uploadingType !== null"
+              :disabled="regeneratingBio || isUploading"
               class="px-3 py-2 border border-line rounded-full text-xs hover:bg-ink hover:text-cream transition disabled:opacity-50"
             >
               {{ regeneratingBio ? '生成中…' : (fileByType[t] ? '重新生成' : '生成小传') }}
@@ -701,16 +726,16 @@ const stepMeta = [
             <label
               :class="[
                 'px-4 py-2 border rounded-full text-xs transition cursor-pointer',
-                uploadingType === t
+                uploadingTypes[t]
                   ? 'bg-line text-ink/40 border-line cursor-wait'
                   : 'bg-cream border-line hover:bg-ink hover:text-cream',
               ]"
             >
-              {{ uploadingType === t ? '上传中…' : (fileByType[t] ? '替换' : '上传') }}
+              {{ uploadingTypes[t] ? `上传中 ${uploadProgress[t] ?? 0}%` : (fileByType[t] ? '替换' : '上传') }}
               <input
                 type="file"
                 class="hidden"
-                :disabled="!!uploadingType"
+                :disabled="!!uploadingTypes[t]"
                 :accept="t === 'LORA_FILE' ? '.safetensors' : t === 'BIO_TXT' || t === 'RECIPE_TXT' ? '.txt,.md' : t === 'VOICE_REF' ? '.wav,.mp3' : t === 'PACKAGE_ZIP' ? '.zip' : t === 'TRANSPARENT_RENDER' ? 'image/png' : 'image/*'"
                 @change="(e) => {
                   const f = (e.target as HTMLInputElement).files?.[0];
@@ -719,6 +744,16 @@ const stepMeta = [
                 }"
               />
             </label>
+          </div>
+          <!-- 进度条:该 assetType 上传中时显示 -->
+          <div
+            v-if="uploadingTypes[t]"
+            class="mt-2 w-full h-1 bg-line rounded-full overflow-hidden"
+          >
+            <div
+              class="h-full bg-gold transition-all duration-150"
+              :style="{ width: (uploadProgress[t] ?? 0) + '%' }"
+            />
           </div>
         </div>
       </div>
