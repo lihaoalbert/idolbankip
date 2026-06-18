@@ -1,5 +1,8 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import * as path from 'path';
+import * as fs from 'fs';
+import { PDFDocument, PDFFont, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import { Contract, ContractStatus, IpAsset, Order } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -10,8 +13,14 @@ import {
 } from '@ibi-ren/shared-contracts';
 
 @Injectable()
-export class ContractsService {
+export class ContractsService implements OnModuleInit {
   private readonly logger = new Logger(ContractsService.name);
+  // CJK 字体 (pdf-lib StandardFonts.Helvetica 不支持中文,所有 CJK 字会渲染成 tofu/缺失)
+  // Noto Sans SC SubsetOTF 简体字,~8MB/weight,在 apps/api/assets/fonts/
+  // 部署时单独 tar 同步到 /opt/ibiren/apps/api/assets/fonts/ (nest build 不打包非 TS 资源)
+  // 注: PDFFont 绑定到 PDFDocument,不能跨 doc 复用。所以缓存的是 bytes,每次生成新 PDF 时 embedFont(bytes, {subset:true})
+  private fontRegularBytes: Buffer | null = null;
+  private fontBoldBytes: Buffer | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -19,6 +28,37 @@ export class ContractsService {
     private readonly audit: AuditService,
     @Inject(ESIGN_CLIENT) private readonly esign: ESignClient,
   ) {}
+
+  async onModuleInit() {
+    const fontDir = path.join(process.cwd(), 'assets', 'fonts');
+    const regPath = path.join(fontDir, 'NotoSansSC-Regular.otf');
+    const boldPath = path.join(fontDir, 'NotoSansSC-Bold.otf');
+    try {
+      if (!fs.existsSync(regPath) || !fs.existsSync(boldPath)) {
+        throw new Error(`字体文件缺失: ${regPath} / ${boldPath}`);
+      }
+      this.fontRegularBytes = fs.readFileSync(regPath);
+      this.fontBoldBytes = fs.readFileSync(boldPath);
+      this.logger.log(`CJK fonts loaded: NotoSansSC Regular+Bold from ${fontDir}`);
+    } catch (e: any) {
+      // 不 throw — 让服务先起来,生成 PDF 时 fallback 到 Helvetica (中文会 tofu, 但不会 crash)
+      // 部署时必须 assets/fonts/ 同步好,否则合同全 tofu
+      this.logger.error(`CJK font load FAILED: ${e?.message}; 合同 PDF 中文将无法正确渲染`);
+    }
+  }
+
+  /** 每次新 PDFDocument 注册 fontkit + 用 subset 嵌入(避免 ASCII 字符 CID 编码错位,文件 15MB→47KB) */
+  private async embedFonts(pdf: PDFDocument): Promise<{ reg: PDFFont; bold: PDFFont }> {
+    pdf.registerFontkit(fontkit);
+    if (this.fontRegularBytes && this.fontBoldBytes) {
+      const reg = await pdf.embedFont(this.fontRegularBytes, { subset: true });
+      const bold = await pdf.embedFont(this.fontBoldBytes, { subset: true });
+      return { reg, bold };
+    }
+    const { StandardFonts } = await import('pdf-lib');
+    const reg = await pdf.embedFont(StandardFonts.Helvetica);
+    return { reg, bold: reg };
+  }
 
   /**
    * 根据订单生成合同 PDF,调电子签创建 flow
@@ -177,9 +217,8 @@ export class ContractsService {
 
   private async renderContractPdf(vars: Record<string, any>, templateCode: string): Promise<Buffer> {
     const pdf = await PDFDocument.create();
+    const { reg: font, bold: fontBold } = await this.embedFonts(pdf);
     const page = pdf.addPage([595, 842]);
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
     const title = templateCode === 'DEPOSIT_INTENT_V1' ? 'AI 虚拟人形象意向授权书' : 'AI 虚拟人形象版权授权书';
     page.drawText(title, { x: 50, y: 780, size: 18, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
@@ -224,12 +263,12 @@ export class ContractsService {
   private async renderSignedPdf(vars: Record<string, any>, templateCode: string): Promise<Buffer> {
     const base = await this.renderContractPdf(vars, templateCode);
     const pdf = await PDFDocument.load(base);
+    const { bold: font } = await this.embedFonts(pdf);
     const page = pdf.getPages()[0];
-    const font = await pdf.embedFont(StandardFonts.HelveticaBold);
-    page.drawText('[SIGNED] Buyer + Platform', {
+    page.drawText('[已签署] 买方 + 平台 — 法务已盖章', {
       x: 50,
       y: 30,
-      size: 10,
+      size: 12,
       font,
       color: rgb(0.8, 0.1, 0.1),
     });
