@@ -41,7 +41,19 @@ class CreateIpDto {
   @IsInt() @Min(0) fullLicensePriceFen!: number;
 }
 
-class UpdateIpDto extends CreateIpDto {}
+class UpdateIpDto {
+  @IsOptional() @IsString() displayName?: string;
+  @IsOptional() @IsString() tagline?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsEnum(Gender) gender?: Gender;
+  @IsOptional() @IsEnum(AgeBucket) ageBucket?: AgeBucket;
+  @IsOptional() @IsEnum(Ethnicity) ethnicity?: Ethnicity;
+  @IsOptional() @IsArray() @IsString({ each: true }) styleTags?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) scenarioTags?: string[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => FaceTagDto) faceTags?: FaceTagDto[];
+  @IsOptional() @IsInt() @Min(0) depositPriceFen?: number;
+  @IsOptional() @IsInt() @Min(0) fullLicensePriceFen?: number;
+}
 
 class RegisterCertDto {
   @IsString() certNo!: string;

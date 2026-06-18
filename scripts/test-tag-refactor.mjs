@@ -89,8 +89,8 @@ async function main() {
   }
   console.log(`[2] read-back: gender/ageBucket/ethnicity + faceTags (3) ✓`);
 
-  // 3) Filter — 正确 enum 值能找到
-  const filtered = await call('GET', '/ips?gender=FEMALE&ageBucket=YOUNG&ethnicity=EAST_ASIAN');
+  // 3) Filter — 正确 enum 值能找到 (用 /ips/mine/list, 因为新 IP 是 PENDING_REVIEW 不进 public)
+  const filtered = await call('GET', '/ips/mine/list?gender=FEMALE&ageBucket=YOUNG&ethnicity=EAST_ASIAN', null, { token });
   const hit = filtered.body.items?.find((x) => x.id === ipId);
   if (!hit) throw new Error(`filter did not return IP: ${JSON.stringify(filtered.body.items?.map(x => x.code))}`);
   console.log(`[3] filter ?gender=FEMALE&ageBucket=YOUNG&ethnicity=EAST_ASIAN → hit ✓`);
