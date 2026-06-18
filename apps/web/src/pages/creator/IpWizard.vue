@@ -99,6 +99,15 @@ const fileTypeShort: Record<string, string> = {
   TRANSPARENT_RENDER: '立绘',
   BIO_TXT: '小传',
 };
+// 选填项的"为什么需要这个"简短说明 — 见 #21, 创作者不知道传这些有什么用
+const optionalHints: Record<string, string> = {
+  LORA_FILE: '让买家在 ComfyUI / SD WebUI 里直接复现你的风格,大幅提高成交率。',
+  RECIPE_TXT: '正向/反向 prompt + 采样参数 + 推荐模型。买家不用猜怎么出图。',
+  VOICE_REF: '短剧/直播/有声场景的买家会用,让你的形象"会说话"。',
+  PACKAGE_ZIP: '一次性打包所有源文件(PSD/Blender 工程等),适合工作室买家。',
+};
+// 展开/折叠状态 (按 assetType)
+const expandedHints = reactive<Record<string, boolean>>({});
 
 const fileByType = computed(() => {
   const m: Record<string, any> = {};
@@ -707,6 +716,18 @@ const stepMeta = [
               <span v-else-if="t === 'BIO_TXT'" class="text-success text-[10px]">自动</span>
               <span v-else class="text-ink/40 text-[10px]">选填</span>
               <span v-if="t === 'BIO_TXT' && fileByType[t]?.originalName?.includes('_auto_')" class="text-[10px] px-1.5 py-0.5 bg-success/15 text-success rounded">从描述自动生成</span>
+              <!-- 选填项: 为什么需要这个? (可展开) -->
+              <button
+                v-if="optionalHints[t]"
+                type="button"
+                @click="expandedHints[t] = !expandedHints[t]"
+                class="text-[10px] text-ink/40 hover:text-ink underline"
+              >
+                {{ expandedHints[t] ? '收起' : '为什么需要这个?' }}
+              </button>
+            </div>
+            <div v-if="expandedHints[t] && optionalHints[t]" class="mt-1 p-2 bg-cream/60 rounded text-xs text-ink/70 leading-relaxed">
+              💡 {{ optionalHints[t] }}
             </div>
             <div v-if="fileByType[t]" class="text-xs text-success mt-1 truncate">✓ {{ fileByType[t].originalName }}</div>
             <div v-else-if="requiredTypes.includes(t)" class="text-xs text-danger mt-1">必填, 尚未上传</div>
