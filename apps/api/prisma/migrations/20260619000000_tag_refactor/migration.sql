@@ -14,10 +14,14 @@
 ALTER TABLE `IpAsset` ADD COLUMN `ethnicity` ENUM('EAST_ASIAN','SOUTHEAST_ASIAN','SOUTH_ASIAN','AFRICAN','EUROPEAN','MIXED') NULL;
 ALTER TABLE `IpAsset` ADD COLUMN `faceTags` JSON NULL;
 
--- Step 2: 数据归一化 (小写 → 大写, 'old' → 'ELDERLY')
+-- Step 2: 数据归一化 (小写 → 大写, 缩写 → 全名, YOUNG_ADULT → YOUNG)
 UPDATE `IpAsset` SET `gender` = UPPER(`gender`);
+-- 单字母缩写补全 (历史测试遗留)
+UPDATE `IpAsset` SET `gender` = 'FEMALE' WHERE `gender` = 'F';
+UPDATE `IpAsset` SET `gender` = 'MALE'   WHERE `gender` = 'M';
 UPDATE `IpAsset` SET `visualAgeBucket` = CASE
-  WHEN `visualAgeBucket` = 'old' THEN 'ELDERLY'
+  WHEN `visualAgeBucket` IN ('old', 'OLD') THEN 'ELDERLY'
+  WHEN `visualAgeBucket` IN ('y', 'Y', 'young_adult', 'YOUNG_ADULT') THEN 'YOUNG'
   ELSE UPPER(`visualAgeBucket`)
 END;
 
