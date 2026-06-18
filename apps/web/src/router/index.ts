@@ -60,6 +60,12 @@ const routes: RouteRecordRaw[] = [
     props: true,
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('@/pages/NotificationsPage.vue'),
+    meta: { requiresAuth: true },
+  },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/pages/NotFoundPage.vue') },
 ];
 

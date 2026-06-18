@@ -9,6 +9,7 @@ import { CertFileType, CertStatus, CopyrightCertificate, IpStatus } from '@prism
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UploadService } from '../upload/upload.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface CreateCertSubmissionDto {
   certFileType: CertFileType;
@@ -27,6 +28,7 @@ export class CertService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly upload: UploadService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -149,7 +151,7 @@ export class CertService {
    * - 用 prisma transaction 保证一致性
    */
   async adminApprove(certId: string, adminId: string): Promise<CopyrightCertificate> {
-    return this.prisma.$transaction(async (tx) => {
+    const { updated, ipCreatorId, ipId, certNo } = await this.prisma.$transaction(async (tx) => {
       const cert = await tx.copyrightCertificate.findUnique({
         where: { id: certId },
         include: { ip: true },
@@ -195,8 +197,17 @@ export class CertService {
       });
 
       this.logger.log(`Cert ${certId} APPROVED by admin ${adminId}, ip ${cert.ip.code} → OFFICIAL_REGISTERED`);
-      return updated;
+      return { updated, ipCreatorId: cert.ip.creatorId, ipId: cert.ipId, certNo };
     });
+    // 事务提交后通知创作者
+    await this.notifications.create({
+      userId: ipCreatorId,
+      type: 'CERT_APPROVED',
+      title: '版权证书已通过',
+      body: `IP 版权已登记 (证书号 ${certNo}),可在创作者中心下载证书。`,
+      link: `/creator/ips/${ipId}`,
+    });
+    return updated;
   }
 
   /**
@@ -209,7 +220,7 @@ export class CertService {
     if (!reason || reason.trim().length < 5) {
       throw new BadRequestException('拒绝原因至少 5 字');
     }
-    return this.prisma.$transaction(async (tx) => {
+    const { updated, ipCreatorId, ipId } = await this.prisma.$transaction(async (tx) => {
       const cert = await tx.copyrightCertificate.findUnique({
         where: { id: certId },
         include: { ip: true },
@@ -248,7 +259,15 @@ export class CertService {
       });
 
       this.logger.log(`Cert ${certId} REJECTED by admin ${adminId}, reason: ${reason}`);
-      return updated;
+      return { updated, ipCreatorId: cert.ip.creatorId, ipId: cert.ipId };
     });
+    await this.notifications.create({
+      userId: ipCreatorId,
+      type: 'CERT_REJECTED',
+      title: '版权证书审核未通过',
+      body: `原因: ${reason}。请在创作者中心重新提交。`,
+      link: `/creator/ips/${ipId}`,
+    });
+    return updated;
   }
 }

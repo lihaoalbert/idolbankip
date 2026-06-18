@@ -4,6 +4,7 @@ import { KycStatus } from '@prisma/client';
 import { KYC_CLIENT, KycClient } from '@ibi-ren/shared-contracts';
 import { AuditService } from '../audit/audit.service';
 import { parseRoles, serializeRoles, UserRole } from '../common/util/roles.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class KycService {
@@ -12,6 +13,7 @@ export class KycService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
     @Inject(KYC_CLIENT) private readonly client: KycClient,
   ) {}
 
@@ -65,6 +67,22 @@ export class KycService {
     });
     if (status === 'APPROVED') {
       await this.grantCreatorRoleOnApproval(userId, userId);
+      // 通知: mock 直接 APPROVED 时也告诉用户
+      await this.notifications.create({
+        userId,
+        type: 'KYC_APPROVED',
+        title: 'KYC 实名认证已通过',
+        body: '创作者权限已自动开通,立即上传虚拟人资产。',
+        link: '/creator/onboard',
+      });
+    } else if (status === 'REJECTED') {
+      await this.notifications.create({
+        userId,
+        type: 'KYC_REJECTED',
+        title: 'KYC 实名认证未通过',
+        body: result.reason || '请检查信息后重新提交。',
+        link: '/creator/onboard',
+      });
     }
     await this.audit.log({
       actorId: userId,
@@ -95,6 +113,13 @@ export class KycService {
       data: { kycStatus: 'APPROVED' },
     });
     await this.grantCreatorRoleOnApproval(sub.userId, reviewerId);
+    await this.notifications.create({
+      userId: sub.userId,
+      type: 'KYC_APPROVED',
+      title: 'KYC 实名认证已通过',
+      body: '创作者权限已开通,可以上传虚拟人资产。',
+      link: '/creator/onboard',
+    });
     await this.audit.log({
       actorId: reviewerId,
       action: 'KYC_APPROVED',
@@ -112,6 +137,13 @@ export class KycService {
     await this.prisma.user.update({
       where: { id: sub.userId },
       data: { kycStatus: 'REJECTED' },
+    });
+    await this.notifications.create({
+      userId: sub.userId,
+      type: 'KYC_REJECTED',
+      title: 'KYC 实名认证未通过',
+      body: notes || '请重新提交。',
+      link: '/creator/onboard',
     });
     await this.audit.log({
       actorId: reviewerId,

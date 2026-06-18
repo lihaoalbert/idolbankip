@@ -3,9 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { KycService } from './kyc.service';
 import { KycController } from './kyc.controller';
 import { KYC_CLIENT, MockKycClient } from '@ibi-ren/shared-contracts';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, NotificationsModule],
   providers: [
     KycService,
     {

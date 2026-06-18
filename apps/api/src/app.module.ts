@@ -20,6 +20,7 @@ import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
 import { LeadsModule } from './leads/leads.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -49,6 +50,7 @@ import { configValidationSchema } from './config/config.validation';
     AdminModule,
     HealthModule,
     LeadsModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

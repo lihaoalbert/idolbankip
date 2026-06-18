@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
 import ToastContainer from '@/components/ToastContainer.vue';
 import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
+import NotificationBell from '@/components/NotificationBell.vue';
 
 const auth = useAuthStore();
 const { theme, toggle: toggleTheme } = useDarkMode();
@@ -39,6 +40,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
             >
           </template>
           <div v-else class="flex items-center gap-3">
+            <NotificationBell />
             <span class="text-xs text-ink/60">{{ auth.user?.email }}</span>
             <button @click="auth.logout" class="text-xs underline text-ink/60 hover:text-danger">
               退出

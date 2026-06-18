@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
 import { UserRole, rolesContains } from '../common/util/roles.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
@@ -53,6 +54,7 @@ export class IpsService {
     private readonly prisma: PrismaService,
     private readonly proofing: ProofingService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   generateNextCode(): Promise<string> {
@@ -254,12 +256,20 @@ export class IpsService {
     // 4) 计算 hash 并上链
     const proof = await this.proofing.proofIp(ipId);
     // 5) 转 PUBLIC_INTENT
-    return this.transitionStatus(reviewed, 'PUBLIC_INTENT', actorId, {
+    const publicIp = await this.transitionStatus(reviewed, 'PUBLIC_INTENT', actorId, {
       blockchainHash: proof.payloadHash,
       blockchainTxId: proof.txId,
       blockchainNetwork: proof.network,
       proofTimestamp: proof.submittedAt,
     });
+    await this.notifications.create({
+      userId: actorId,
+      type: 'IP_PUBLIC',
+      title: '资产已上架',
+      body: `${publicIp.displayName} 已通过审核并公开,可在形象库展示。`,
+      link: `/creator/ips/${publicIp.id}`,
+    });
+    return publicIp;
   }
 
   async adminApprove(ipId: string, actorId: string): Promise<IpAsset> {
@@ -267,22 +277,40 @@ export class IpsService {
     if (ip.status !== 'PENDING_REVIEW' && ip.status !== 'REVIEWED_PROOFING') {
       throw new BadRequestException(`当前状态 ${ip.status} 不允许审核`);
     }
+    let publicIp: IpAsset;
     if (ip.status === 'PENDING_REVIEW') {
       const reviewed = await this.transitionStatus(ip, 'REVIEWED_PROOFING', actorId);
       const proof = await this.proofing.proofIp(ipId);
-      return this.transitionStatus(reviewed, 'PUBLIC_INTENT', actorId, {
+      publicIp = await this.transitionStatus(reviewed, 'PUBLIC_INTENT', actorId, {
         blockchainHash: proof.payloadHash,
         blockchainTxId: proof.txId,
         blockchainNetwork: proof.network,
         proofTimestamp: proof.submittedAt,
       });
+    } else {
+      publicIp = await this.transitionStatus(ip, 'PUBLIC_INTENT', actorId);
     }
-    return this.transitionStatus(ip, 'PUBLIC_INTENT', actorId);
+    await this.notifications.create({
+      userId: publicIp.creatorId,
+      type: 'IP_PUBLIC',
+      title: '资产已上架',
+      body: `${publicIp.displayName} 已通过审核并公开,可在形象库展示。`,
+      link: `/creator/ips/${publicIp.id}`,
+    });
+    return publicIp;
   }
 
   async adminReject(ipId: string, actorId: string, reason: string): Promise<IpAsset> {
     const ip = await this.requireById(ipId);
-    return this.transitionStatus(ip, 'REJECTED', actorId, { rejectionReason: reason });
+    const rejected = await this.transitionStatus(ip, 'REJECTED', actorId, { rejectionReason: reason });
+    await this.notifications.create({
+      userId: rejected.creatorId,
+      type: 'IP_REJECTED',
+      title: '资产审核未通过',
+      body: `${rejected.displayName}: ${reason}。请修改后重新提交。`,
+      link: `/creator/ips/${rejected.id}`,
+    });
+    return rejected;
   }
 
   async adminRegisterCert(ipId: string, actorId: string, certNo: string): Promise<IpAsset> {
@@ -290,9 +318,17 @@ export class IpsService {
     if (ip.status !== 'PUBLIC_INTENT') {
       throw new BadRequestException('仅 PUBLIC_INTENT 状态可登记版权');
     }
-    return this.transitionStatus(ip, 'OFFICIAL_REGISTERED', actorId, {
+    const registered = await this.transitionStatus(ip, 'OFFICIAL_REGISTERED', actorId, {
       officialCertNo: certNo,
     });
+    await this.notifications.create({
+      userId: registered.creatorId,
+      type: 'IP_REGISTERED',
+      title: '版权已登记',
+      body: `${registered.displayName} 已登记版权 (证书号 ${certNo}),买家可正式下单。`,
+      link: `/creator/ips/${registered.id}`,
+    });
+    return registered;
   }
 
   async adminGetDetail(id: string) {

@@ -106,6 +106,7 @@ model User {
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
   kycSubs       KycSubmission[]
+  notifications Notification[]
 
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
@@ -410,4 +411,25 @@ model ContactLead {
   updatedAt DateTime @updatedAt
 
   @@index([status, createdAt])
+}
+
+// ===================== 站内通知 =====================
+// 集中通知用户 KYC / Cert / IP 状态变更。前端 navbar 铃铛 + /notifications 全列表。
+// MVP 用 polling (每 30s),不上 WebSocket。
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  // 类型 — KYC_APPROVED / KYC_REJECTED / IP_APPROVED / IP_REJECTED / IP_PUBLIC /
+  // CERT_APPROVED / CERT_REJECTED / IP_REGISTERED
+  type      String
+  title     String
+  body      String    @db.Text
+  // 点击跳转 (相对路径,如 "/creator/ips/abc")
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }
