@@ -176,6 +176,21 @@ export class UploadService {
   }
 
   /**
+   * 读 cert 文件 Buffer (用于 admin 预览)
+   * - 用 SDK get() 直接走内部签名, 避免 signed URL 的 Range+response 签名 bug
+   * - 限制 maxBytes (默认 30MB) 防止恶意大文件拖垮 API
+   */
+  async getCertBuffer(ossKey: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
+    const res = await this.privateClient.get(ossKey);
+    // ali-oss get returns { res, content } where content is Buffer
+    let buf: Buffer = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content as ArrayBuffer);
+    if (buf.length > maxBytes) {
+      throw new Error(`文件过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)}), 拒绝预览`);
+    }
+    return buf;
+  }
+
+  /**
    * 验证 cert OSS 对象存在 + magic 校验
    * 创作者提交 cert metadata 时由 CertService 调用, 防止前端伪造 key
    * 用 SDK 自身的 head() + get(range) 避免签名 URL 的 x-oss-force-download 头签名 bug
@@ -450,7 +465,7 @@ export class UploadService {
   }
 
   /**
-   * 下载授权签名 URL
+   * 下载授权签名 URL (浏览器会弹下载框)
    */
   async signDownloadUrl(ossKey: string, bucket: 'private' | 'contracts' = 'private', filename?: string): Promise<string> {
     const client = bucket === 'contracts' ? this.contractsClient : this.privateClient;

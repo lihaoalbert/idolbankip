@@ -4,8 +4,12 @@
  * - GET /admin/cert/queue → PENDING_REVIEW 列表
  * - 通过 → cert.status=APPROVED, ip.status=OFFICIAL_REGISTERED
  * - 拒绝 → cert.status=REJECTED, ip.status=PENDING_REVIEW, 创作者可重提
+ * - 预览 → GET /admin/cert/{id}/file (后端 SDK get 直读 Buffer, inline 渲染)
+ *   - JPG/PNG: inline <img>
+ *   - PDF: <a target="_blank"> (浏览器原生 PDF viewer)
+ *   - 用 blob URL 绕开 Bearer auth 不能直接放 src/href 的问题
  */
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 
 const items = ref<any[]>([]);
@@ -14,12 +18,31 @@ const submitting = ref<string | null>(null);
 const error = ref('');
 const rejectingId = ref<string | null>(null);
 const rejectReason = ref('');
+const previewBlobs = ref<Record<string, string>>({}); // certId → blob URL
+const previewLoading = ref<Record<string, boolean>>({}); // certId → 是否加载中
 
 async function load() {
   loading.value = true;
   try {
     const { data } = await apiClient.get('/admin/cert/queue');
     items.value = data.items || [];
+    // 清掉旧 blob
+    for (const url of Object.values(previewBlobs.value)) URL.revokeObjectURL(url);
+    previewBlobs.value = {};
+    // 并行预加载所有 cert 预览 (后端按 certFileType 返回正确 Content-Type)
+    await Promise.all(
+      items.value.map(async (c) => {
+        previewLoading.value[c.id] = true;
+        try {
+          const res = await apiClient.get(`/admin/cert/${c.id}/file`, { responseType: 'blob' });
+          previewBlobs.value[c.id] = URL.createObjectURL(res.data);
+        } catch {
+          // 预览加载失败不影响主流程 (例如 certFileKey 失效)
+        } finally {
+          previewLoading.value[c.id] = false;
+        }
+      }),
+    );
   } catch (e: any) {
     error.value = e?.response?.data?.message || '加载失败';
   } finally {
@@ -84,6 +107,10 @@ function fmtSize(b?: string): string {
   return `${(n / 1024 / 1024).toFixed(1)}MB`;
 }
 
+onBeforeUnmount(() => {
+  for (const url of Object.values(previewBlobs.value)) URL.revokeObjectURL(url);
+});
+
 onMounted(load);
 </script>
 
@@ -127,23 +154,54 @@ onMounted(load);
 
         <!-- 默认展示 -->
         <div v-else class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-2 flex-wrap">
+          <div class="flex-1 min-w-0 space-y-3">
+            <!-- 头部: IP + 状态 -->
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="font-medium">{{ c.ip?.displayName || '—' }}</span>
               <span class="text-xs text-ink/50 font-mono">{{ c.ip?.code }}</span>
               <span class="badge bg-warn/15 text-warn">PENDING_REVIEW</span>
             </div>
+
+            <!-- 预览区 (JPG/PNG inline, PDF link) -->
+            <div class="p-3 bg-cream/40 border border-line rounded-xl">
+              <div v-if="previewLoading[c.id] && !previewBlobs[c.id]" class="text-xs text-ink/40 py-6 text-center">
+                加载预览中...
+              </div>
+              <img
+                v-else-if="previewBlobs[c.id] && (c.certFileType === 'JPG' || c.certFileType === 'PNG')"
+                :src="previewBlobs[c.id]"
+                :alt="c.certFileName"
+                class="max-h-72 max-w-full rounded border border-line/60 bg-white"
+              />
+              <div v-else-if="previewBlobs[c.id] && c.certFileType === 'PDF'" class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-sm text-ink/70">
+                  <span class="text-2xl">📄</span>
+                  <span>PDF 证书已就绪, 点击在新窗口打开</span>
+                </div>
+                <a
+                  :href="previewBlobs[c.id]"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-cream rounded-full text-xs font-medium hover:bg-gold transition shrink-0"
+                >
+                  在新窗口查看 PDF →
+                </a>
+              </div>
+              <div v-else class="text-xs text-ink/40 py-3 text-center">预览加载失败, 仅凭文件名/大小审核</div>
+            </div>
+
+            <!-- 元信息 -->
             <div class="text-sm text-ink/70 space-y-1">
               <div>创作者: <span class="text-ink">{{ c.ip?.creator?.displayName || c.ip?.creator?.email || '—' }}</span></div>
               <div class="flex items-center gap-3 flex-wrap">
-                <span>证书文件: <span class="font-mono text-xs">{{ c.certFileName || '—' }}</span> · {{ fmtSize(c.certFileSize) }} · <span class="badge bg-ink/5 text-ink/70">{{ c.certFileType }}</span></span>
+                <span>文件: <span class="font-mono text-xs">{{ c.certFileName || '—' }}</span> · {{ fmtSize(c.certFileSize) }} · <span class="badge bg-ink/5 text-ink/70">{{ c.certFileType }}</span></span>
               </div>
               <div v-if="c.selfCertNo">证书编号: <span class="font-mono text-xs">{{ c.selfCertNo }}</span></div>
               <div v-if="c.selfIssuedAt">签发日期: {{ new Date(c.selfIssuedAt).toLocaleDateString() }}</div>
               <div class="text-xs text-ink/50 pt-1">提交于 {{ timeAgo(c.createdAt) }}</div>
             </div>
           </div>
-          <div class="flex gap-2 shrink-0">
+          <div class="flex flex-col gap-2 shrink-0">
             <button @click="approve(c.id)" :disabled="submitting === c.id" class="btn-primary">通过</button>
             <button @click="startReject(c.id)" :disabled="submitting === c.id" class="btn-danger">拒绝</button>
           </div>

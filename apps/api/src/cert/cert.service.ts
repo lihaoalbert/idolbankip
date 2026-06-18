@@ -117,6 +117,31 @@ export class CertService {
   }
 
   /**
+   * admin 按 ID 取 cert (用于预览文件)
+   * - 不做状态过滤 (PENDING/APPROVED/REJECTED 都能预览)
+   * - 含 ip.creator 信息
+   */
+  async adminGetById(certId: string): Promise<CopyrightCertificate> {
+    const cert = await this.prisma.copyrightCertificate.findUnique({
+      where: { id: certId },
+      include: {
+        ip: {
+          select: {
+            id: true,
+            code: true,
+            displayName: true,
+            creatorId: true,
+            status: true,
+            creator: { select: { id: true, email: true, displayName: true } },
+          },
+        },
+      },
+    });
+    if (!cert) throw new NotFoundException('证书不存在');
+    return cert;
+  }
+
+  /**
    * admin 通过 cert
    * - cert.status = APPROVED
    * - ip.status = OFFICIAL_REGISTERED
