@@ -16,7 +16,8 @@ const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   REVIEWED_PROOFING: ['PUBLIC_INTENT', 'REJECTED'],
   PUBLIC_INTENT: ['OFFICIAL_REGISTERED', 'ARCHIVED'],
   OFFICIAL_REGISTERED: ['ARCHIVED'],
-  REJECTED: ['ARCHIVED'],
+  // 创作者被拒后可改 → 重提 (走 PENDING_REVIEW → 正常 submitForReview 流程)
+  REJECTED: ['ARCHIVED', 'PENDING_REVIEW'],
   ARCHIVED: [],
 };
 
@@ -89,8 +90,9 @@ export class IpsService {
   async update(id: string, creatorId: string, data: Partial<CreateIpParams>): Promise<IpAsset> {
     const ip = await this.requireById(id);
     if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此资产');
-    if (ip.status !== 'PENDING_REVIEW') {
-      throw new BadRequestException('已提交审核的 IP 不允许修改元数据');
+    // REJECTED 时也允许改 (创作者要重提) — 见 [[project-post-mvp-backlog]] #16
+    if (ip.status !== 'PENDING_REVIEW' && ip.status !== 'REJECTED') {
+      throw new BadRequestException(`当前状态 ${ip.status} 不允许修改元数据`);
     }
     return this.prisma.ipAsset.update({
       where: { id },
@@ -224,24 +226,34 @@ export class IpsService {
 
   /**
    * 提交流程: 校验包完整性 → 计算 hash → 上链 → 转 PUBLIC_INTENT
+   * REJECTED 时也允许重提 (走 PENDING_REVIEW 中转,清空上次的 rejectionReason)
+   *
+   * 顺序关键: 先 validatePackCompleteness, 再 REJECTED→PENDING_REVIEW。
+   * 不然完整性校验失败时, IP 已经被错误地移到 PENDING_REVIEW (但 creator 没真提成功)。
    */
   async submitForReview(ipId: string, actorId: string): Promise<IpAsset> {
     const ip = await this.requireById(ipId);
     if (ip.creatorId !== actorId) throw new ForbiddenException('无权操作此资产');
-    if (ip.status !== 'PENDING_REVIEW') {
+    if (ip.status !== 'PENDING_REVIEW' && ip.status !== 'REJECTED') {
       throw new BadRequestException(`当前状态 ${ip.status} 不允许提交`);
     }
+    // 1) 完整性校验 (先看 files,跟 status 无关)
     const completeness = await this.validatePackCompleteness(ipId);
     if (!completeness.ok) {
       throw new BadRequestException(
         `资产包不完整,缺失: ${completeness.missing.join(', ')}`,
       );
     }
-    // 转 REVIEWED_PROOFING
-    const reviewed = await this.transitionStatus(ip, 'REVIEWED_PROOFING', actorId);
-    // 计算 hash 并上链
+    // 2) REJECTED → 先回到 PENDING_REVIEW (清空旧拒绝原因)
+    let draft = ip;
+    if (ip.status === 'REJECTED') {
+      draft = await this.transitionStatus(ip, 'PENDING_REVIEW', actorId, { rejectionReason: null });
+    }
+    // 3) 转 REVIEWED_PROOFING
+    const reviewed = await this.transitionStatus(draft, 'REVIEWED_PROOFING', actorId);
+    // 4) 计算 hash 并上链
     const proof = await this.proofing.proofIp(ipId);
-    // 转 PUBLIC_INTENT
+    // 5) 转 PUBLIC_INTENT
     return this.transitionStatus(reviewed, 'PUBLIC_INTENT', actorId, {
       blockchainHash: proof.payloadHash,
       blockchainTxId: proof.txId,
