@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState.vue';
 const auth = useAuthStore();
 const items = ref<any[]>([]);
 const loading = ref(true);
+const kycStatus = ref<string | null>(null);
 
 // 4 个必填素材,创作者中心展示
 const requiredTypes = [
@@ -20,8 +21,12 @@ const requiredTypes = [
 async function fetch() {
   loading.value = true;
   try {
-    const { data } = await apiClient.get('/ips/mine/list');
-    items.value = data.items;
+    const [{ data: ips }, { data: kyc }] = await Promise.all([
+      apiClient.get('/ips/mine/list'),
+      apiClient.get('/kyc/status').catch(() => ({ data: { status: null } })),
+    ]);
+    items.value = ips.items;
+    kycStatus.value = kyc.status ?? null;
   } finally { loading.value = false; }
 }
 
@@ -71,6 +76,37 @@ onMounted(fetch);
       >+ 新建 IP</RouterLink>
     </div>
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
+
+    <!-- KYC 审核中提示 banner — 见 #19, 创作者 KYC PENDING 时 dashboard 也要能看见 -->
+    <div
+      v-if="kycStatus === 'PENDING' || kycStatus === 'REJECTED'"
+      :class="[
+        'mb-6 p-4 rounded-2xl border',
+        kycStatus === 'PENDING' ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200',
+      ]"
+    >
+      <div class="flex items-start gap-3">
+        <span class="text-lg">{{ kycStatus === 'PENDING' ? '⏳' : '✕' }}</span>
+        <div class="flex-1 text-sm">
+          <div :class="['font-medium mb-1', kycStatus === 'PENDING' ? 'text-blue-900' : 'text-red-900']">
+            {{ kycStatus === 'PENDING' ? 'KYC 实名认证审核中' : 'KYC 审核未通过' }}
+          </div>
+          <div :class="['leading-relaxed', kycStatus === 'PENDING' ? 'text-blue-800/80' : 'text-red-800/80']">
+            <template v-if="kycStatus === 'PENDING'">
+              升级为创作者需要先完成 KYC。审核通常 1-2 个工作日,完成后会自动开通创作者权限。
+            </template>
+            <template v-else>
+              KYC 未通过,无法上传 IP。请修正后重新提交。
+            </template>
+          </div>
+          <RouterLink
+            to="/creator/onboard"
+            class="mt-2 inline-block text-xs underline"
+            :class="kycStatus === 'PENDING' ? 'text-blue-700' : 'text-red-700'"
+          >查看详情 →</RouterLink>
+        </div>
+      </div>
+    </div>
 
     <!-- 证书登记中提示 banner -->
     <div

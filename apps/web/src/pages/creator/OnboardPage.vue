@@ -7,7 +7,7 @@
  *   2. KYC 通过后 (后端自动补 CREATOR 角色) 直接跳 /creator
  *      见 [[project-post-mvp-backlog]] #17 — 之前 KYC 通过后只跳 /contact 是死循环
  */
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
@@ -21,6 +21,7 @@ const auth = useAuthStore();
 const loading = ref(true);
 const kycStatus = ref<string>('NOT_SUBMITTED');
 const rejectReason = ref<string | null>(null);
+const submittedAt = ref<string | null>(null);
 const submitting = ref(false);
 const upgrading = ref(false);
 
@@ -35,13 +36,22 @@ async function fetchStatus() {
   try {
     const { data } = await apiClient.get('/kyc/status');
     kycStatus.value = data.status ?? 'NOT_SUBMITTED';
-    rejectReason.value = data.latest?.rejectionReason ?? null;
+    // 后端 KycSubmission 用 notes 存 admin reject 原因 (无 rejectionReason 字段)
+    rejectReason.value = data.latest?.notes ?? null;
+    submittedAt.value = data.latest?.createdAt ?? null;
   } catch (e) {
     toast.error('获取 KYC 状态失败');
   } finally {
     loading.value = false;
   }
 }
+
+// PENDING 时显示已等待天数 (从 submittedAt 算到今天)
+const pendingDays = computed(() => {
+  if (!submittedAt.value) return null;
+  const ms = Date.now() - new Date(submittedAt.value).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+});
 
 async function submit() {
   if (!form.value.realName.trim() || !form.value.idNumber.trim()) {
@@ -102,6 +112,30 @@ onMounted(fetchStatus);
     </div>
 
     <template v-else>
+      <!-- PENDING 状态顶部 banner — 醒目提示审核中 + 等待天数 + 预期时长 -->
+      <div
+        v-if="kycStatus === 'PENDING'"
+        class="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-2xl"
+      >
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">⏳</span>
+          <div class="flex-1 text-sm">
+            <div class="font-medium text-blue-900 mb-1">KYC 实名认证审核中</div>
+            <div class="text-blue-800/80 leading-relaxed">
+              <template v-if="submittedAt">你于 <strong>{{ new Date(submittedAt).toLocaleString('zh-CN') }}</strong> 提交的申请</template>
+              <template v-else>你的申请已提交</template>
+              <template v-if="pendingDays !== null">
+                ,已等待 <strong class="font-mono">{{ pendingDays }}</strong> 天
+              </template>
+              。审核通常 <strong>1-2 个工作日</strong>完成,审核结果会通过站内消息通知。
+            </div>
+            <div class="mt-2 text-xs text-blue-700/70">
+              如超过 3 个工作日未收到结果,可联系 <a href="mailto:kyc@ibi.ren" class="underline">kyc@ibi.ren</a> 加急。
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 步骤 1: KYC -->
       <section class="mb-8 bg-surface rounded-2xl border border-line p-6">
         <div class="flex items-start gap-4">
@@ -160,9 +194,9 @@ onMounted(fetchStatus);
               </button>
             </div>
 
-            <!-- PENDING -->
+            <!-- PENDING — 详细提示已搬到顶部 banner,这里只留状态徽标 -->
             <div v-else-if="kycStatus === 'PENDING'" class="text-sm text-blue-700 bg-blue-50 px-4 py-3 rounded-lg">
-              审核中, 请耐心等待, 结果会通过站内消息通知。
+              ⏳ 审核中 · 详见顶部提示
             </div>
 
             <!-- APPROVED -->
