@@ -198,13 +198,16 @@ export class ContractsService implements OnModuleInit {
 
   async getDetail(contractId: string, requesterId: string) {
     const c = await this.requireById(contractId);
-    const order = await this.prisma.order.findUniqueOrThrow({ where: { id: c.orderId } });
+    const order = await this.prisma.order.findUniqueOrThrow({
+      where: { id: c.orderId },
+      include: { ip: true },
+    });
     if (order.buyerId !== requesterId) {
       const user = await this.prisma.user.findUniqueOrThrow({ where: { id: requesterId } });
       const roles = Array.isArray(user.roles) ? (user.roles as string[]) : [];
       if (!roles.includes('ADMIN')) throw new ForbiddenException();
     }
-    return { contract: c };
+    return { contract: c, order };
   }
 
   async requireById(id: string): Promise<Contract> {

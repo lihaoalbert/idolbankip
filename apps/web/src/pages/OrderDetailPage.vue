@@ -44,6 +44,31 @@ async function adminSignContract() {
   await fetchOrder();
 }
 
+async function downloadContract() {
+  if (!order.value.contract) return;
+  // 后端返回 Content-Disposition: attachment; filename*=UTF-8''...,浏览器自动保存
+  // 不能直接 <a href> 因为没带 Authorization,会 401
+  // 用 fetch 拿 blob + a.click 触发下载
+  try {
+    const { data } = await apiClient.get(`/contracts/${order.value.contract.id}/file`, {
+      responseType: 'blob',
+    });
+    const cd = (data as any).type; // 这里拿不到 headers (axios blob 模式)
+    // 通用做法: 从 createObjectURL + a[download] 触发
+    const blob = new Blob([data as any], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${order.value.ip.code}-${order.value.contract.templateCode}-${order.value.contract.id.slice(-6)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '下载失败');
+  }
+}
+
 const canDownload = computed(() =>
   ['DOWNLOAD_UNLOCKED', 'DELIVERED'].includes(order.value?.status) &&
   order.value?.contract?.status === 'FULLY_SIGNED'
@@ -127,7 +152,7 @@ onMounted(fetchOrder);
         <div>模板: {{ order.contract.templateCode }}</div>
         <div>状态: <span :class="order.contract.status === 'FULLY_SIGNED' ? 'text-success' : 'text-ink/60'">{{ order.contract.status }}</span></div>
       </div>
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-3">
         <button
           v-if="order.contract.status === 'AWAITING_BUYER_SIGN'"
           @click="buyerSignContract"
@@ -138,6 +163,13 @@ onMounted(fetchOrder);
           @click="adminSignContract"
           class="px-5 py-2 bg-gold text-ink rounded-full text-sm hover:bg-ink hover:text-cream transition"
         >平台签署 (Mock)</button>
+        <a
+          :href="`/api/v1/contracts/${order.contract.id}/file`"
+          @click.prevent="downloadContract"
+          class="px-5 py-2 border border-ink/20 text-ink rounded-full text-sm hover:border-ink hover:bg-cream transition inline-flex items-center gap-2"
+        >
+          <span>↓</span> 下载合同 PDF
+        </a>
       </div>
     </div>
 

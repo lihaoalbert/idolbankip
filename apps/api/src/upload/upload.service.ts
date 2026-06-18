@@ -191,6 +191,20 @@ export class UploadService {
   }
 
   /**
+   * 读合同 PDF (从 private 桶, buyer / admin 调)
+   * 合同 key 是 contracts/... 但实际写到 private 桶 (ContractsService.uploadPrivate), 后续读也走 private
+   * 用 SDK get() 直读避开 signed URL signature bug
+   */
+  async getContractBuffer(ossKey: string, maxBytes = 5 * 1024 * 1024): Promise<Buffer> {
+    const res = await this.privateClient.get(ossKey);
+    let buf: Buffer = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content as ArrayBuffer);
+    if (buf.length > maxBytes) {
+      throw new Error(`合同 PDF 过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)})`);
+    }
+    return buf;
+  }
+
+  /**
    * 验证 cert OSS 对象存在 + magic 校验
    * 创作者提交 cert metadata 时由 CertService 调用, 防止前端伪造 key
    * 用 SDK 自身的 head() + get(range) 避免签名 URL 的 x-oss-force-download 头签名 bug
