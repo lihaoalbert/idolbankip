@@ -34,3 +34,10 @@ prisma/migrations/dev/
 seed-assets/.cache
 seed-assets/ibi-ren-seed/.thumbnails-cache
 uploads/
+# tsc build 产物 (shared-contracts)
+packages/*/src/*.js
+packages/*/src/*.js.map
+packages/*/src/*.d.ts
+packages/*/src/mocks/*.js
+packages/*/src/mocks/*.js.map
+packages/*/src/mocks/*.d.ts

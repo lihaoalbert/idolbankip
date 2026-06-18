@@ -192,12 +192,59 @@ model IpAsset {
   orders    Order[]
   proofs    BlockchainProof[]
   watermarks WatermarkRecord[]
+  cert      CopyrightCertificate?
 
   @@index([status])
   @@index([creatorId])
   @@index([gender, visualAgeBucket])
   @@index([styleTags])
   @@index([scenarioTags])
+}
+
+// ===================== 版权证书 =====================
+
+enum CertApplyMethod {
+  CREATOR_SELF     // 创作者自传 (有证书)
+  PLATFORM_AGENT  // 平台代办 (P1 阶段)
+}
+
+enum CertStatus {
+  PENDING_REVIEW   // 创作者刚提交,等 admin 审核
+  APPROVED         // 审核通过 → 同步 IpAsset.status = OFFICIAL_REGISTERED
+  REJECTED         // 审核被拒,创作者可重提
+}
+
+model CopyrightCertificate {
+  id        String   @id @default(cuid())
+  ipId      String   @unique
+  ip        IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+
+  applyMethod       CertApplyMethod @default(CREATOR_SELF)
+
+  // 创作者自传
+  certFileKey       String?   // OSS 私有桶 key, .pdf/.jpg/.png
+  certFileName      String?
+  certFileSize      BigInt?
+  selfCertNo        String?
+  selfIssuedAt      DateTime?
+
+  // 平台代办 (P1)
+  agentRealName     String?
+  agentIdNumber     String?   // base64 编码 (P2 上 KMS)
+  agentRegion       String?   // NATIONAL / PROVINCIAL
+  agentProvince     String?
+  agentRefNumber    String?
+
+  // 终态
+  certNo            String?   // 审核通过后写入
+  certIssuedAt      DateTime?
+  status            CertStatus @default(PENDING_REVIEW)
+  rejectionReason   String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model IpFile {
