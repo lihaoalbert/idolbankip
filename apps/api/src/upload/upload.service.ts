@@ -178,11 +178,12 @@ export class UploadService {
   /**
    * 验证 cert OSS 对象存在 + magic 校验
    * 创作者提交 cert metadata 时由 CertService 调用, 防止前端伪造 key
+   * 用 SDK 自身的 head() + get(range) 避免签名 URL 的 x-oss-force-download 头签名 bug
    */
   async verifyCertObject(ossKey: string, certFileType: CertFileType, size: number): Promise<{ ok: true } | { ok: false; reason: string }> {
     const limit = CERT_LIMITS[certFileType];
     try {
-      // HEAD 拉元数据
+      // 1. SDK head() 拉元数据
       const head = await this.privateClient.head(ossKey);
       const actualSize = Number(head.res.headers['content-length'] ?? 0);
       if (actualSize !== size) {
@@ -191,8 +192,11 @@ export class UploadService {
       if (actualSize < limit.minBytes || actualSize > limit.maxBytes) {
         return { ok: false, reason: `${limit.label.split('(')[0].trim()} 大小越界 (${this.fmtSize(actualSize)})` };
       }
-      // 拉首 8 字节做 magic 校验
-      const headBuf = await this.fetchHead(ossKey, limit.magic.length);
+      // 2. SDK get(range) 拉首 N 字节做 magic 校验 — 避免走签名 URL
+      const range = await this.privateClient.get(ossKey, {
+        range: `bytes=0-${limit.magic.length - 1}`,
+      } as any);
+      const headBuf = Buffer.isBuffer(range.content) ? range.content : Buffer.from(range.content);
       if (!headBuf.subarray(0, limit.magic.length).equals(limit.magic)) {
         return { ok: false, reason: `文件 magic 校验失败, 不是合法的 ${certFileType}` };
       }
