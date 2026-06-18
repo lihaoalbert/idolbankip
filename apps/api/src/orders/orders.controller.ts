@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { LicenseScope, OrderStatus, OrderType } from '@prisma/client';
+import { PaymentChannel } from '@ibi-ren/shared-contracts';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -9,15 +10,17 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/util/roles.util';
 import { CurrentUser, JwtUser } from '../common/decorators/current-user.decorator';
 
+const PAYMENT_CHANNELS: PaymentChannel[] = ['mock_alipay', 'mock_wechat', 'mock_bank'];
+
 class CreateOrderDto {
   @IsString() ipId!: string;
   @IsEnum(OrderType) orderType!: OrderType;
   @IsOptional() @IsEnum(LicenseScope) licenseScope?: LicenseScope;
-  @IsOptional() @IsEnum({} as any) paymentChannel?: 'mock_alipay' | 'mock_wechat';
+  @IsOptional() @IsIn(PAYMENT_CHANNELS) paymentChannel?: PaymentChannel;
 }
 
 class PayOrderDto {
-  @IsEnum({} as any) channel!: 'mock_alipay' | 'mock_wechat';
+  @IsIn(PAYMENT_CHANNELS) channel!: PaymentChannel;
 }
 
 @ApiTags('orders')

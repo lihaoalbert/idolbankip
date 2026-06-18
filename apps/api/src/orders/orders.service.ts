@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LicenseScope, Order, OrderStatus, OrderType } from '@prisma/client';
+import { PaymentChannel } from '@ibi-ren/shared-contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { IpsService } from '../ips/ips.service';
@@ -31,7 +32,7 @@ export class OrdersService {
     ipId: string;
     orderType: OrderType;
     licenseScope?: LicenseScope;
-    paymentChannel?: 'mock_alipay' | 'mock_wechat';
+    paymentChannel?: PaymentChannel;
   }): Promise<{ order: Order; charge: { chargeId: string; payUrl?: string; qrCode?: string } }> {
     const ip = await this.ips.requireById(params.ipId);
     if (ip.status !== 'PUBLIC_INTENT' && ip.status !== 'OFFICIAL_REGISTERED') {
@@ -84,7 +85,7 @@ export class OrdersService {
     return { order, charge };
   }
 
-  async pay(orderId: string, buyerId: string, channel: 'mock_alipay' | 'mock_wechat'): Promise<Order> {
+  async pay(orderId: string, buyerId: string, channel: PaymentChannel): Promise<Order> {
     const order = await this.requireOrderById(orderId);
     if (order.buyerId !== buyerId) throw new ForbiddenException();
     if (order.status !== 'CREATED') throw new BadRequestException(`订单当前状态 ${order.status} 不允许支付`);

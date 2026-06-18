@@ -263,13 +263,16 @@ export class ContractsService implements OnModuleInit {
   private async renderSignedPdf(vars: Record<string, any>, templateCode: string): Promise<Buffer> {
     const base = await this.renderContractPdf(vars, templateCode);
     const pdf = await PDFDocument.load(base);
-    const { bold: font } = await this.embedFonts(pdf);
+    // 不用 CJK 重 embed (会触发 fontkit CFFSubset.encode RangeError "value" out of bounds)
+    // 签章用 Helvetica + Latin/数字即可,中文原内容已在 base PDF 完整保留
+    const { StandardFonts } = await import('pdf-lib');
+    const stampFont = await pdf.embedFont(StandardFonts.HelveticaBold);
     const page = pdf.getPages()[0];
-    page.drawText('[已签署] 买方 + 平台 — 法务已盖章', {
+    page.drawText('[SIGNED] Buyer + Platform  /  Legal Seal Applied', {
       x: 50,
       y: 30,
-      size: 12,
-      font,
+      size: 11,
+      font: stampFont,
       color: rgb(0.8, 0.1, 0.1),
     });
     const bytes = await pdf.save();
