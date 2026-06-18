@@ -107,6 +107,7 @@ model User {
   refreshTokens RefreshToken[]
   kycSubs       KycSubmission[]
   notifications Notification[]
+  apiKeys       ApiKey[]
 
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
@@ -432,4 +433,25 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt, createdAt])
+}
+
+// ===================== Agent API Key =====================
+// 用于 n8n / CLI / 第三方 Agent 批量上传 IP 的 long-lived API key。
+// 创作者在 /creator/api-keys 页面生成 (一次性显示明文, 仅存 sha256 hash + prefix)。
+// 通过 x-api-key 头走 ApiKeyGuard, 与 JWT 平行 (不冲突)。
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  // 明文 key 仅生成时返回一次; DB 存 sha256 hash + 前 8 字符用于识别
+  keyHash    String    @unique
+  keyPrefix  String
+  label      String
+  scopes     String    // CSV: "ips:create,ips:upload"
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }

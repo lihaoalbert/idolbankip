@@ -66,6 +66,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/NotificationsPage.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/creator/api-keys',
+    name: 'creator-api-keys',
+    component: () => import('@/pages/creator/ApiKeysPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/pages/NotFoundPage.vue') },
 ];
 

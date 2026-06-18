@@ -1,0 +1,21 @@
+{
+  "ips": [
+    {
+      "displayName": "苏清禾",
+      "tagline": "温柔人设,热爱创作",
+      "description": "苏清禾是一位 24 岁的独立插画师,喜欢在深夜创作水彩。她性格温柔,会跟自己的画说话。",
+      "gender": "FEMALE",
+      "visualAgeBucket": "YOUNG_ADULT",
+      "styleTags": ["realistic", "watercolor"],
+      "scenarioTags": ["portrait", "lifestyle"],
+      "depositPriceFen": 19900,
+      "fullLicensePriceFen": 199900,
+      "files": [
+        { "path": "./examples/suqinghe-three.png",   "assetType": "THREE_VIEW" },
+        { "path": "./examples/suqinghe-expr.png",    "assetType": "EXPRESSION_GRID" },
+        { "path": "./examples/suqinghe-render.png",  "assetType": "TRANSPARENT_RENDER" },
+        { "path": "./examples/suqinghe-bio.txt",     "assetType": "BIO_TXT" }
+      ]
+    }
+  ]
+}

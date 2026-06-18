@@ -154,10 +154,16 @@ onMounted(fetch);
   <div class="max-w-6xl mx-auto px-6 py-10">
     <div class="flex items-baseline justify-between mb-2">
       <h1 class="font-display text-3xl">创作者中心</h1>
-      <RouterLink
-        to="/creator/ips/new"
-        class="px-5 py-2 bg-ink text-cream rounded-full text-sm hover:bg-gold transition"
-      >+ 新建 IP</RouterLink>
+      <div class="flex items-center gap-3">
+        <RouterLink
+          to="/creator/api-keys"
+          class="text-xs text-ink/60 hover:text-gold transition"
+        >🔑 Agent API Key</RouterLink>
+        <RouterLink
+          to="/creator/ips/new"
+          class="px-5 py-2 bg-ink text-cream rounded-full text-sm hover:bg-gold transition"
+        >+ 新建 IP</RouterLink>
+      </div>
     </div>
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
 
