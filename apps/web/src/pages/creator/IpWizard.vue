@@ -27,7 +27,7 @@
  *   - scenarioTags 术语优化 (短剧(单集) / 短剧(系列) / 品牌合作 等)
  *   - 上传失败时显示校验错误 (后端 deepValidate)
  */
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
@@ -236,6 +236,82 @@ async function aiRecognize(fileId: string) {
     toast.error(e?.response?.data?.message || 'AI 识别失败');
   } finally {
     aiLoading[fileId] = false;
+  }
+}
+
+// #30.6.7 步骤①「先传面部特写 → AI 补全」快速通道
+// 用户进 /creator/ips/new 还没填任何字段, 上传 face closeup → 自动用默认值建 IP → 调 /ai/recognize-face 填 9 字段
+// 比传统「先填 11 字段再传图」省 80% 操作
+const quickFaceUploading = ref(false);
+const quickFaceProgress = ref(0);
+const quickFaceFile = ref<{ id: string; originalName: string } | null>(null);
+async function quickUploadFace(file: File) {
+  if (quickFaceUploading.value) return;
+  quickFaceUploading.value = true;
+  quickFaceProgress.value = 0;
+  try {
+    let targetIpId = ipId.value;
+    if (!targetIpId) {
+      // IP 还没建 — 用文件名做 displayName, 其他字段填默认值
+      const fallbackName = file.name.replace(/\.[^.]+$/, '').slice(0, 12) || '未命名 IP';
+      const payload: any = {
+        displayName: infoForm.value.displayName.trim() || fallbackName,
+        tagline: infoForm.value.tagline,
+        description: infoForm.value.description.trim() || '（待 AI 补全）',
+        gender: infoForm.value.gender || 'FEMALE',
+        ageBucket: infoForm.value.ageBucket || 'YOUNG',
+        ethnicity: infoForm.value.ethnicity || 'EAST_ASIAN',
+        styleTags: infoForm.value.styleTags.length > 0 ? infoForm.value.styleTags : ['现代'],
+        scenarioTags: infoForm.value.scenarioTags.length > 0 ? infoForm.value.scenarioTags : ['短剧(单集)'],
+        depositPriceFen: infoForm.value.depositPriceFen,
+        fullLicensePriceFen: infoForm.value.fullLicensePriceFen,
+        faceTags: infoForm.value.faceTags,
+      };
+      if (taskId.value) payload.taskId = taskId.value;
+      const { data } = await apiClient.post('/ips', payload);
+      targetIpId = data.ip.id;
+      // 同步基础信息 (这一步 router.replace 让 ip.value + files 重新加载, 后面的上传才能用新的 ipId)
+      router.replace(`/creator/ips/${targetIpId}`);
+      await nextTick();
+    }
+    // 上传 face closeup
+    const { data: policy } = await apiClient.post('/upload/policy', {
+      ipId: targetIpId,
+      assetType: 'FACE_CLOSEUP',
+      filename: file.name,
+      size: file.size,
+    });
+    const fd = new FormData();
+    fd.append('key', policy.key);
+    fd.append('policy', policy.policy);
+    fd.append('OSSAccessKeyId', policy.accessKeyId);
+    fd.append('Signature', policy.signature);
+    fd.append('file', file);
+    const etag = await new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) quickFaceProgress.value = Math.round((e.loaded / e.total) * 100);
+      };
+      xhr.onload = () => xhr.status >= 200 && xhr.status < 300
+        ? resolve((xhr.getResponseHeader('ETag') || '').replace(/"/g, ''))
+        : reject(new Error(`OSS 上传失败 HTTP ${xhr.status}`));
+      xhr.onerror = () => reject(new Error('OSS 网络错误'));
+      xhr.open('POST', policy.host + '/', true);
+      xhr.send(fd);
+    });
+    const { data: cb } = await apiClient.post('/upload/oss-callback', {
+      filename: file.name, size: file.size, etag, x: policy.key,
+    });
+    if (cb?.Status !== 'OK') throw new Error(cb?.Message || '上传校验失败');
+    quickFaceFile.value = { id: cb.fileId, originalName: file.name };
+    toast.success('面部特写已上传 — 点击右侧 ✨ AI 识别自动补全 9 字段');
+    // 重新加载 IP 让 files / faceCloseupFileId 同步
+    await loadIp();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || e?.message || '上传失败');
+  } finally {
+    quickFaceUploading.value = false;
+    quickFaceProgress.value = 0;
   }
 }
 
@@ -872,6 +948,56 @@ const stepMeta = [
     <!-- 步骤 1: 基础信息 -->
     <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
       <h2 class="font-display text-lg">① 基础信息</h2>
+      <!-- #30.6.7 快速通道: 上传面部特写 → AI 识别自动补全 9 字段 -->
+      <!-- 仅新建 IP 时显示 (已有 IP 进 /creator/ips/:id 直接进步骤 ②, 不走这步) -->
+      <div v-if="isNew" class="p-4 bg-gold/5 border border-gold/30 rounded-xl space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-9 h-9 rounded-full bg-gold/15 text-gold flex items-center justify-center text-base">✨</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-ink">先传面部特写, AI 自动补全</div>
+            <div class="text-xs text-ink/60 mt-0.5 leading-relaxed">省去手填 9 个字段, 识别后你再确认/修改。</div>
+          </div>
+        </div>
+        <!-- 上传前 / 上传中 -->
+        <div v-if="!quickFaceFile" class="flex items-center gap-3">
+          <label
+            :class="[
+              'px-4 py-2 border rounded-full text-xs transition cursor-pointer shrink-0',
+              quickFaceUploading ? 'bg-line text-ink/40 border-line cursor-wait' : 'bg-ink text-cream border-ink hover:bg-gold hover:border-gold',
+            ]"
+          >
+            {{ quickFaceUploading ? `上传中 ${quickFaceProgress}%` : '上传面部特写' }}
+            <input
+              type="file"
+              class="hidden"
+              accept="image/*"
+              :disabled="quickFaceUploading"
+              @change="(e) => {
+                const inp = e.target as HTMLInputElement;
+                const f = inp.files?.[0];
+                if (f) quickUploadFace(f);
+                inp.value = '';
+              }"
+            />
+          </label>
+          <div class="text-[11px] text-ink/50 leading-relaxed">jpg/png/webp, ≥2048×2048, 100KB-30MB</div>
+        </div>
+        <!-- 上传完成后: 文件名 + AI 识别 + ⭐ -->
+        <div v-else class="space-y-2">
+          <div class="flex items-center gap-2 p-2.5 bg-cream/50 rounded-lg text-xs">
+            <span class="truncate flex-1 text-ink/80">✓ {{ quickFaceFile.originalName }}</span>
+            <button
+              type="button"
+              :disabled="aiLoading[quickFaceFile.id]"
+              class="shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+              title="AI 识别 → 自动填充 9 字段"
+              @click="aiRecognize(quickFaceFile.id)"
+            >{{ aiLoading[quickFaceFile.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
+            <span v-if="ip?.faceCloseupFileId === quickFaceFile.id" class="text-gold" title="当前版权图">⭐</span>
+          </div>
+          <div class="text-[11px] text-ink/50">或继续手填下方字段, 步骤 ② 还能上传更多面部特写</div>
+        </div>
+      </div>
       <!-- #30 任务接单模式 banner — 预填 spec + 提示"版权归平台" -->
       <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-xl space-y-2">
         <div class="flex items-center gap-2 text-sm font-medium text-ink">
