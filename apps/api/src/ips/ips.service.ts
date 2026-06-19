@@ -216,13 +216,18 @@ export class IpsService {
   }
 
   async listMine(creatorId: string) {
-    return this.prisma.ipAsset.findMany({
+    // BigInt sizeBytes → string, 见 [[feedback-prisma-bigint-serialization]]
+    const items = await this.prisma.ipAsset.findMany({
       where: { creatorId },
       orderBy: { createdAt: 'desc' },
       include: {
         files: { select: { id: true, assetType: true, validated: true, sizeBytes: true } },
       },
     });
+    return items.map((ip) => ({
+      ...ip,
+      files: ip.files.map((f) => ({ ...f, sizeBytes: f.sizeBytes.toString() })),
+    }));
   }
 
   /**
