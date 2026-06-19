@@ -61,9 +61,162 @@ ssh_run() {
   ssh "${SSH_BASE[@]}" "$SSH_TARGET" "$@"
 }
 
+preflight() {
+  echo "==== preflight: 本地环境检查 ===="
+  cd "$PROJECT_ROOT"
+
+  # 1. git working tree
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    echo "  ⚠️  working tree 不干净:"
+    git status --short | sed 's/^/      /'
+    if [[ -t 0 ]]; then
+      read -r -p "  继续? (yes/no): " CONFIRM
+      [[ "$CONFIRM" == "yes" ]] || { echo "取消"; exit 1; }
+    else
+      echo "  (非交互模式 — 自动继续)"
+    fi
+  else
+    echo "  ✅ git working tree 干净"
+  fi
+
+  # 2. pnpm install --frozen-lockfile
+  echo ""
+  echo "  → pnpm install --frozen-lockfile"
+  pnpm install --frozen-lockfile || { echo "❌ pnpm install 失败"; exit 1; }
+  echo "  ✅ 依赖与 lockfile 一致"
+
+  # 3. prisma generate (AGENTS §5.14 — 没跑 IsEnum 装饰器秒 crash)
+  echo ""
+  echo "  → pnpm prisma:generate"
+  pnpm prisma:generate || { echo "❌ prisma generate 失败"; exit 1; }
+  echo "  ✅ prisma client 生成"
+
+  echo ""
+  echo "✅ preflight 通过 (可跑 build / verify / sync)"
+}
+
+verify() {
+  echo "==== verify: 本地 build 产物检查 ===="
+  cd "$PROJECT_ROOT"
+
+  # 1. 三端 dist 必须存在
+  for app in $DEPLOY_TARGETS; do
+    if [[ ! -d "apps/$app/dist" ]] || [[ -z "$(ls -A "apps/$app/dist" 2>/dev/null)" ]]; then
+      echo "  ❌ apps/$app/dist 不存在或为空,先跑: bash scripts/deploy.sh build"
+      exit 1
+    fi
+  done
+  echo "  ✅ 三端 dist 都存在"
+
+  # 2. web/admin dist 不含 localhost:3000 (AGENTS §5.10 vite || vs ?? 陷阱)
+  for app in web admin; do
+    # 用 || true 防 grep 无匹配时退出码 1 触发 set -e
+    HIT=$(grep -roh "localhost:3000" "apps/$app/dist/assets/" 2>/dev/null | wc -l | tr -d ' ' || true)
+    HIT=${HIT:-0}
+    if [[ "$HIT" -gt 0 ]]; then
+      echo "  ❌ apps/$app/dist 仍有 $HIT 处 'localhost:3000' 硬编码 (§5.10)"
+      grep -rn "localhost:3000" "apps/$app/dist/assets/" 2>/dev/null | head -3
+      exit 1
+    else
+      echo "  ✅ apps/$app/dist 无 localhost:3000 硬编码"
+    fi
+  done
+
+  # 3. api main.js 启动 smoke (AGENTS §5.13 DI Symbol + §5.14 prisma generate)
+  echo ""
+  echo "  → api main.js 启动 smoke (timeout 6s)"
+  TEMP_ENV=$(mktemp -t deploy-verify-env.XXXXXX)
+  if [[ -f "apps/api/.env" ]]; then
+    echo "    (使用 apps/api/.env)"
+    cp "apps/api/.env" "$TEMP_ENV"
+  else
+    echo "    (apps/api/.env 不存在,用 dummy env 让 Nest 进到 DI 解析)"
+    cat > "$TEMP_ENV" <<EOF
+DATABASE_URL=mysql://localhost:13306/test
+REDIS_URL=redis://localhost:16379
+JWT_ACCESS_SECRET=$(openssl rand -base64 48 2>/dev/null || echo "placeholder_access_secret_at_least_32_chars_long")
+JWT_REFRESH_SECRET=$(openssl rand -base64 48 2>/dev/null || echo "placeholder_refresh_secret_at_least_32_chars_long")
+OSS_ACCESS_KEY_ID=PLACEHOLDER_NOT_REAL_KEY
+OSS_ACCESS_KEY_SECRET=placeholder_secret_at_least_30_chars_long_for_joi
+OSS_BUCKET_PUBLIC=placeholder
+OSS_BUCKET_PRIVATE=placeholder
+OSS_BUCKET_CONTRACTS=placeholder
+NODE_ENV=development
+EOF
+  fi
+
+  cd apps/api
+  # portable timeout (macOS 没自带 timeout 命令)
+  OUTFILE=$(mktemp -t deploy-smoke.XXXXXX)
+  # 注意:tsconfig 有 rootDir: "./src" 时产物在 dist/main.js,不是 dist/apps/api/src/main.js
+  ( set -a; source "$TEMP_ENV"; set +a; node dist/main.js > "$OUTFILE" 2>&1 ) &
+  PID=$!
+  sleep 6
+  if kill -0 $PID 2>/dev/null; then
+    kill -TERM $PID 2>/dev/null || true
+    sleep 1
+    kill -KILL $PID 2>/dev/null || true
+  fi
+  wait $PID 2>/dev/null || true   # wait 返回非零(node 崩或被杀)不触发 set -e
+  STARTUP_OUTPUT=$(cat "$OUTFILE")
+  rm -f "$OUTFILE"
+  cd "$PROJECT_ROOT"
+  rm -f "$TEMP_ENV"
+
+  # 已知 §5.13 DI 错误 (Symbol/string token 不匹配) — 致命
+  if echo "$STARTUP_OUTPUT" | grep -qE "Nest can't resolve dependencies"; then
+    echo "  ❌ api 启动失败 — §5.13 Nest DI 错误 (Symbol/string token 不匹配?)"
+    echo "$STARTUP_OUTPUT" | grep -A 3 "Nest can't resolve" | head -10
+    exit 1
+  fi
+
+  # 已知 §5.14 prisma generate 缺失 — 致命
+  if echo "$STARTUP_OUTPUT" | grep -qE "Cannot convert undefined or null to object"; then
+    echo "  ❌ api 启动失败 — §5.14 prisma client 未生成"
+    echo "    解法: bash scripts/deploy.sh preflight"
+    exit 1
+  fi
+
+  # 任何 Error 行 (排除连接类) — 视为致命
+  ERRORS=$(echo "$STARTUP_OUTPUT" | grep -E "^Error|TypeError:|ReferenceError|SyntaxError" | grep -vE "ECONNREFUSED|ETIMEDOUT|getaddrinfo ENOTFOUND|Connection refused" || true)
+  if [[ -n "$ERRORS" ]]; then
+    echo "  ❌ api 启动输出含 Error 行:"
+    echo "$ERRORS" | head -10
+    exit 1
+  fi
+
+  # 成功信号: Nest HTTP server up
+  if echo "$STARTUP_OUTPUT" | grep -qE "Nest application successfully started|listening on port"; then
+    echo "  ✅ api 启动成功 — Nest HTTP server up"
+  # Nest 模块全初始化 (没拿到 listening 是因为 dummy DB URL 卡住,但 DI 解析无错)
+  elif echo "$STARTUP_OUTPUT" | grep -qE "AppModule dependencies initialized"; then
+    COUNT=$(echo "$STARTUP_OUTPUT" | grep -c "dependencies initialized" || true)
+    echo "  ✅ api 启动 smoke 通过 — $COUNT 个模块 DI 解析无错 (DB 连不上是 dummy URL 预期)"
+  else
+    echo "  ⚠️  api 启动输出无法自动分类,人工 review:"
+    echo "$STARTUP_OUTPUT" | head -30
+    if [[ -t 0 ]]; then
+      read -r -p "  视为通过? (yes/no): " CONFIRM
+      [[ "$CONFIRM" == "yes" ]] || exit 1
+    else
+      echo "  (非交互模式 — 视为失败,deploy 中止)"
+      exit 1
+    fi
+  fi
+
+  echo ""
+  echo "✅ verify 通过 (dist 可推 ECS)"
+}
+
 build_local() {
   echo "==== [1/4] 本地 build 三端 ===="
   cd "$PROJECT_ROOT"
+
+  # 清 TypeScript incremental 缓存 (tsbuildinfo),防"假成功" — 缓存说"无变化" 但 dist 已被删
+  echo "  → 清理 tsbuildinfo (防 incremental 假成功)"
+  find apps -maxdepth 3 -name "tsconfig.tsbuildinfo" -delete 2>/dev/null
+  rm -rf apps/*/dist 2>/dev/null
+
   for app in $DEPLOY_TARGETS; do
     echo "  → build @ibi-ren/$app"
     pnpm --filter "@ibi-ren/$app" run build
@@ -139,12 +292,22 @@ make_backup() {
 }
 
 case "$CMD" in
+  preflight)
+    preflight
+    ;;
   build)
     build_local
     ;;
+  verify)
+    verify
+    ;;
   sync)
     build_local
+    verify
+    make_backup
     sync_to_ecs
+    restart_ecs
+    smoke_ecs
     ;;
   restart)
     restart_ecs
@@ -160,7 +323,9 @@ case "$CMD" in
     make_backup
     ;;
   all)
+    preflight
     build_local
+    verify
     make_backup
     sync_to_ecs
     restart_ecs
@@ -169,7 +334,7 @@ case "$CMD" in
     echo "✅ 部署完成"
     ;;
   *)
-    echo "用法: $0 {build|sync|restart|smoke|rollback|backup|all}"
+    echo "用法: $0 {preflight|build|verify|sync|restart|smoke|rollback|backup|all}"
     exit 1
     ;;
 esac

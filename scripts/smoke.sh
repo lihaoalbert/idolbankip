@@ -26,6 +26,8 @@ case "$TARGET" in
     BASE="http://127.0.0.1:8080"
     ADMIN_BASE="http://127.0.0.1:8081"
     API_BASE="http://127.0.0.1:3100"
+    # 本地: 直接打 API 端口 (假设 nginx 没起)
+    HEALTH_URL="$API_BASE/health"
     ;;
   ecs)
     if [[ -f "$SCRIPT_DIR/deploy.env" ]]; then
@@ -35,11 +37,14 @@ case "$TARGET" in
     BASE="http://${ECS_IP}:${SMOKE_WEB_PORT:-8080}"
     ADMIN_BASE="http://${ECS_IP}:${SMOKE_ADMIN_PORT:-8081}"
     API_BASE="http://${ECS_IP}:${SMOKE_API_PORT:-3100}"
+    # ECS: 走 nginx 公网路径 (8080/health) — ECS port 3100 内部端口,外部不可达
+    HEALTH_URL="$BASE/health"
     ;;
   http://*|https://*)
     BASE="$TARGET"
     ADMIN_BASE="$TARGET"
     API_BASE="$TARGET"
+    HEALTH_URL="$BASE/health"
     ;;
   *)
     echo "用法: $0 {local|ecs|<url>}"
@@ -90,7 +95,7 @@ check "web-root"          "$BASE/"            200 "<!doctype|<html|<div id"
 check "admin-root"        "$ADMIN_BASE/"      200 "<!doctype|<html|<div id"
 
 # 3. API 健康 (200, 含 status: ok)
-check "api-health"        "$API_BASE/health"  200 "\"status\":\\s*\"ok\"|status.:.ok"
+check "api-health"        "$HEALTH_URL"       200 "\"status\":\\s*\"ok\"|status.:.ok"
 
 # 4. 核心 endpoint (200, items 数组存在即可,即便空)
 check "api-ips-list"      "$BASE/api/v1/ips?size=1" 200 '"items"'
@@ -100,10 +105,11 @@ if [[ "$TARGET" == "ecs" && -f "$SCRIPT_DIR/deploy.env" ]]; then
   source "$SCRIPT_DIR/deploy.env"
   echo ""
   echo "==== ECS dist 时间戳 ===="
+  # 用 || true 容忍 brace expansion 部分文件不存在 (api/dist/main.js 有,web/admin/dist 没有 main.js)
   ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "root@${ECS_IP}" \
     "stat -c '%y %n' $ECS_PROJECT_DIR/apps/{api,web,admin}/dist/main.js $ECS_PROJECT_DIR/apps/{api,web,admin}/dist/index.html 2>/dev/null" \
-    || echo "  ⚠️  无法 stat dist (ssh 失败或文件缺失)"
+    || true
 fi
 
 echo ""
