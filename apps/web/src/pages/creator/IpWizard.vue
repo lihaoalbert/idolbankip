@@ -944,15 +944,15 @@ const stepMeta = [
           <label
             v-if="!ip.thumbnailKey"
             :class="[
-              'w-14 h-14 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
+              'w-20 h-20 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
               quickFaceUploading
                 ? 'border-ink/30 bg-line text-ink/40 cursor-wait'
                 : 'border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-500',
             ]"
             :title="quickFaceUploading ? '上传中' : '点击重新上传面部特写 (会生成新文件+缩略图)'"
           >
-            <span class="text-base leading-none">{{ quickFaceUploading ? `⏳ ${quickFaceProgress}%` : '⚠' }}</span>
-            <span class="text-[8px] mt-0.5">{{ quickFaceUploading ? '上传中' : '重传' }}</span>
+            <span class="text-xl leading-none">{{ quickFaceUploading ? `⏳ ${quickFaceProgress}%` : '⚠' }}</span>
+            <span class="text-[10px] mt-0.5">{{ quickFaceUploading ? '上传中' : '重传' }}</span>
             <input
               type="file"
               class="hidden"
@@ -970,11 +970,11 @@ const stepMeta = [
             <img
               :src="ossUrl(ip.thumbnailKey)"
               alt="面部特写缩略图"
-              class="w-14 h-14 rounded-xl object-cover border-2 border-gold"
+              class="w-20 h-20 rounded-2xl object-cover border-2 border-gold"
               referrerpolicy="no-referrer"
             />
             <span
-              class="absolute -top-1 -right-1 w-5 h-5 bg-gold text-ink rounded-full text-[10px] flex items-center justify-center font-bold"
+              class="absolute -top-1.5 -right-1.5 w-6 h-6 bg-gold text-ink rounded-full text-xs flex items-center justify-center font-bold shadow"
               title="当前版权图"
             >⭐</span>
           </div>
