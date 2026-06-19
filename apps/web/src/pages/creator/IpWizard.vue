@@ -941,14 +941,31 @@ const stepMeta = [
         <!-- 已上传: 缩略图 + AI 识别 (跨步骤都看得到, 仅 ip 存在时显示) -->
         <div v-else-if="ip" class="flex items-center gap-2">
           <!-- 缩略图损坏 (历史 silent chunking bug, 源 PNG 缺 IEND) → 提示重传 -->
-          <div
+          <label
             v-if="!ip.thumbnailKey"
-            class="w-14 h-14 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 flex flex-col items-center justify-center text-amber-700 cursor-help"
-            title="源面部特写文件损坏,请重新上传"
+            :class="[
+              'w-14 h-14 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
+              quickFaceUploading
+                ? 'border-ink/30 bg-line text-ink/40 cursor-wait'
+                : 'border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-500',
+            ]"
+            :title="quickFaceUploading ? '上传中' : '点击重新上传面部特写 (会生成新文件+缩略图)'"
           >
-            <span class="text-base leading-none">⚠</span>
-            <span class="text-[8px] mt-0.5">重传</span>
-          </div>
+            <span class="text-base leading-none">{{ quickFaceUploading ? `⏳ ${quickFaceProgress}%` : '⚠' }}</span>
+            <span class="text-[8px] mt-0.5">{{ quickFaceUploading ? '上传中' : '重传' }}</span>
+            <input
+              type="file"
+              class="hidden"
+              accept="image/*"
+              :disabled="quickFaceUploading"
+              @change="(e) => {
+                const inp = e.target as HTMLInputElement;
+                const f = inp.files?.[0];
+                if (f) quickUploadFace(f);
+                inp.value = '';
+              }"
+            />
+          </label>
           <div v-else class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 第 ② 步可改' : '未设置版权图'">
             <img
               :src="ossUrl(ip.thumbnailKey)"
