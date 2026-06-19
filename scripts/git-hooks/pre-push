@@ -79,7 +79,7 @@ if need_build api; then
   echo "==== [1/N] api ===="
   if echo "$CHANGED" | grep -qE "^apps/api/prisma/"; then
     echo "  → prisma generate (schema 改动)"
-    pnpm exec prisma generate --schema=apps/api/prisma/schema.prisma \
+    (cd apps/api && pnpm exec prisma generate --schema=prisma/schema.prisma) \
       || { echo "❌ prisma generate 失败"; FAILED=1; }
   fi
   if [[ "$FAILED" -eq 0 ]]; then
