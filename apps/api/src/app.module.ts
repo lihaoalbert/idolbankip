@@ -23,6 +23,7 @@ import { AuditModule } from './audit/audit.module';
 import { LeadsModule } from './leads/leads.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AgentModule } from './agent/agent.module';
+import { AiModule } from './ai/ai.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -55,6 +56,7 @@ import { configValidationSchema } from './config/config.validation';
     LeadsModule,
     NotificationsModule,
     AgentModule,
+    AiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

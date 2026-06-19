@@ -25,6 +25,7 @@
   "dependencies": {
     "@alicloud/green20220302": "^3.3.0",
     "@alicloud/openapi-client": "^0.4.15",
+    "@anthropic-ai/sdk": "^0.105.0",
     "@ibi-ren/shared-contracts": "workspace:*",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",

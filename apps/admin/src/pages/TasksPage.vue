@@ -5,6 +5,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
+import FieldHint from '@/components/FieldHint.vue';
 
 const router = useRouter();
 // ok=false 表示错误, 控制台 + 屏幕顶部 banner (admin 没有 toast composable)
@@ -140,6 +141,36 @@ async function closeTask(t: any) {
   }
 }
 
+// #30.6 AI 助手 — 自然语言描述 → title / spec
+const aiSuggesting = ref(false);
+async function aiSuggest() {
+  if (!newTask.description || newTask.description.length < 10) {
+    notify(`请先填写详细描述 (≥10 字), AI 才能识别。当前 ${newTask.description.length} 字`, false);
+    return;
+  }
+  if (!confirm('AI 将根据「详细描述」建议任务标题和 spec (年龄/性别/种族/风格/场景), 已填字段会被覆盖。确认?')) return;
+  aiSuggesting.value = true;
+  try {
+    const { data } = await apiClient.post('/ai/suggest-task', { description: newTask.description });
+    const f = data?.fields || {};
+    if (typeof f.title === 'string') newTask.title = f.title;
+    if (f.spec && typeof f.spec === 'object') {
+      const s = f.spec;
+      if (typeof s.count === 'number') newTask.spec.count = s.count;
+      if (typeof s.gender === 'string') newTask.spec.gender = s.gender;
+      if (Array.isArray(s.ageBuckets)) newTask.spec.ageBuckets = s.ageBuckets;
+      if (Array.isArray(s.ethnicities)) newTask.spec.ethnicities = s.ethnicities;
+      if (Array.isArray(s.styleTags)) newTask.spec.styleTags = s.styleTags;
+      if (Array.isArray(s.scenarioTags)) newTask.spec.scenarioTags = s.scenarioTags;
+    }
+    notify('AI 已生成标题 + spec — 请确认/修改');
+  } catch (e: any) {
+    notify(e?.response?.data?.message || 'AI 助手暂不可用', false);
+  } finally {
+    aiSuggesting.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -175,34 +206,53 @@ onMounted(load);
         <div>
           <label class="text-xs text-ink/60 block mb-1">标题 <span class="text-danger">*</span></label>
           <input v-model="newTask.title" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" placeholder="如:36 个中国都市女性" />
+          <FieldHint field="title" />
         </div>
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="text-xs text-ink/60 block mb-1">总预算 (元)</label>
             <input v-model.number="newTask.budgetYuan" type="number" min="1" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+            <FieldHint field="budgetFen" />
           </div>
           <div>
             <label class="text-xs text-ink/60 block mb-1">单 IP (元)</label>
             <input v-model.number="newTask.perIpYuan" type="number" min="0" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+            <FieldHint field="perIpFen" />
           </div>
           <div>
             <label class="text-xs text-ink/60 block mb-1">最多接单</label>
             <input v-model.number="newTask.maxAccepts" type="number" min="1" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+            <FieldHint field="maxAccepts" />
           </div>
         </div>
       </div>
       <div>
-        <label class="text-xs text-ink/60 block mb-1">详细描述 <span class="text-danger">*</span></label>
+        <label class="text-xs text-ink/60 block mb-1">
+          详细描述 <span class="text-danger">*</span>
+        </label>
         <textarea v-model="newTask.description" rows="3" class="w-full px-3 py-2 border border-line rounded-lg bg-cream font-mono text-sm" placeholder="说明需求/风格/合同条款/报酬细则..."></textarea>
+        <div class="flex items-center gap-2 mt-1">
+          <button
+            type="button"
+            :disabled="aiSuggesting"
+            @click="aiSuggest"
+            class="px-3 py-1 text-xs rounded-full border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+            title="根据详细描述自动生成任务标题 + spec (年龄/性别/种族/风格/场景)"
+          >{{ aiSuggesting ? '⏳ AI 生成中...' : '✨ AI 助手' }}</button>
+          <span class="text-[10px] text-ink/40">根据描述生成标题和规格, 已填字段会被覆盖</span>
+        </div>
+        <FieldHint field="description" />
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-ink/60 block mb-1">截止日期</label>
           <input v-model="newTask.deadlineAt" type="date" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+          <FieldHint field="deadlineAt" />
         </div>
         <div>
           <label class="text-xs text-ink/60 block mb-1">期望产出数</label>
           <input v-model.number="newTask.spec.count" type="number" min="1" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+          <FieldHint field="count" />
         </div>
       </div>
       <!-- 规格 -->
@@ -212,6 +262,7 @@ onMounted(load);
           <option value="">不限</option>
           <option v-for="g in allGenders" :key="g" :value="g">{{ genderLabel[g] }}</option>
         </select>
+        <FieldHint field="gender" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-2">年龄段 (多选)</label>
@@ -225,6 +276,7 @@ onMounted(load);
             class="px-3 py-1 text-xs rounded-full"
           >{{ ageLabel[a] }}</button>
         </div>
+        <FieldHint field="ageBuckets" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-2">种族 (多选, 不勾=不限)</label>
@@ -238,6 +290,7 @@ onMounted(load);
             class="px-3 py-1 text-xs rounded-full"
           >{{ ethLabel[e] }}</button>
         </div>
+        <FieldHint field="ethnicities" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-2">风格 (多选, 至少 1 个)</label>
@@ -251,6 +304,7 @@ onMounted(load);
             class="px-3 py-1 text-xs rounded-full"
           >{{ s }}</button>
         </div>
+        <FieldHint field="styleTags" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-2">场景 (多选, 至少 1 个)</label>
@@ -264,6 +318,7 @@ onMounted(load);
             class="px-3 py-1 text-xs rounded-full"
           >{{ s }}</button>
         </div>
+        <FieldHint field="scenarioTags" />
       </div>
       <div class="flex justify-end gap-3 pt-2">
         <button

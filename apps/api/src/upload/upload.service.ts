@@ -554,6 +554,15 @@ export class UploadService {
   }
 
   /**
+   * 普通 GET-able 签名 URL — 给后端服务或 LLM 拉取内容用 (无 force-download 头)
+   * 默认 1 小时有效
+   */
+  signViewUrl(ossKey: string, bucket: 'public' | 'private' | 'contracts' = 'private', expiresSec = 3600): string {
+    const client = bucket === 'contracts' ? this.contractsClient : bucket === 'public' ? this.publicClient : this.privateClient;
+    return client.signatureUrl(ossKey, { expires: expiresSec });
+  }
+
+  /**
    * 创作者手动指定/切换版权图 (IpAsset.faceCloseupFileId)
    * - fileId 必须是该 IP 下的 FACE_CLOSEUP 类型 IpFile
    * - 自动用新的版权图重新生成缩略图 (覆盖旧的,即使老缩略图来自 THREE_VIEW)

@@ -31,6 +31,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
+import FieldHint from '@/components/FieldHint.vue';
 import { useToast } from '@/composables/useToast';
 import CertSubmitSection from './CertSubmitSection.vue';
 
@@ -150,8 +151,6 @@ const infoForm = ref({
   depositPriceFen: 19900,
   fullLicensePriceFen: 300000,
 });
-const customFaceTagCategory = ref('FaceShape');
-const customFaceTagValue = ref('');
 const infoError = ref('');
 const customStyleInput = ref('');
 const customScenarioInput = ref('');
@@ -208,6 +207,35 @@ async function setAsFaceCloseup(fileId: string) {
     await loadIp();
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '设置失败');
+  }
+}
+
+// #30.6 AI 识别 — 面部特写 → 8 个 IP 字段 (gender/ageBucket/ethnicity/faceTags/styleTags/scenarioTags/tagline/description)
+const aiLoading = reactive<Record<string, boolean>>({});
+async function aiRecognize(fileId: string) {
+  if (!confirm('确认用这张面部特写识别 IP 字段? 已填字段保留, AI 只补空字段。')) return;
+  aiLoading[fileId] = true;
+  try {
+    const { data } = await apiClient.post('/ai/recognize-face', { fileId });
+    const f = data?.fields || {};
+    let filled = 0;
+    if (typeof f.displayName === 'string' && !infoForm.value.displayName) { infoForm.value.displayName = f.displayName; filled++; }
+    if (typeof f.tagline === 'string' && !infoForm.value.tagline) { infoForm.value.tagline = f.tagline; filled++; }
+    if (typeof f.description === 'string' && !infoForm.value.description) { infoForm.value.description = f.description; filled++; }
+    if (typeof f.gender === 'string' && (infoForm.value.gender === 'FEMALE' || !infoForm.value.gender)) { infoForm.value.gender = f.gender; filled++; }
+    if (typeof f.ageBucket === 'string') { infoForm.value.ageBucket = f.ageBucket; filled++; }
+    if (typeof f.ethnicity === 'string' && !infoForm.value.ethnicity) { infoForm.value.ethnicity = f.ethnicity; filled++; }
+    if (Array.isArray(f.faceTags) && infoForm.value.faceTags.length === 0) {
+      infoForm.value.faceTags = f.faceTags;
+      filled++;
+    }
+    if (Array.isArray(f.styleTags) && infoForm.value.styleTags.length === 0) { infoForm.value.styleTags = f.styleTags; filled++; }
+    if (Array.isArray(f.scenarioTags) && infoForm.value.scenarioTags.length === 0) { infoForm.value.scenarioTags = f.scenarioTags; filled++; }
+    toast.success(`AI 已识别 ${filled} 个字段 — 请确认/修改`);
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || 'AI 识别失败');
+  } finally {
+    aiLoading[fileId] = false;
   }
 }
 
@@ -372,6 +400,21 @@ function toggle(arr: string[], v: string) {
   if (i === -1) arr.push(v); else arr.splice(i, 1);
 }
 
+// #30.6 脸特征 chip toggle — 每类最多 1 个, 重复点取消
+function toggleFaceTag(category: string, value: string) {
+  const arr = infoForm.value.faceTags;
+  const i = arr.findIndex((t) => t.category === category);
+  if (i >= 0 && arr[i].value === value) {
+    arr.splice(i, 1);
+  } else {
+    if (i >= 0) arr.splice(i, 1);  // 同类有旧的, 替换
+    arr.push({ category, value });
+  }
+}
+function hasFaceTag(category: string, value: string): boolean {
+  return infoForm.value.faceTags.some((t) => t.category === category && t.value === value);
+}
+
 /**
  * 把 Prisma 的逗号分隔 String (或已经是数组) 规范化为 string[]
  * 兼容 null / undefined / 空字符串
@@ -392,20 +435,6 @@ function addCustomTag(field: 'styleTags' | 'scenarioTags', value: string) {
   if (!infoForm.value[field].includes(v)) {
     infoForm.value[field].push(v);
   }
-}
-
-// #32 添加一个脸特征 (category + value 配对, 避免重复)
-function addFaceTag() {
-  if (!customFaceTagValue.value) return;
-  const exists = infoForm.value.faceTags.some(
-    (t) => t.category === customFaceTagCategory.value && t.value === customFaceTagValue.value,
-  );
-  if (exists) return;
-  infoForm.value.faceTags.push({
-    category: customFaceTagCategory.value,
-    value: customFaceTagValue.value,
-  });
-  customFaceTagValue.value = '';
 }
 
 function onCustomInputKeydown(field: 'styleTags' | 'scenarioTags', e: KeyboardEvent) {
@@ -864,10 +893,12 @@ const stepMeta = [
       <div>
         <label class="text-xs text-ink/60 block mb-1">IP 名称 <span class="text-danger">*</span></label>
         <input v-model="infoForm.displayName" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" placeholder="如:林知夏" />
+        <FieldHint field="displayName" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-1">一句话简介</label>
         <input v-model="infoForm.tagline" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" placeholder="如:都市冷感御姐,平面/短剧双栖" />
+        <FieldHint field="tagline" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-1">
@@ -875,6 +906,7 @@ const stepMeta = [
           <span class="text-ink/40 text-[10px] ml-2">保存后会自动生成 .txt 资产, 步骤 ② 可重新生成或手动覆盖</span>
         </label>
         <textarea v-model="infoForm.description" rows="6" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold font-mono text-sm" placeholder="姓名 / 年龄 / 性格 / 背景故事..."></textarea>
+        <FieldHint field="description" />
       </div>
 
       <div class="grid grid-cols-3 gap-4">
@@ -883,12 +915,14 @@ const stepMeta = [
           <select v-model="infoForm.gender" class="w-full px-3 py-2 border border-line rounded-lg bg-cream">
             <option v-for="o in genderOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
+          <FieldHint field="gender" />
         </div>
         <div>
           <label class="text-xs text-ink/60 block mb-1">视觉年龄 <span class="text-danger">*</span></label>
           <select v-model="infoForm.ageBucket" class="w-full px-3 py-2 border border-line rounded-lg bg-cream">
             <option v-for="o in ageBucketOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
+          <FieldHint field="ageBucket" />
         </div>
         <div>
           <label class="text-xs text-ink/60 block mb-1">
@@ -899,46 +933,30 @@ const stepMeta = [
             <option value="">— 请选择 —</option>
             <option v-for="o in ethnicityOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
+          <FieldHint field="ethnicity" />
         </div>
       </div>
 
-      <!-- #32 脸特征 (faceTags) — 多选, 决定检索匹配度, 不进覆盖度 -->
-      <div>
-        <label class="text-xs text-ink/60 block mb-2">
-          脸特征 (可选)
-          <span class="text-ink/40 text-[10px] ml-1">用于买家按脸特征检索 — 脸型 / 肤色 / 发型 / 发色 / 眼型 / 气质</span>
-        </label>
-        <div class="flex flex-wrap gap-1.5 mb-2">
-          <span
-            v-for="(t, i) in infoForm.faceTags"
-            :key="`ft-${i}`"
-            class="px-2.5 py-1 text-xs rounded-full bg-ink text-cream flex items-center gap-1.5"
-            :title="`${faceTagCategoryLabel[t.category] || t.category}: ${faceTagValueLabel[t.value] || t.value}`"
-          >
-            <span class="opacity-60">{{ faceTagCategoryLabel[t.category] || t.category }}:</span>
-            {{ faceTagValueLabel[t.value] || t.value }}
-            <button type="button" @click="infoForm.faceTags.splice(i, 1)" class="hover:text-gold">×</button>
-          </span>
+      <!-- #30.6 脸特征 (faceTags) — chip 分组, 单击 toggle; 跟 styleTags/scenarioTags 模式一致 -->
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-ink/60">
+            脸特征 (可选)
+            <span class="text-ink/40 text-[10px] ml-1">用于买家按脸特征检索 — 每类最多选 1 个</span>
+          </label>
         </div>
-        <div class="flex items-center gap-2">
-          <select v-model="customFaceTagCategory" class="px-2 py-1.5 border border-line rounded-lg bg-cream text-xs">
-            <option v-for="c in faceTagCategoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
-          </select>
-          <select v-model="customFaceTagValue" class="flex-1 px-2 py-1.5 border border-line rounded-lg bg-cream text-xs">
-            <option value="">— 选值 —</option>
-            <option
-              v-for="v in (faceTagCategoryOptions.find(c => c.value === customFaceTagCategory)?.values || [])"
-              :key="v"
-              :value="v"
-            >{{ faceTagValueLabel[v] || v }}</option>
-          </select>
-          <button
-            type="button"
-            @click="addFaceTag()"
-            :disabled="!customFaceTagValue"
-            class="px-3 py-1.5 text-xs bg-ink text-cream rounded-lg disabled:opacity-30"
-          >+ 添加</button>
+        <div v-for="cat in faceTagCategoryOptions" :key="cat.value" class="space-y-1.5">
+          <div class="text-[11px] text-ink/50">{{ cat.label }}</div>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="v in cat.values" :key="v" type="button"
+              @click="toggleFaceTag(cat.value, v)"
+              :class="hasFaceTag(cat.value, v) ? 'bg-ink text-cream' : 'bg-cream text-ink/60 border border-line'"
+              class="px-3 py-1 text-xs rounded-full"
+            >{{ faceTagValueLabel[v] || v }}</button>
+          </div>
         </div>
+        <FieldHint field="faceTags" />
       </div>
 
       <div>
@@ -968,6 +986,7 @@ const stepMeta = [
           class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold text-xs"
           :placeholder="customTagPlaceholder"
         />
+        <FieldHint field="styleTags" />
       </div>
 
       <div>
@@ -996,6 +1015,7 @@ const stepMeta = [
           class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold text-xs"
           :placeholder="customTagPlaceholder"
         />
+        <FieldHint field="scenarioTags" />
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -1006,6 +1026,7 @@ const stepMeta = [
           </label>
           <input v-model.number="infoForm.depositPriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
           <div class="text-[10px] text-ink/40 mt-1">默认 199 元 = 19900 分</div>
+          <FieldHint field="depositPriceFen" />
         </div>
         <div>
           <label class="text-xs text-ink/60 block mb-1">
@@ -1013,6 +1034,7 @@ const stepMeta = [
             <span class="text-ink/40 text-[10px] ml-1" title="全额买断 / 多年授权 / 短剧单集 等不同 scope 的起步价, 平台抽 15%">?</span>
           </label>
           <input v-model.number="infoForm.fullLicensePriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+          <FieldHint field="fullLicensePriceFen" />
         </div>
       </div>
 
@@ -1150,6 +1172,13 @@ const stepMeta = [
               class="flex items-center gap-2 p-2 bg-cream/40 rounded-lg text-xs"
             >
               <span class="truncate flex-1">{{ ff.displayName || ff.originalName }}</span>
+              <button
+                type="button"
+                :disabled="aiLoading[ff.id]"
+                class="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+                :title="aiLoading[ff.id] ? 'AI 识别中...' : 'AI 识别 → 自动填充 8 个字段 (脸型/肤色/发型/发色/眼型/气质/性别/年龄段/种族/风格/场景/小传)'"
+                @click="aiRecognize(ff.id)"
+              >{{ aiLoading[ff.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
               <span v-if="ip?.faceCloseupFileId === ff.id" class="text-gold text-sm" title="当前版权图">⭐</span>
               <button
                 v-else

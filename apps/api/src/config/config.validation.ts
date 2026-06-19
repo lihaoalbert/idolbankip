@@ -33,6 +33,11 @@ export const configValidationSchema = Joi.object({
   WATERMARK_DRIVER: Joi.string().valid('mock', 'opencv_dwt_svd').default('mock'),
   MODERATION_DRIVER: Joi.string().valid('mock', 'real').default('mock'),
 
+  // LLM (MiniMax M3, Anthropic 协议兼容, #30.6)
+  MINIMAX_API_KEY: Joi.string().allow('').default(''),
+  MINIMAX_BASE_URL: Joi.string().uri().default('https://api.minimaxi.com'),
+  MINIMAX_MODEL: Joi.string().default('claude-sonnet-4-6'),
+
   // 种子
   SEED_ADMIN_EMAIL: Joi.string().email().default('admin@ibi.ren'),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).default('ChangeMe!2026'),
