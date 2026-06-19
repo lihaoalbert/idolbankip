@@ -20,8 +20,8 @@ export interface FieldMeta {
 export const ipWizardFields: Record<string, FieldMeta> = {
   displayName: {
     label: 'IP 名称',
-    description: '给这个形象起一个名字, 简短易记, 不超过 12 字',
-    examples: ['林知夏', '苏白', '陈默', 'Mika'],
+    description: '格式 [种族-性别-年龄段-姓名] 例 东亚-女-青年-苏清禾 — AI 识别按此规则生成, 你可手动修改',
+    examples: ['东亚-女-青年-苏清禾', '欧洲-男-中年-李明轩', '南亚-非二元-少年-Anika'],
     control: 'input',
   },
   tagline: {

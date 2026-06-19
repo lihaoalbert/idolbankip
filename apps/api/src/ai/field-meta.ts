@@ -16,6 +16,27 @@ export const GENDERS = ['FEMALE', 'MALE', 'NONBINARY'] as const;
 export const AGE_BUCKETS = ['CHILD', 'YOUNG', 'MIDDLE', 'ELDERLY'] as const;
 export const ETHNICITIES = ['EAST_ASIAN', 'SOUTHEAST_ASIAN', 'SOUTH_ASIAN', 'AFRICAN', 'EUROPEAN', 'MIXED'] as const;
 
+// #30.6.10 中文标签映射 — IP 命名规则 [种族-性别-年龄段-姓名] 用这些
+export const ETHNICITY_LABELS: Record<(typeof ETHNICITIES)[number], string> = {
+  EAST_ASIAN: '东亚',
+  SOUTHEAST_ASIAN: '东南亚',
+  SOUTH_ASIAN: '南亚',
+  AFRICAN: '非洲',
+  EUROPEAN: '欧洲',
+  MIXED: '混血',
+};
+export const GENDER_LABELS: Record<(typeof GENDERS)[number], string> = {
+  FEMALE: '女',
+  MALE: '男',
+  NONBINARY: '非二元',
+};
+export const AGE_LABELS: Record<(typeof AGE_BUCKETS)[number], string> = {
+  CHILD: '少年',
+  YOUNG: '青年',
+  MIDDLE: '中年',
+  ELDERLY: '老年',
+};
+
 export const FACE_TAG_CATEGORIES: Record<string, { label: string; values: readonly string[] }> = {
   FaceShape:  { label: '脸型', values: ['OVAL', 'FACE_ROUND', 'SQUARE', 'LONG', 'HEART', 'DIAMOND'] },
   SkinTone:   { label: '肤色', values: ['PORCELAIN', 'FAIR', 'MEDIUM', 'OLIVE', 'TAN', 'DEEP'] },
@@ -35,9 +56,15 @@ export const SCENARIO_TAG_LLM_LINE = SCENARIO_TAGS.join('、');
 export const ipWizardFields = {
   displayName: {
     label: 'IP 名称',
-    description: '给这个形象起一个名字, 简短易记, 不超过 12 字',
-    examples: ['林知夏', '苏白', '陈默', 'Mika'],
-    llmPrompt: '根据面部特写图, 起一个 2-4 字的中文人物名 (欧美面孔用英文名)。要求: 有记忆点、不与常见明星重名、不使用真实人名。',
+    description: '格式 [种族-性别-年龄段-姓名] 例 东亚-女-青年-苏清禾 — AI 识别按此规则生成, 你可手动修改',
+    examples: ['东亚-女-青年-苏清禾', '欧洲-男-中年-李明轩', '南亚-非二元-少年-Anika'],
+    llmPrompt: `根据面部特写图, 生成 displayName。**严格按 [种族-性别-年龄段-姓名] 格式**, 中间用半角横线 - 连接。
+- 种族对应标签 (中文): EAST_ASIAN=东亚, SOUTHEAST_ASIAN=东南亚, SOUTH_ASIAN=南亚, AFRICAN=非洲, EUROPEAN=欧洲, MIXED=混血
+- 性别对应标签 (中文): FEMALE=女, MALE=男, NONBINARY=非二元
+- 年龄段对应标签 (中文): CHILD=少年, YOUNG=青年, MIDDLE=中年, ELDERLY=老年
+- 姓名: 2-4 字中文名 (东亚/南亚/东南亚面孔), 欧美面孔用 3-6 字英文名。
+要求: 整体不超过 16 字; 姓名部分有记忆点、不与常见明星重名、不使用真实人名。
+示例输出: "东亚-女-青年-苏清禾" / "欧洲-男-中年-Liam" / "南亚-非二元-少年-Anika"`,
     control: 'input',
   },
   tagline: {

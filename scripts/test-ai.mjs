@@ -146,6 +146,20 @@ async function main() {
     if (fail.length > 0) throw new Error(`字段缺失/非法: ${fail.map(([k]) => k).join(', ')}`);
     console.log(`    ✓ all 8 字段合法, enum 严格白名单`);
 
+    // #30.6.10 displayName 必须按 [种族-性别-年龄段-姓名] 4 段格式, 中文标签
+    const dn = f.displayName || '';
+    const dnParts = dn.split('-');
+    const ETH_LABELS = ['东亚','东南亚','南亚','非洲','欧洲','混血'];
+    const GENDER_LABELS = ['女','男','非二元'];
+    const AGE_LABELS = ['少年','青年','中年','老年'];
+    const dnOk = dnParts.length === 4
+      && ETH_LABELS.includes(dnParts[0])
+      && GENDER_LABELS.includes(dnParts[1])
+      && AGE_LABELS.includes(dnParts[2])
+      && dnParts[3].length >= 2 && dnParts[3].length <= 8;
+    console.log(`    displayName="${dn}" → 格式 [${dnParts[0]}-${dnParts[1]}-${dnParts[2]}-${dnParts[3]}] ${dnOk ? '✓' : '✗ 不符合 [种族-性别-年龄段-姓名]'}`);
+    if (!dnOk) throw new Error(`displayName 格式不符: "${dn}"`);
+
     // faceTags.value 严格白名单
     const FACE_TAG_VALUES = {
       FaceShape: ['OVAL', 'FACE_ROUND', 'SQUARE', 'LONG', 'HEART', 'DIAMOND'],
