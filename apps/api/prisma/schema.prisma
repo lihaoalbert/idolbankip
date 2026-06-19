@@ -321,6 +321,10 @@ model IpFile {
   description String? @db.Text
   processStep String? // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
 
+  // AI 生成图专用 — 标记 + 用的 prompt (审计 + 重新生成)
+  isAiGenerated Boolean @default(false)
+  aiPrompt      String? @db.Text
+
   // 反向关系: 一个 IpFile 最多被一个 IP 选为版权图 (IpAsset.faceCloseupFileId)
   faceCloseupOf IpAsset[] @relation("FaceCloseupOf")
   uploadedAt    DateTime  @default(now())

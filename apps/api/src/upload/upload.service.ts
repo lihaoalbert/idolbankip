@@ -523,8 +523,9 @@ export class UploadService {
 
   /**
    * 从 private bucket 拉原图 → sharp 裁剪成 600×600 → 推到 public bucket → 写 thumbnailKey
+   * public 包装 — 给 AiService.generateImage 等其它模块用
    */
-  private async generateThumbnailFromOssKey(ipCode: string, sourceKey: string, hintName: string): Promise<void> {
+  async generateThumbnailFromOssKey(ipCode: string, sourceKey: string, hintName: string): Promise<void> {
     // 不要走 signDownloadUrl — 它会塞 x-oss-force-download response header, ali-oss
     // 对这个 header 算的签名跟 OSS 期望的不一致, fetch 必 403 SignatureDoesNotMatch
     // thumbnail regen 是后端→OSS 拉数据(不是浏览器下载), 裸签名 URL 即可

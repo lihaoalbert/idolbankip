@@ -32,6 +32,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiClient, ossUrl } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
 import FieldHint from '@/components/FieldHint.vue';
+import ImageLightbox from '@/components/ImageLightbox.vue';
+import ImageThumb from '@/components/ImageThumb.vue';
 import { useToast } from '@/composables/useToast';
 import CertSubmitSection from './CertSubmitSection.vue';
 
@@ -184,6 +186,41 @@ const optionalHints: Record<string, string> = {
   VOICE_REF: '短剧/直播/有声场景的买家会用,让你的形象"会说话"。',
   PACKAGE_ZIP: '一次性打包所有源文件(PSD/Blender 工程等),适合工作室买家。',
 };
+// #30.6.16 LoRA 本地训练指引 (创作者自己机器跑 kohya_ss / sd-scripts)
+// 不在平台做 (GPU 太贵), 但要给创作者清楚的步骤
+const LORA_TRAIN_GUIDE = `## 在你本地机器训练 LoRA (推荐)
+
+### 硬件
+- **GPU**: NVIDIA 显卡, ≥ 8GB 显存 (RTX 3060 12GB 起步, RTX 4090 24GB 最佳)
+- **内存**: ≥ 16GB
+- **硬盘**: ≥ 30GB 空闲 (训练数据 + checkpoint + LoRA 中间产物)
+
+### 步骤
+1. **打包训练数据**: 在资产包区域点击 "📦 AI 训练数据包" 按钮 (开发中), 或手动准备
+2. **安装训练工具**: 推荐 kohya_ss GUI
+   \`\`\`bash
+   git clone https://github.com/bmaltais/kohya_ss.git
+   cd kohya_ss && setup.sh  # 自动建 venv + 装依赖
+   \`\`\`
+3. **选 base model**: 推荐 SDXL 1.0 (性价比) 或 FLUX.1-dev (质量最高)
+4. **训练参数** (LoRA, SDXL):
+   - Network rank (dim): 32
+   - Network alpha: 16
+   - Learning rate: 1e-4 (UNet) / 5e-5 (TE)
+   - Steps: 1500-3000 (30-50 张图时)
+   - Batch size: 1, Gradient accumulation: 4 (8GB 显存)
+   - Resolution: 1024
+   - Optimizer: AdamW8bit
+5. **导出**: 训练完取最后 / best LoRA, 重命名为 \`{ipCode}.safetensors\` 上传到本平台
+
+### 训练时间参考
+- 30 张图 + RTX 4090 + SDXL: ~30 分钟
+- 30 张图 + RTX 3060 12GB + SDXL: ~90 分钟
+
+### 调试要点
+- 出现过拟合 (LoRA 把无关特征也学了): 减少 steps / 降低 learning rate
+- 出图不像参考图: 增加训练数据多样性 / 调高 network rank
+- 出图崩了: 检查 image folder 里图片是否都能正常打开,移除异常图`;
 // 展开/折叠状态 (按 assetType)
 const expandedHints = reactive<Record<string, boolean>>({});
 
@@ -212,6 +249,16 @@ async function setAsFaceCloseup(fileId: string) {
 
 // #30.6 AI 识别 — 面部特写 → 8 个 IP 字段 (gender/ageBucket/ethnicity/faceTags/styleTags/scenarioTags/tagline/description)
 const aiLoading = reactive<Record<string, boolean>>({});
+// #30.6.15 AI 出图 — 三个图位独立的 loading (assetType → bool)
+const aiGenLoading = reactive<Record<string, boolean>>({});
+
+// #30.6.15 图片灯箱 — 缩略图点开放大, AI 生成图可下载/重生成
+const lightboxVisible = ref(false);
+const lightboxFile = ref<any>(null);
+function openLightbox(file: any) {
+  lightboxFile.value = file;
+  lightboxVisible.value = true;
+}
 // #30.6.9 AI 识别时应被覆盖的占位值 — 快速通道默认值, 用户没真正填过
 const PLACEHOLDER_DESCRIPTION = '（待 AI 补全）';
 const PLACEHOLDER_NAME = '未命名 IP';
@@ -253,6 +300,89 @@ async function aiRecognize(fileId: string) {
     toast.error(e?.response?.data?.message || 'AI 识别失败');
   } finally {
     aiLoading[fileId] = false;
+  }
+}
+
+// #30.6.15 AI 生成图片 (通义万相) — 三视图 / 立绘 / 表情矩阵
+// 必须有面部特写 + 描述 (用作 prompt 上下文), 5-15s 出图, 失败 toast
+const AI_GEN_TYPES = ['THREE_VIEW', 'EXPRESSION_GRID', 'TRANSPARENT_RENDER'];
+
+// #30.6.16 AI 生成 Prompt 说明书 (.md) — 用 MiniMax M3 写
+const recipePreviewVisible = ref(false);
+const recipePreviewText = ref('');
+const recipePreviewLoading = ref(false);
+// #30.6.16 LoRA 本地训练指引弹窗
+const loraGuideVisible = ref(false);
+async function aiGenerateRecipe() {
+  if (!ip.value) {
+    toast.error('请先完成步骤 ① 基础信息');
+    return;
+  }
+  const hasFile = !!fileByType.value['RECIPE_TXT'];
+  const msg = hasFile
+    ? '确认重新生成 Prompt 说明书? 旧版本保留'
+    : '确认用 AI 生成 Prompt 说明书? 基于 IP 名称/性别/年龄段/小传 (~5s)';
+  if (!confirm(msg)) return;
+  aiGenLoading['RECIPE_TXT'] = true;
+  try {
+    const { data } = await apiClient.post('/ai/generate-recipe', { ipId: ip.value.id });
+    toast.success('AI 已生成 Prompt 说明书');
+    await loadIp();
+    // 自动打开预览
+    await viewRecipe(data.fileId);
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || 'AI 生成失败');
+  } finally {
+    aiGenLoading['RECIPE_TXT'] = false;
+  }
+}
+async function viewRecipe(fileId: string) {
+  recipePreviewVisible.value = true;
+  recipePreviewLoading.value = true;
+  recipePreviewText.value = '';
+  try {
+    // 拿签名 URL (1h 有效), 再 fetch 文本内容 (签名 URL 自带 OSS 授权, 不需要 Bearer)
+    const { data } = await apiClient.get(`/upload/files/${fileId}/preview-url`);
+    const text = await fetch(data.url).then((r) => r.text());
+    recipePreviewText.value = text;
+  } catch (e: any) {
+    recipePreviewText.value = `(加载失败: ${e?.response?.data?.message || e?.message})`;
+  } finally {
+    recipePreviewLoading.value = false;
+  }
+}
+
+async function aiGenerateImage(assetType: string) {
+  if (!AI_GEN_TYPES.includes(assetType)) return;
+  if (!ip.value) {
+    toast.error('请先完成步骤 ① 基础信息');
+    return;
+  }
+  if (!ip.value.faceCloseupFileId) {
+    toast.error('请先上传【面部特写】, AI 生成需要面部特写作为参考');
+    return;
+  }
+  const hasFile = !!fileByType.value[assetType];
+  const msg = hasFile
+    ? `确认用 AI 再生成一张${fileTypeShort[assetType] || assetType}? 旧图保留, 可手动切换`
+    : `确认用 AI 生成${fileTypeShort[assetType] || assetType}? 基于面部特写 + 人物小传 (~10s)`;
+  if (!confirm(msg)) return;
+  aiGenLoading[assetType] = true;
+  try {
+    const { data } = await apiClient.post('/ai/generate-image', {
+      ipId: ip.value.id,
+      imageType: assetType,
+    });
+    toast.success(`AI 已生成${fileTypeShort[assetType] || assetType}`);
+    await loadIp();
+    // 自动打开新生成的图让用户立刻看到
+    const newFile = files.value.find((f: any) => f.id === data.fileId);
+    if (newFile) openLightbox(newFile);
+  } catch (e: any) {
+    const m = e?.response?.data?.message;
+    toast.error(m || 'AI 生成失败 (服务暂不可用, 请稍后再试)');
+  } finally {
+    aiGenLoading[assetType] = false;
   }
 }
 
@@ -966,13 +1096,21 @@ const stepMeta = [
               }"
             />
           </label>
-          <div v-else class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 第 ② 步可改' : '未设置版权图'">
-            <img
-              :src="ossUrl(ip.thumbnailKey)"
-              alt="面部特写缩略图"
-              class="w-20 h-20 rounded-2xl object-cover border-2 border-gold"
-              referrerpolicy="no-referrer"
-            />
+          <div v-else class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 点击放大' : '未设置版权图'">
+            <button
+              type="button"
+              class="block w-20 h-20 rounded-2xl overflow-hidden border-2 border-gold hover:border-ink transition relative group"
+              :title="ip.faceCloseupFileId ? '点击放大' : ''"
+              @click="openLightbox(faceCloseupFiles.find((f: any) => f.id === ip.faceCloseupFileId) || fileByType['FACE_CLOSEUP'])"
+            >
+              <img
+                :src="ossUrl(ip.thumbnailKey)"
+                alt="面部特写缩略图"
+                class="w-full h-full object-cover"
+                referrerpolicy="no-referrer"
+              />
+              <span class="absolute inset-0 bg-ink/0 group-hover:bg-ink/20 transition flex items-center justify-center text-cream opacity-0 group-hover:opacity-100">🔍</span>
+            </button>
             <span
               class="absolute -top-1.5 -right-1.5 w-6 h-6 bg-gold text-ink rounded-full text-xs flex items-center justify-center font-bold shadow"
               title="当前版权图"
@@ -1278,12 +1416,55 @@ const stepMeta = [
             <div v-if="expandedHints[t] && optionalHints[t]" class="mt-1 p-2 bg-cream/60 rounded text-xs text-ink/70 leading-relaxed">
               💡 {{ optionalHints[t] }}
             </div>
-            <div v-if="fileByType[t]" class="text-xs text-success mt-1 truncate">✓ {{ fileByType[t].originalName }}</div>
+            <!-- #30.6.16 LoRA 训练指引入口 (创作者本地做) -->
+            <button
+              v-if="t === 'LORA_FILE'"
+              type="button"
+              class="mt-1 text-[10px] text-ink/50 hover:text-gold underline block"
+              @click="loraGuideVisible = true"
+            >📖 如何在本地训练 LoRA? (硬件/步骤/参数/常见问题)</button>
+            <div v-if="fileByType[t]" class="mt-1.5 flex items-center gap-2">
+              <!-- #30.6.15 4 类图片都有缩略图 (FACE_CLOSEUP / THREE_VIEW / EXPRESSION_GRID / TRANSPARENT_RENDER) -->
+              <button
+                v-if="['FACE_CLOSEUP','THREE_VIEW','EXPRESSION_GRID','TRANSPARENT_RENDER'].includes(t)"
+                type="button"
+                class="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-line hover:border-gold transition relative group"
+                :title="`点击放大查看 — ${fileByType[t].originalName}`"
+                @click="openLightbox(fileByType[t])"
+              >
+                <ImageThumb :file-id="fileByType[t].id" :file-name="fileByType[t].originalName" />
+                <span
+                  v-if="fileByType[t].isAiGenerated"
+                  class="absolute top-0.5 left-0.5 px-1 bg-gold/90 text-ink text-[9px] font-bold rounded"
+                >✨</span>
+                <span class="absolute inset-0 bg-ink/0 group-hover:bg-ink/20 transition flex items-center justify-center text-cream opacity-0 group-hover:opacity-100 text-base">🔍</span>
+              </button>
+              <span class="text-xs text-success truncate flex-1">✓ {{ fileByType[t].originalName }}</span>
+            </div>
             <div v-else-if="requiredTypes.includes(t)" class="text-xs text-danger mt-1">必填, 尚未上传</div>
             <div v-else-if="t === 'BIO_TXT'" class="text-xs text-ink/50 mt-1">未生成 (步骤 ① 保存后会自动生成)</div>
             <div v-else class="text-xs text-ink/40 mt-1">选填</div>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-2 shrink-0 flex-wrap">
+            <!-- #30.6.15 AI 生成按钮 — 三视图 / 立绘 / 表情矩阵 (基于面部特写 + 小传) -->
+            <button
+              v-if="AI_GEN_TYPES.includes(t)"
+              type="button"
+              :disabled="aiGenLoading[t] || !ip?.faceCloseupFileId || uploadingTypes[t]"
+              :class="[
+                'px-3 py-2 rounded-full text-xs font-medium border transition flex items-center gap-1',
+                aiGenLoading[t]
+                  ? 'bg-line text-ink/40 border-line cursor-wait'
+                  : !ip?.faceCloseupFileId
+                    ? 'border-line text-ink/30 cursor-not-allowed'
+                    : 'border-gold text-gold hover:bg-gold hover:text-ink',
+              ]"
+              :title="!ip?.faceCloseupFileId ? '请先上传【面部特写】' : `基于面部特写 + 人物小传 AI 生成${fileTypeShort[t] || t}`"
+              @click="aiGenerateImage(t)"
+            >
+              <span>{{ aiGenLoading[t] ? '⏳ 生成中' : '✨' }}</span>
+              <span>{{ aiGenLoading[t] ? '生成中…' : 'AI 生成' }}</span>
+            </button>
             <button
               v-if="t === 'BIO_TXT'"
               type="button"
@@ -1293,6 +1474,30 @@ const stepMeta = [
             >
               {{ regeneratingBio ? '生成中…' : (fileByType[t] ? '重新生成' : '生成小传') }}
             </button>
+            <!-- #30.6.16 RECIPE_TXT — 也有 AI 生成 + 查看内容 -->
+            <button
+              v-if="t === 'RECIPE_TXT'"
+              type="button"
+              :disabled="aiGenLoading[t] || !ip"
+              :class="[
+                'px-3 py-2 rounded-full text-xs font-medium border transition flex items-center gap-1',
+                aiGenLoading[t]
+                  ? 'bg-line text-ink/40 border-line cursor-wait'
+                  : 'border-gold text-gold hover:bg-gold hover:text-ink',
+              ]"
+              title="AI 生成 Prompt 说明书 (.md), 买家拿去 ComfyUI 直接复现"
+              @click="aiGenerateRecipe"
+            >
+              <span>{{ aiGenLoading[t] ? '⏳' : '✨' }}</span>
+              <span>{{ aiGenLoading[t] ? '生成中…' : 'AI 生成' }}</span>
+            </button>
+            <button
+              v-if="t === 'RECIPE_TXT' && fileByType[t]"
+              type="button"
+              class="px-3 py-2 border border-line rounded-full text-xs hover:bg-ink hover:text-cream transition"
+              title="查看 Prompt 说明书内容"
+              @click="viewRecipe(fileByType[t].id)"
+            >👁 查看</button>
             <label
               :class="[
                 'px-4 py-2 border rounded-full text-xs transition cursor-pointer',
@@ -1350,6 +1555,14 @@ const stepMeta = [
               :key="ff.id"
               class="flex items-center gap-2 p-2 bg-cream/40 rounded-lg text-xs"
             >
+              <button
+                type="button"
+                class="shrink-0 w-9 h-9 rounded overflow-hidden border border-line hover:border-gold transition"
+                :title="`点击放大 — ${ff.displayName || ff.originalName}`"
+                @click="openLightbox(ff)"
+              >
+                <ImageThumb :file-id="ff.id" :file-name="ff.displayName || ff.originalName" />
+              </button>
               <span class="truncate flex-1">{{ ff.displayName || ff.originalName }}</span>
               <button
                 type="button"
@@ -1619,5 +1832,64 @@ const stepMeta = [
         </div>
       </div>
     </section>
+
+    <!-- #30.6.15 图片灯箱 — 点缩略图放大, AI 生成图可下载/重新生成 -->
+    <ImageLightbox
+      v-model:visible="lightboxVisible"
+      :file="lightboxFile"
+      :ip-id="ipId || ''"
+      @regenerate="aiGenerateImage"
+    />
+
+    <!-- #30.6.16 Prompt 说明书预览弹窗 -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="recipePreviewVisible"
+          class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
+          @click.self="recipePreviewVisible = false"
+        >
+          <div class="relative bg-surface rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
+              <div class="text-sm font-medium">📄 Prompt 说明书 (买家拿去 ComfyUI 复现 IP)</div>
+              <button
+                type="button"
+                class="text-ink/50 hover:text-ink text-lg"
+                @click="recipePreviewVisible = false"
+              >×</button>
+            </div>
+            <div class="flex-1 overflow-auto p-5 bg-cream/30">
+              <pre v-if="!recipePreviewLoading" class="whitespace-pre-wrap text-xs leading-relaxed text-ink/80 font-mono">{{ recipePreviewText }}</pre>
+              <div v-else class="text-center text-sm text-ink/50 py-8">加载中…</div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- #30.6.16 LoRA 本地训练指引弹窗 -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="loraGuideVisible"
+          class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
+          @click.self="loraGuideVisible = false"
+        >
+          <div class="relative bg-surface rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
+              <div class="text-sm font-medium">📖 LoRA 本地训练指引</div>
+              <button
+                type="button"
+                class="text-ink/50 hover:text-ink text-lg"
+                @click="loraGuideVisible = false"
+              >×</button>
+            </div>
+            <div class="flex-1 overflow-auto p-5 prose prose-sm max-w-none">
+              <pre class="whitespace-pre-wrap text-xs leading-relaxed font-mono text-ink/80">{{ LORA_TRAIN_GUIDE }}</pre>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>

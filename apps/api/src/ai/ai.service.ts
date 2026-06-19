@@ -16,12 +16,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AssetType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
+import { DashScopeProvider } from './dashscope.provider';
 import {
   ipWizardFields,
   adminTaskFields,
   validateIpWizardFields,
   validateTaskSpec,
 } from './field-meta';
+import { IMAGE_GEN_PROMPTS, IMAGE_GEN_SIZES, RECIPE_SYSTEM_PROMPT } from './prompts';
+import { AI_GENERATABLE_ASSET_TYPES } from './dto/generate-image.dto';
 
 const RECOGNIZE_SYSTEM_PROMPT = `你是 ibi.ren 平台的形象 IP 元数据助手, 根据用户上传的面部特写图, 推断出这个人物 IP 的结构化字段。
 
@@ -83,6 +86,7 @@ export class AiService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly upload: UploadService,
+    private readonly dashscope: DashScopeProvider,
   ) {
     const apiKey = this.config.get<string>('MINIMAX_API_KEY', '');
     const baseURL = this.config.get<string>('MINIMAX_BASE_URL', 'https://api.minimaxi.com');
@@ -169,6 +173,175 @@ export class AiService {
     const validated = validateTaskSpec(parsed);
     this.logger.log(`suggestTask by admin ${adminId} → ${Object.keys(validated).join(',')}`);
     return validated as Prisma.JsonObject;
+  }
+
+  /**
+   * #30.6.15 创作者侧: 面部特写 + 人物小传 → AI 生成 三视图 / 立绘 / 表情矩阵
+   *
+   * 流程:
+   *   1. 验证 IP 归属 + 状态必须是 PENDING_REVIEW (已提交审核不能改)
+   *   2. 验证 imageType 是 3 种允许的 AI 生成类型之一
+   *   3. 取面部特写 file (必须存在, 否则 400)
+   *   4. 拼 prompt (专用提示词 + 人物小传 + 角色名)
+   *   5. 调 DashScope.imageGen → 拿到 buffer + mime
+   *   6. 上传到 private bucket (走专用目录 ips/{code}/ai/{type}/{ts}.{ext})
+   *   7. 写 IpFile (isAiGenerated=true, aiPrompt=完整 prompt)
+   *   8. 异步缩略图(若还没生成过)
+   *
+   * 失败: 503 (服务暂不可用) / 400 (参数) / 403 (无权限) / 404 (IP/文件)
+   */
+  async generateImage(
+    creatorId: string,
+    ipId: string,
+    imageType: AssetType,
+    promptOverride?: string,
+  ): Promise<{ fileId: string; assetType: AssetType; ossKey: string }> {
+    if (!this.dashscope.isConfigured()) {
+      throw new ServiceUnavailableException('AI 图生成服务未配置 (DASHSCOPE_API_KEY / DASHSCOPE_HOST 缺失)');
+    }
+    if (!(AI_GENERATABLE_ASSET_TYPES as readonly AssetType[]).includes(imageType)) {
+      throw new BadRequestException(`仅支持 AI 生成: ${AI_GENERATABLE_ASSET_TYPES.join(', ')}`);
+    }
+    const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
+    if (!ip) throw new NotFoundException('IP 不存在');
+    if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
+    if (ip.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException(`仅 PENDING_REVIEW 状态可生成图片, 当前 ${ip.status}`);
+    }
+    // 面部特写是参考基准 — 没有就不能 AI 生成
+    const faceCloseupId = ip.faceCloseupFileId;
+    if (!faceCloseupId) {
+      throw new BadRequestException('请先上传【面部特写】, AI 生成需要面部特写作为参考');
+    }
+    const faceFile = await this.prisma.ipFile.findUnique({ where: { id: faceCloseupId } });
+    if (!faceFile) throw new NotFoundException('面部特写文件不存在');
+
+    // 拼 prompt: 专用提示词 + 人物小传 + 角色名
+    const basePrompt = IMAGE_GEN_PROMPTS[imageType];
+    if (!basePrompt) {
+      throw new BadRequestException(`未配置 ${imageType} 的 AI 提示词`);
+    }
+    const desc = (ip.description || '').trim() || '(无)';
+    const fullPrompt = promptOverride?.trim()
+      ? promptOverride
+      : `${basePrompt}\n\n人物小传:\n${desc}\n\n角色名: ${ip.displayName}`;
+
+    // 调通义万相
+    const t0 = Date.now();
+    const { buffer, mime } = await this.dashscope.imageGen({
+      prompt: fullPrompt,
+      size: IMAGE_GEN_SIZES[imageType] || undefined,
+    });
+    const ms = Date.now() - t0;
+    this.logger.log(`AI image gen done: ipId=${ipId} type=${imageType} ms=${ms} bytes=${buffer.length} mime=${mime}`);
+
+    // 上传到 private bucket — 走专用目录便于区分 AI / 用户上传
+    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+    const key = `ips/${ip.code}/ai/${imageType}/${Date.now()}.${ext}`;
+    await this.upload.uploadPrivate(key, buffer);
+
+    // 写 IpFile 行
+    const file = await this.prisma.ipFile.create({
+      data: {
+        ipId,
+        assetType: imageType,
+        originalName: `ai_${imageType.toLowerCase()}_${Date.now()}.${ext}`,
+        ossKey: key,
+        sizeBytes: BigInt(buffer.length),
+        mimeType: mime,
+        // AI 生成的图不需要再做 sharp 尺寸校验 (生成时尺寸已知) — 跳过 deepValidate
+        checksumSha256: '', // ETag 需要 OSS 回调才拿得到, 这里先空
+        validated: true, // 通义万相返回的图片本身就是合规的, 标记 validated
+        isAiGenerated: true,
+        aiPrompt: fullPrompt,
+      },
+    });
+
+    // 异步生成缩略图 (face closeup 不抢缩略图, 除非当前 ip 没有 thumbnailKey)
+    if (!ip.thumbnailKey) {
+      this.upload.generateThumbnailFromOssKey(ip.code, key, file.originalName).catch((e: any) =>
+        this.logger.warn(`AI gen thumbnail regen failed for ${ip.code}: ${e?.message ?? e}`),
+      );
+    }
+
+    return { fileId: file.id, assetType: imageType, ossKey: key };
+  }
+
+  /**
+   * #30.6.16 AI 生成 RECIPE_TXT (Prompt 说明书 .md)
+   * 流程: 拼 IP 上下文 → 调 MiniMax M3 → 写 .md 到 OSS → 写 IpFile
+   * 不需要面部特写参考 (纯文本生成)
+   * 复用现有 MiniMax client (recognizeFace 同款)
+   */
+  async generateRecipe(creatorId: string, ipId: string): Promise<{ fileId: string; assetType: AssetType; ossKey: string }> {
+    if (!this.client) throw new ServiceUnavailableException('AI 服务未配置 (MINIMAX_API_KEY)');
+    const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
+    if (!ip) throw new NotFoundException('IP 不存在');
+    if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
+    if (ip.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException(`仅 PENDING_REVIEW 状态可生成, 当前 ${ip.status}`);
+    }
+    // faceTags (Prisma Json) — 安全 stringify
+    const faceTagsText = Array.isArray(ip.faceTags)
+      ? (ip.faceTags as any[]).map((t) => `${t.category}: ${t.value}`).join(', ')
+      : '无';
+
+    // styleTags / scenarioTags 可能是逗号分隔 String 或 string[] (loadIp 已 normalize 为 array 但这里 DB 直读)
+    const styleTags = (ip.styleTags || '').toString();
+    const scenarioTags = (ip.scenarioTags || '').toString();
+
+    const userMsg = `角色名: ${ip.displayName}
+性别: ${ip.gender}
+年龄段: ${ip.ageBucket}
+种族: ${ip.ethnicity || '未指定'}
+风格标签: ${styleTags || '无'}
+场景标签: ${scenarioTags || '无'}
+脸特征: ${faceTagsText}
+
+人物小传 (description):
+${ip.description}
+
+请按 schema 输出完整 markdown 文档。`;
+
+    const t0 = Date.now();
+    let text = '';
+    try {
+      const resp = await this.client.messages.create({
+        model: this.model,
+        max_tokens: 4096,
+        system: RECIPE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMsg }],
+      });
+      text = (resp.content[0] as any).text ?? '';
+    } catch (e: any) {
+      this.logger.error(`MiniMax recipe gen 失败: ${e?.message || e}`);
+      throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
+    }
+    const ms = Date.now() - t0;
+    this.logger.log(`AI recipe gen done: ipId=${ipId} ms=${ms} bytes=${text.length}`);
+
+    // 写到 private bucket
+    const buf = Buffer.from(text, 'utf-8');
+    const key = `ips/${ip.code}/ai/RECIPE_TXT/${Date.now()}.md`;
+    await this.upload.uploadPrivate(key, buf);
+
+    // 写 IpFile 行
+    const file = await this.prisma.ipFile.create({
+      data: {
+        ipId,
+        assetType: AssetType.RECIPE_TXT,
+        originalName: `ai_recipe_${Date.now()}.md`,
+        ossKey: key,
+        sizeBytes: BigInt(buf.length),
+        mimeType: 'text/markdown',
+        checksumSha256: '',
+        validated: true,
+        isAiGenerated: true,
+        aiPrompt: RECIPE_SYSTEM_PROMPT.slice(0, 500) + '...', // 截短, 完整 prompt 在 system 端
+      },
+    });
+
+    return { fileId: file.id, assetType: AssetType.RECIPE_TXT, ossKey: key };
   }
 
   /**
