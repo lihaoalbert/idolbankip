@@ -905,16 +905,19 @@ const stepMeta = [
 
   <div v-else class="max-w-4xl mx-auto px-6 py-10">
     <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回创作者中心</RouterLink>
-    <div v-if="ip" class="flex items-start justify-between mb-2 gap-4">
+    <!-- 标题区 + 顶部右侧面部特写入口 — 跨步骤、新建/已建都可见 (修了 #30.6.11 v-else 漏改) -->
+    <div class="flex items-start justify-between mb-2 gap-4">
       <div class="min-w-0 flex-1">
-        <h1 class="font-display text-3xl truncate">{{ ip.displayName }}</h1>
-        <span class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
+        <h1 v-if="ip" class="font-display text-3xl truncate">{{ ip.displayName }}</h1>
+        <h1 v-else class="font-display text-3xl">创建新 IP</h1>
+        <span v-if="ip" class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
+        <p v-else class="text-sm text-ink/60 mt-1">填写基础信息后,下一步上传资产包,完整度 100% 即可提交审核</p>
       </div>
       <!-- #30.6.11 顶部右侧 — 面部特写入口 + 缩略图, 1-2-3 步上方, 跨步骤可见 -->
       <div class="shrink-0 flex flex-col items-end gap-1.5">
-        <!-- 无 face closeup: 紧凑上传按钮 + 提示 -->
+        <!-- 无 face closeup: 紧凑上传按钮 + 提示 (ip 未建也能用 — quickUploadFace 会自动建 ip, 见 #30.6.7) -->
         <label
-          v-if="!ip.faceCloseupFileId"
+          v-if="!ip?.faceCloseupFileId"
           :class="[
             'inline-flex items-center gap-1.5 px-4 py-2 border rounded-full text-xs transition cursor-pointer whitespace-nowrap',
             quickFaceUploading ? 'bg-line text-ink/40 border-line cursor-wait' : 'bg-ink text-cream border-ink hover:bg-gold hover:border-gold',
@@ -935,8 +938,8 @@ const stepMeta = [
             }"
           />
         </label>
-        <!-- 已上传: 缩略图 + AI 识别 (跨步骤都看得到) -->
-        <div v-else class="flex items-center gap-2">
+        <!-- 已上传: 缩略图 + AI 识别 (跨步骤都看得到, 仅 ip 存在时显示) -->
+        <div v-else-if="ip" class="flex items-center gap-2">
           <!-- 缩略图损坏 (历史 silent chunking bug, 源 PNG 缺 IEND) → 提示重传 -->
           <div
             v-if="!ip.thumbnailKey"
@@ -969,12 +972,8 @@ const stepMeta = [
             >{{ aiLoading[quickFaceFile.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
           </div>
         </div>
-        <div v-if="!ip.faceCloseupFileId" class="text-[10px] text-ink/45 leading-tight">jpg/png/webp, ≥2048×2048</div>
+        <div v-if="!ip?.faceCloseupFileId" class="text-[10px] text-ink/45 leading-tight">jpg/png/webp, ≥2048×2048</div>
       </div>
-    </div>
-    <div v-else class="mb-2">
-      <h1 class="font-display text-3xl">创建新 IP</h1>
-      <p class="text-sm text-ink/60 mt-1">填写基础信息后,下一步上传资产包,完整度 100% 即可提交审核</p>
     </div>
     <div v-if="ip" class="flex items-center gap-3 mb-6 flex-wrap">
       <span class="text-xs px-2 py-0.5 bg-cream border border-line rounded-full">状态: {{ statusLabel(ip.status) }}</span>
