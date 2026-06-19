@@ -39,14 +39,22 @@ async function bootstrap() {
 
   // BigInt → string (Prisma BigInt 字段如 sizeBytes/blockHeight 在 JSON.stringify 会抛错)
   // 包装 express res.json,所有响应走 JSON.stringify(_, bigintReplacer)
+  //
+  // 注意: Express 4.22+ 把 app.response 从「构造器」改成了「默认 ServerResponse 实例」,
+  // 所以 expressApp.response.prototype 是 undefined。必须从实例反查原型。
+  // 之前的写法 (`expressApp.response?.prototype?.json`) 在新 Express 永远装不上 wrapper,
+  // 暴露症状: IP 有 files 时 /ips/mine/list 抛 "Do not know how to serialize a BigInt"
   const expressApp = app.getHttpAdapter().getInstance();
   const bigintReplacer = (_key: string, value: unknown) =>
     typeof value === 'bigint' ? value.toString() : value;
-  const originalJson = expressApp.response?.prototype?.json;
-  if (originalJson) {
-    expressApp.response.prototype.json = function (data: unknown) {
+  const responseProto = Object.getPrototypeOf(expressApp.response) as { json?: Function } | null;
+  if (responseProto && typeof responseProto.json === 'function') {
+    const originalJson = responseProto.json;
+    responseProto.json = function (data: unknown) {
       return originalJson.call(this, JSON.parse(JSON.stringify(data, bigintReplacer)));
     };
+  } else {
+    Logger.warn('Express response.json 未找到,BigInt 序列化兜底未安装', 'Bootstrap');
   }
 
   // Swagger
