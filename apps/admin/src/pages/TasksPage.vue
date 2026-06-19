@@ -7,7 +7,14 @@ import { useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 
 const router = useRouter();
-const notify = (msg: string, ok = true) => console.log(ok ? '✅' : '❌', msg);
+// ok=false 表示错误, 控制台 + 屏幕顶部 banner (admin 没有 toast composable)
+const formError = ref<string>('');
+const formSuccess = ref<string>('');
+function notify(msg: string, ok = true) {
+  console.log(ok ? '✅' : '❌', msg);
+  if (ok) { formSuccess.value = msg; formError.value = ''; }
+  else { formError.value = msg; formSuccess.value = ''; }
+}
 
 const tasks = ref<any[]>([]);
 const loading = ref(false);
@@ -69,7 +76,7 @@ async function load() {
     const { data } = await apiClient.get(`/admin/tasks${params}`);
     tasks.value = data || [];
   } catch (e: any) {
-    notify(e?.response?.data?.message || '加载失败');
+    notify(e?.response?.data?.message || '加载失败', false);
   } finally {
     loading.value = false;
   }
@@ -77,13 +84,22 @@ async function load() {
 
 async function createTask() {
   if (!newTask.title || newTask.title.length < 3) {
-    notify('标题至少 3 字');
+    notify(`标题至少 3 字 (当前 ${newTask.title.length})`, false);
     return;
   }
   if (!newTask.description || newTask.description.length < 10) {
-    notify('描述至少 10 字');
+    notify(`描述至少 10 字 (当前 ${newTask.description.length})`, false);
     return;
   }
+  if (newTask.spec.styleTags.length === 0) {
+    notify('请至少选 1 个风格', false);
+    return;
+  }
+  if (newTask.spec.scenarioTags.length === 0) {
+    notify('请至少选 1 个场景', false);
+    return;
+  }
+  formError.value = '';
   submitting.value = true;
   try {
     const payload: any = {
@@ -107,7 +123,7 @@ async function createTask() {
     showCreate.value = false;
     router.push(`/tasks/${data.id}`);
   } catch (e: any) {
-    notify(e?.response?.data?.message || '发布失败');
+    notify(e?.response?.data?.message || '发布失败', false);
   } finally {
     submitting.value = false;
   }
@@ -120,7 +136,7 @@ async function closeTask(t: any) {
     notify('任务已关闭');
     load();
   } catch (e: any) {
-    notify(e?.response?.data?.message || '关闭失败');
+    notify(e?.response?.data?.message || '关闭失败', false);
   }
 }
 
@@ -144,7 +160,17 @@ onMounted(load);
 
     <!-- 发布表单 -->
     <div v-if="showCreate" class="card-base border-gold/30 bg-gold/5 space-y-4">
-      <h2 class="font-medium">新任务</h2>
+      <div class="flex items-center justify-between">
+        <h2 class="font-medium">新任务</h2>
+        <button @click="showCreate = false" class="text-xs text-ink/50 hover:text-ink">× 收起</button>
+      </div>
+      <!-- 错误/成功提示 (admin 没有 toast, 用顶部 banner 顶上) -->
+      <div v-if="formError" class="p-3 bg-danger/10 border border-danger/30 rounded-lg text-sm text-danger">
+        ✕ {{ formError }}
+      </div>
+      <div v-if="formSuccess" class="p-3 bg-success/10 border border-success/30 rounded-lg text-sm text-success">
+        ✓ {{ formSuccess }}
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-ink/60 block mb-1">标题 <span class="text-danger">*</span></label>

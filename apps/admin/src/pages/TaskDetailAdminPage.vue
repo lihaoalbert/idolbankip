@@ -8,7 +8,13 @@ import { apiClient } from '@/api/client';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
-const notify = (msg: string, ok = true) => console.log(ok ? '✅' : '❌', msg);
+const formError = ref<string>('');
+const formSuccess = ref<string>('');
+function notify(msg: string, ok = true) {
+  console.log(ok ? '✅' : '❌', msg);
+  if (ok) { formSuccess.value = msg; formError.value = ''; }
+  else { formError.value = msg; formSuccess.value = ''; }
+}
 
 const task = ref<any>(null);
 const submissions = ref<any[]>([]);
@@ -70,7 +76,7 @@ async function load() {
     task.value = t.data;
     submissions.value = s.data || [];
   } catch (e: any) {
-    notify(e?.response?.data?.message || '加载失败');
+    notify(e?.response?.data?.message || '加载失败', false);
   } finally {
     loading.value = false;
   }
@@ -84,7 +90,7 @@ async function approve(ipId: string) {
     notify('已通过');
     load();
   } catch (e: any) {
-    notify(e?.response?.data?.message || '操作失败');
+    notify(e?.response?.data?.message || '操作失败', false);
   } finally {
     acting.value = false;
   }
@@ -92,7 +98,7 @@ async function approve(ipId: string) {
 
 async function reject() {
   if (!rejectModal.value || rejectReason.value.trim().length < 5) {
-    notify('拒绝原因至少 5 字');
+    notify('拒绝原因至少 5 字', false);
     return;
   }
   acting.value = true;
@@ -105,7 +111,7 @@ async function reject() {
     rejectReason.value = '';
     load();
   } catch (e: any) {
-    notify(e?.response?.data?.message || '操作失败');
+    notify(e?.response?.data?.message || '操作失败', false);
   } finally {
     acting.value = false;
   }
@@ -119,7 +125,7 @@ async function closeTask() {
     notify('任务已关闭');
     load();
   } catch (e: any) {
-    notify(e?.response?.data?.message || '关闭失败');
+    notify(e?.response?.data?.message || '关闭失败', false);
   }
 }
 
@@ -131,7 +137,7 @@ async function completeTask() {
     notify('任务已完成');
     load();
   } catch (e: any) {
-    notify(e?.response?.data?.message || '操作失败');
+    notify(e?.response?.data?.message || '操作失败', false);
   }
 }
 
@@ -153,6 +159,14 @@ onMounted(load);
 <template>
   <div class="max-w-7xl mx-auto px-6 py-6 space-y-5">
     <RouterLink to="/tasks" class="text-xs text-ink/50 hover:text-ink inline-block">← 返回任务列表</RouterLink>
+
+    <!-- 错误/成功提示 -->
+    <div v-if="formError" class="p-3 bg-danger/10 border border-danger/30 rounded-lg text-sm text-danger">
+      ✕ {{ formError }}
+    </div>
+    <div v-if="formSuccess" class="p-3 bg-success/10 border border-success/30 rounded-lg text-sm text-success">
+      ✓ {{ formSuccess }}
+    </div>
 
     <div v-if="loading" class="text-center text-sm text-ink/50 py-8">加载中…</div>
     <div v-else-if="!task" class="text-center text-sm text-ink/50 py-8">任务不存在</div>
