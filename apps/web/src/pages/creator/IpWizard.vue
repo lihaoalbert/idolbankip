@@ -29,7 +29,7 @@
  */
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { apiClient } from '@/api/client';
+import { apiClient, ossUrl } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
 import FieldHint from '@/components/FieldHint.vue';
 import { useToast } from '@/composables/useToast';
@@ -212,6 +212,19 @@ async function setAsFaceCloseup(fileId: string) {
 
 // #30.6 AI 识别 — 面部特写 → 8 个 IP 字段 (gender/ageBucket/ethnicity/faceTags/styleTags/scenarioTags/tagline/description)
 const aiLoading = reactive<Record<string, boolean>>({});
+// #30.6.9 AI 识别时应被覆盖的占位值 — 快速通道默认值, 用户没真正填过
+const PLACEHOLDER_DESCRIPTION = '（待 AI 补全）';
+const PLACEHOLDER_NAME = '未命名 IP';
+function isPlaceholderDisplayName(v: string): boolean {
+  const trimmed = v.trim();
+  if (!trimmed) return true;
+  if (trimmed === PLACEHOLDER_NAME) return true;
+  // 快速通道用的文件名 fallback — quickUploadFallbackName 列表里都视为占位
+  return quickUploadFallbackName.value.includes(trimmed);
+}
+function isPlaceholderDescription(v: string): boolean {
+  return !v.trim() || v.trim() === PLACEHOLDER_DESCRIPTION;
+}
 async function aiRecognize(fileId: string) {
   if (!confirm('确认用这张面部特写识别 IP 字段? 已填字段保留, AI 只补空字段。')) return;
   aiLoading[fileId] = true;
@@ -219,9 +232,13 @@ async function aiRecognize(fileId: string) {
     const { data } = await apiClient.post('/ai/recognize-face', { fileId });
     const f = data?.fields || {};
     let filled = 0;
-    if (typeof f.displayName === 'string' && !infoForm.value.displayName) { infoForm.value.displayName = f.displayName; filled++; }
-    if (typeof f.tagline === 'string' && !infoForm.value.tagline) { infoForm.value.tagline = f.tagline; filled++; }
-    if (typeof f.description === 'string' && !infoForm.value.description) { infoForm.value.description = f.description; filled++; }
+    if (typeof f.displayName === 'string' && isPlaceholderDisplayName(infoForm.value.displayName)) {
+      infoForm.value.displayName = f.displayName; filled++;
+    }
+    if (typeof f.tagline === 'string' && !infoForm.value.tagline.trim()) { infoForm.value.tagline = f.tagline; filled++; }
+    if (typeof f.description === 'string' && isPlaceholderDescription(infoForm.value.description)) {
+      infoForm.value.description = f.description; filled++;
+    }
     if (typeof f.gender === 'string' && (infoForm.value.gender === 'FEMALE' || !infoForm.value.gender)) { infoForm.value.gender = f.gender; filled++; }
     if (typeof f.ageBucket === 'string') { infoForm.value.ageBucket = f.ageBucket; filled++; }
     if (typeof f.ethnicity === 'string' && !infoForm.value.ethnicity) { infoForm.value.ethnicity = f.ethnicity; filled++; }
@@ -245,6 +262,8 @@ async function aiRecognize(fileId: string) {
 const quickFaceUploading = ref(false);
 const quickFaceProgress = ref(0);
 const quickFaceFile = ref<{ id: string; originalName: string } | null>(null);
+// #30.6.9 快速通道用过的 displayName fallback — 后续 AI 识别时视为占位, 可被覆盖
+const quickUploadFallbackName = ref<string[]>([]);
 async function quickUploadFace(file: File) {
   if (quickFaceUploading.value) return;
   quickFaceUploading.value = true;
@@ -254,6 +273,7 @@ async function quickUploadFace(file: File) {
     if (!targetIpId) {
       // IP 还没建 — 用文件名做 displayName, 其他字段填默认值
       const fallbackName = file.name.replace(/\.[^.]+$/, '').slice(0, 12) || '未命名 IP';
+      const usedFallbackName = !infoForm.value.displayName.trim();
       const payload: any = {
         displayName: infoForm.value.displayName.trim() || fallbackName,
         tagline: infoForm.value.tagline,
@@ -270,6 +290,9 @@ async function quickUploadFace(file: File) {
       if (taskId.value) payload.taskId = taskId.value;
       const { data } = await apiClient.post('/ips', payload);
       targetIpId = data.ip.id;
+      if (usedFallbackName && !quickUploadFallbackName.value.includes(fallbackName)) {
+        quickUploadFallbackName.value.push(fallbackName);
+      }
       // 同步基础信息 (这一步 router.replace 让 ip.value + files 重新加载, 后面的上传才能用新的 ipId)
       router.replace(`/creator/ips/${targetIpId}`);
       await nextTick();
@@ -882,9 +905,26 @@ const stepMeta = [
 
   <div v-else class="max-w-4xl mx-auto px-6 py-10">
     <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回创作者中心</RouterLink>
-    <div v-if="ip" class="flex items-baseline justify-between mb-2">
-      <h1 class="font-display text-3xl">{{ ip.displayName }}</h1>
-      <span class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
+    <div v-if="ip" class="flex items-center justify-between mb-2 gap-4">
+      <div class="min-w-0 flex-1">
+        <h1 class="font-display text-3xl truncate">{{ ip.displayName }}</h1>
+        <span class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
+      </div>
+      <!-- #30.6.9 顶部右侧固定显示面部特写缩略图 — 第1/2/3页都看得到, 方便随时切到版权图 -->
+      <div v-if="ip.thumbnailKey" class="shrink-0 relative" :title="ip.faceCloseupFileId ? '已设置版权图' : '未设置版权图'">
+        <img
+          :src="ossUrl(ip.thumbnailKey)"
+          alt="面部特写缩略图"
+          class="w-14 h-14 rounded-xl object-cover border-2"
+          :class="ip.faceCloseupFileId ? 'border-gold' : 'border-line opacity-60'"
+          referrerpolicy="no-referrer"
+        />
+        <span
+          v-if="ip.faceCloseupFileId"
+          class="absolute -top-1 -right-1 w-5 h-5 bg-gold text-ink rounded-full text-[10px] flex items-center justify-center font-bold"
+          title="当前版权图"
+        >⭐</span>
+      </div>
     </div>
     <div v-else class="mb-2">
       <h1 class="font-display text-3xl">创建新 IP</h1>
@@ -949,8 +989,8 @@ const stepMeta = [
     <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
       <h2 class="font-display text-lg">① 基础信息</h2>
       <!-- #30.6.7 快速通道: 上传面部特写 → AI 识别自动补全 9 字段 -->
-      <!-- 仅新建 IP 时显示 (已有 IP 进 /creator/ips/:id 直接进步骤 ②, 不走这步) -->
-      <div v-if="isNew" class="p-4 bg-gold/5 border border-gold/30 rounded-xl space-y-3">
+      <!-- #30.6.9 修改条件: isNew || 没 face closeup (上传失败留个入口) -->
+      <div v-if="!ip?.faceCloseupFileId" class="p-4 bg-gold/5 border border-gold/30 rounded-xl space-y-3">
         <div class="flex items-start gap-3">
           <div class="shrink-0 w-9 h-9 rounded-full bg-gold/15 text-gold flex items-center justify-center text-base">✨</div>
           <div class="flex-1 min-w-0">
