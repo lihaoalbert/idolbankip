@@ -259,6 +259,11 @@ export class TasksService {
    * 创作者接单 — 校验 OPEN + 未截止 + 未接 + 未满
    */
   async acceptTask(taskId: string, creatorId: string): Promise<{ taskId: string; creatorId: string; acceptedAt: Date }> {
+    // 先查是否已接 — 友好错误, 避免 Prisma unique 异常泄露
+    const existing = await this.prisma.ipTaskAccept.findUnique({
+      where: { taskId_creatorId: { taskId, creatorId } },
+    });
+    if (existing) throw new BadRequestException('已接过此任务, 不可重复');
     const task = await this.prisma.ipTask.findUnique({
       where: { id: taskId },
       include: { _count: { select: { accepts: true } } },
