@@ -12,6 +12,8 @@ build/
 .env.local
 .env.*.local
 !.env.example
+# 部署凭据 (scripts/deploy.env 含 ECS IP + SSH key 路径)
+scripts/deploy.env
 coverage/
 *.tsbuildinfo
 .idea/

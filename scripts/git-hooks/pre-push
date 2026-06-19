@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# scripts/git-hooks/pre-push — push 前跑 build
+#
+# 默认行为:根据 diff 范围判定要 build 哪些端,有改动才 build
+#   - apps/api/* 改动 → build api (含 prisma generate)
+#   - apps/web/* 改动 → build web
+#   - apps/admin/* 改动 → build admin
+#   - packages/* 改动 → 三端全 build (共享代码)
+#   - 只改 docs / scripts / 根配置 → 跳过 build
+#
+# 用环境变量可强制全量:
+#   IBI_REN_FULL_BUILD=1 git push
+#
+# 安装: git config core.hooksPath scripts/git-hooks (与 pre-commit 共用)
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# 默认当前分支
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+echo "==== pre-push @ $BRANCH ===="
+
+# 计算 diff 范围 (push 的目标 → 当前 HEAD)
+# remote ref 是 git push 时传入的,例如 refs/heads/main
+REMOTE_REF=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_sha" != "0000000000000000000000000000000000000000" ]]; then
+    REMOTE_REF="$remote_sha"
+  fi
+done
+
+# 没远程 ref (新分支首次 push) → 全 build
+if [[ -z "$REMOTE_REF" ]]; then
+  echo "  → 新分支首次 push,全量 build"
+  CHANGED="all"
+else
+  CHANGED=$(git diff --name-only "$REMOTE_REF"..HEAD 2>/dev/null || echo "")
+  if [[ -z "$CHANGED" ]]; then
+    echo "  → 无新 commit,跳过 build"
+    exit 0
+  fi
+  echo "  → 改动的文件 ($(echo "$CHANGED" | wc -l | tr -d ' ')):"
+  echo "$CHANGED" | sed 's/^/      /'
+fi
+
+# 强制全量?
+if [[ "${IBI_REN_FULL_BUILD:-0}" == "1" ]]; then
+  echo "  → IBI_REN_FULL_BUILD=1,全量 build"
+  CHANGED="all"
+fi
+
+need_build() {
+  local app="$1"
+  if [[ "$CHANGED" == "all" ]]; then
+    return 0
+  fi
+  if echo "$CHANGED" | grep -qE "^apps/${app}/"; then
+    return 0
+  fi
+  return 1
+}
+
+need_build_all() {
+  if [[ "$CHANGED" == "all" ]]; then
+    return 0
+  fi
+  if echo "$CHANGED" | grep -qE "^packages/"; then
+    return 0
+  fi
+  return 1
+}
+
+FAILED=0
+
+# api 改动: prisma generate (若 schema 改了) + build
+if need_build api; then
+  echo ""
+  echo "==== [1/N] api ===="
+  if echo "$CHANGED" | grep -qE "^apps/api/prisma/"; then
+    echo "  → prisma generate (schema 改动)"
+    pnpm exec prisma generate --schema=apps/api/prisma/schema.prisma \
+      || { echo "❌ prisma generate 失败"; FAILED=1; }
+  fi
+  if [[ "$FAILED" -eq 0 ]]; then
+    pnpm --filter @ibi-ren/api run build \
+      || { echo "❌ api build 失败"; FAILED=1; }
+  fi
+fi
+
+# web
+if [[ "$FAILED" -eq 0 ]] && need_build web; then
+  echo ""
+  echo "==== [2/N] web ===="
+  pnpm --filter @ibi-ren/web run build \
+    || { echo "❌ web build 失败"; FAILED=1; }
+fi
+
+# admin
+if [[ "$FAILED" -eq 0 ]] && need_build admin; then
+  echo ""
+  echo "==== [3/N] admin ===="
+  pnpm --filter @ibi-ren/admin run build \
+    || { echo "❌ admin build 失败"; FAILED=1; }
+fi
+
+# packages 改动但 apps/* 没改 → 上面 need_build 各 app 没匹配,这里兜底
+if [[ "$FAILED" -eq 0 ]] && need_build_all; then
+  if ! need_build api && ! need_build web && ! need_build admin; then
+    echo ""
+    echo "==== [N] packages 共享代码改动 → 三端都 build ===="
+    for app in api web admin; do
+      pnpm --filter "@ibi-ren/$app" run build \
+        || { echo "❌ $app build 失败"; FAILED=1; break; }
+    done
+  fi
+fi
+
+if [[ "$FAILED" -ne 0 ]]; then
+  echo ""
+  echo "🚫 pre-push build 失败,push 中止"
+  echo "   修复 build 错误后重试,或 IBI_REN_FULL_BUILD=0 git push --no-verify 跳过"
+  exit 1
+fi
+
+echo ""
+echo "✅ pre-push build 全过"
+exit 0

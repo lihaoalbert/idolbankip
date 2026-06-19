@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# scripts/git-hooks/pre-commit — commit 前 secret 扫描
+#
+# 命中任何凭据模式即 abort,人工 review 后再用 --no-verify 或修改。
+#
+# 安装: git config core.hooksPath scripts/git-hooks
+#      (本机首次 clone 后跑一次)
+
+set -euo pipefail
+
+# 检查 staged 变更 (新增 + 修改)
+STAGED=$(git diff --cached --diff-filter=ACMR --name-only)
+if [[ -z "$STAGED" ]]; then
+  exit 0
+fi
+
+# 凭据模式 — 见 CLAUDE.md §2 / AGENTS.md §10
+# 注意:模式是注释/grep 用,匹配到值才算命中,不是匹配到 "AccessKey" 这个英文词
+PATTERNS=(
+  # 阿里云 AccessKey ID (LTAI 开头 16+ 字符)
+  'LTAI[A-Za-z0-9]{12,}'
+  # AWS AccessKey (AKIA / ASIA 开头)
+  '(AKIA|ASIA)[A-Z0-9]{16}'
+  # 私钥块 (RSA / OPENSSH / DSA / EC)
+  '-----BEGIN (RSA |OPENSSH |DSA |EC |PGP )?PRIVATE KEY-----'
+  # 阿里云 OSS STS / API token
+  'STS\.[A-Za-z0-9]{16,}'
+  # 数据库连接串含密码 (mysql/postgres://user:password@)
+  '(mysql|postgres|mongodb)://[^:]+:[^@]+@'
+  # JWT long token (header.payload.signature 都有 base64 段)
+  'eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
+)
+
+# 一些必须允许的误报场景 (本仓库内的扫描说明 / 测试 fixture)
+# 例: AGENTS.md / CLAUDE.md 里有扫描模式本身,这是 false positive
+ALLOWLIST_FILES=(
+  'CLAUDE.md'
+  'AGENTS.md'
+  'scripts/git-hooks/pre-commit'
+  '.github/'  # CI 配置
+)
+
+is_allowlisted() {
+  local file="$1"
+  for allow in "${ALLOWLIST_FILES[@]}"; do
+    if [[ "$file" == $allow* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+FOUND=0
+for file in $STAGED; do
+  is_allowlisted "$file" && continue
+
+  # 只扫文本文件 (粗略判断)
+  if file "$file" 2>/dev/null | grep -qE "binary|ELF|Mach-O|archive"; then
+    continue
+  fi
+
+  for pattern in "${PATTERNS[@]}"; do
+    # 用 -- 防止 pattern 以 - 开头被当成 grep flag (例 -----BEGIN)
+    if git show ":$file" 2>/dev/null | grep -nE -- "$pattern" > /tmp/secret-hit 2>&1; then
+      echo "❌ 检测到凭据 (模式: $pattern) 在文件: $file"
+      cat /tmp/secret-hit | head -5
+      echo ""
+      echo "   解法: 从 staged 里移除该文件 (git restore --staged $file),"
+      echo "         或确认是测试 fixture 后 git commit --no-verify"
+      echo ""
+      FOUND=1
+    fi
+  done
+done
+
+if [[ "$FOUND" -ne 0 ]]; then
+  echo "🚫 pre-commit secret 扫描失败,abort"
+  exit 1
+fi
+
+exit 0
