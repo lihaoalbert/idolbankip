@@ -61,6 +61,8 @@ export interface CreateIpParams {
   faceTags?: Array<{ category: string; value: string }>;
   depositPriceFen?: number;
   fullLicensePriceFen: number;
+  // #30 接单任务: 创作者从任务板进入 wizard 时携带, 写 origin=TASK + 关联 taskId
+  taskId?: string;
 }
 
 @Injectable()
@@ -88,6 +90,18 @@ export class IpsService {
 
   async create(params: CreateIpParams): Promise<IpAsset> {
     const code = await this.generateNextCode();
+    // #30 接单任务: 校验已接 + 任务 OPEN + 未截止 (双保险, 创作者端 controller 也校验)
+    if (params.taskId) {
+      const accept = await this.prisma.ipTaskAccept.findUnique({
+        where: { taskId_creatorId: { taskId: params.taskId, creatorId: params.creatorId } },
+      });
+      if (!accept) throw new ForbiddenException('未接此任务, 不可提交');
+      const task = await this.prisma.ipTask.findUnique({ where: { id: params.taskId } });
+      if (!task) throw new NotFoundException('任务不存在');
+      if (task.status !== 'OPEN' || task.deadlineAt.getTime() <= Date.now()) {
+        throw new BadRequestException(`任务 ${task.status}, 不接受新提交`);
+      }
+    }
     return this.prisma.ipAsset.create({
       data: {
         code,
@@ -103,6 +117,9 @@ export class IpsService {
         faceTags: params.faceTags ? (params.faceTags as any) : undefined,
         depositPriceFen: params.depositPriceFen ?? 19900,
         fullLicensePriceFen: params.fullLicensePriceFen,
+        // #30 接单关联
+        origin: params.taskId ? 'TASK' : 'SELF',
+        taskId: params.taskId ?? null,
         previewImageKeys: [],
         thumbnailKey: '',
       },

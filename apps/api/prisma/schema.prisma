@@ -32,19 +32,19 @@ enum Gender {
 }
 
 enum AgeBucket {
-  CHILD      // 童颜
-  YOUNG      // 青年
-  MIDDLE     // 中年
-  ELDERLY    // 老年
+  CHILD // 童颜
+  YOUNG // 青年
+  MIDDLE // 中年
+  ELDERLY // 老年
 }
 
 enum Ethnicity {
-  EAST_ASIAN       // 东亚 (中/日/韩)
-  SOUTHEAST_ASIAN  // 东南亚
-  SOUTH_ASIAN      // 南亚
-  AFRICAN          // 非洲
-  EUROPEAN         // 欧洲
-  MIXED            // 混合 / 拉美 / 中东 / 其他
+  EAST_ASIAN // 东亚 (中/日/韩)
+  SOUTHEAST_ASIAN // 东南亚
+  SOUTH_ASIAN // 南亚
+  AFRICAN // 非洲
+  EUROPEAN // 欧洲
+  MIXED // 混合 / 拉美 / 中东 / 其他
 }
 
 enum IpStatus {
@@ -103,12 +103,25 @@ enum ContractStatus {
   EXPIRED
 }
 
+enum IpTaskStatus {
+  OPEN // 创作者可接
+  CLOSED // 截止, 不再接受新接单
+  COMPLETED // 全部 submissions 已审, 平台收尾
+  CANCELLED // admin 主动取消
+}
+
+// #30 任务来源 — 自传 (SELF) / 平台任务 (TASK, 接单提交的 IP 走平台代办证书)
+enum IpOrigin {
+  SELF
+  TASK
+}
+
 // ===================== 用户 / KYC / 会话 =====================
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  phone        String?  @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
+  phone        String?   @unique
   passwordHash String
   // 角色数组 (MySQL 无 enum[], 用 JSON 列存 string[])。
   // 应用层用 parseRoles/serializeRoles 读写, 严禁直查。
@@ -122,8 +135,8 @@ model User {
   kycStatus    KycStatus @default(NOT_SUBMITTED)
   kycData      Json?
   avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   ipsAsCreator  IpAsset[]       @relation("CreatorIps")
   ordersAsBuyer Order[]         @relation("BuyerOrders")
@@ -178,13 +191,13 @@ model IpAsset {
   description String  @db.Text // markdown 人设
 
   // 分类 — #32 标签体系: 核心三维 (Gender/AgeBucket/Ethnicity) 决定丰富度评分
-  gender         Gender     @default(FEMALE)
-  ageBucket      AgeBucket  @default(YOUNG)
-  ethnicity      Ethnicity? // 历史 IP 留 NULL, 新上传必填
-  styleTags      String // 逗号分隔: "现代,赛博" (次要, 用于买家场景匹配)
-  scenarioTags   String // "短剧群演,品牌代言" (次要)
+  gender       Gender     @default(FEMALE)
+  ageBucket    AgeBucket  @default(YOUNG)
+  ethnicity    Ethnicity? // 历史 IP 留 NULL, 新上传必填
+  styleTags    String // 逗号分隔: "现代,赛博" (次要, 用于买家场景匹配)
+  scenarioTags String // "短剧群演,品牌代言" (次要)
   // 脸特征 (多选) — [{category, value}] e.g. [{category:"FaceShape",value:"OVAL"}]
-  faceTags       Json?
+  faceTags     Json?
 
   // 定价 (单位: 分)
   depositPriceFen     Int @default(19900) // 199 元
@@ -193,6 +206,11 @@ model IpAsset {
   // 状态机
   status          IpStatus @default(PENDING_REVIEW)
   rejectionReason String?
+
+  // #30 任务来源 — 自传 (SELF) / 接单 (TASK)。新 IP 默认 SELF, 接单提交时设 TASK
+  origin IpOrigin @default(SELF)
+  taskId String?
+  task   IpTask?  @relation("TaskSubmissions", fields: [taskId], references: [id], onDelete: SetNull)
 
   // 区块链存证 (mock)
   blockchainHash    String?
@@ -210,8 +228,8 @@ model IpAsset {
 
   // 版权登记证据 — 创作者上传多张 FACE_CLOSEUP, 由其指定这一张作为版权图
   // 存量 IP 迁移时自动用第一张 THREE_VIEW 填入 (UI 标记 "占位中", 可后补)
-  faceCloseupFileId String?  @unique
-  faceCloseupFile   IpFile?  @relation("FaceCloseupOf", fields: [faceCloseupFileId], references: [id], onDelete: SetNull)
+  faceCloseupFileId String? @unique
+  faceCloseupFile   IpFile? @relation("FaceCloseupOf", fields: [faceCloseupFileId], references: [id], onDelete: SetNull)
 
   // 反盗版标记
   invisibleWatermarkApplied Boolean @default(false)
@@ -222,11 +240,11 @@ model IpAsset {
   publishedAt DateTime? // 首次 PUBLIC_INTENT
   officialAt  DateTime? // 首次 OFFICIAL_REGISTERED
 
-  files     IpFile[]
-  orders    Order[]
-  proofs    BlockchainProof[]
+  files      IpFile[]
+  orders     Order[]
+  proofs     BlockchainProof[]
   watermarks WatermarkRecord[]
-  cert      CopyrightCertificate?
+  cert       CopyrightCertificate?
 
   @@index([status])
   @@index([creatorId])
@@ -238,14 +256,14 @@ model IpAsset {
 // ===================== 版权证书 =====================
 
 enum CertApplyMethod {
-  CREATOR_SELF     // 创作者自传 (有证书)
-  PLATFORM_AGENT  // 平台代办 (P1 阶段)
+  CREATOR_SELF // 创作者自传 (有证书)
+  PLATFORM_AGENT // 平台代办 (P1 阶段)
 }
 
 enum CertStatus {
-  PENDING_REVIEW   // 创作者刚提交,等 admin 审核
-  APPROVED         // 审核通过 → 同步 IpAsset.status = OFFICIAL_REGISTERED
-  REJECTED         // 审核被拒,创作者可重提
+  PENDING_REVIEW // 创作者刚提交,等 admin 审核
+  APPROVED // 审核通过 → 同步 IpAsset.status = OFFICIAL_REGISTERED
+  REJECTED // 审核被拒,创作者可重提
 }
 
 enum CertFileType {
@@ -255,43 +273,43 @@ enum CertFileType {
 }
 
 model CopyrightCertificate {
-  id        String   @id @default(cuid())
-  ipId      String   @unique
-  ip        IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  id   String  @id @default(cuid())
+  ipId String  @unique
+  ip   IpAsset @relation(fields: [ipId], references: [id], onDelete: Cascade)
 
-  applyMethod       CertApplyMethod @default(CREATOR_SELF)
+  applyMethod CertApplyMethod @default(CREATOR_SELF)
 
   // 创作者自传
-  certFileType      CertFileType?  // 跟 certFileKey 配套
-  certFileKey       String?   // OSS 私有桶 key, .pdf/.jpg/.png
-  certFileName      String?
-  certFileSize      BigInt?
-  selfCertNo        String?
-  selfIssuedAt      DateTime?
+  certFileType CertFileType? // 跟 certFileKey 配套
+  certFileKey  String? // OSS 私有桶 key, .pdf/.jpg/.png
+  certFileName String?
+  certFileSize BigInt?
+  selfCertNo   String?
+  selfIssuedAt DateTime?
 
   // 平台代办 (P1)
-  agentRealName     String?
-  agentIdNumber     String?   // base64 编码 (P2 上 KMS)
-  agentRegion       String?   // NATIONAL / PROVINCIAL
-  agentProvince     String?
-  agentRefNumber    String?
+  agentRealName  String?
+  agentIdNumber  String? // base64 编码 (P2 上 KMS)
+  agentRegion    String? // NATIONAL / PROVINCIAL
+  agentProvince  String?
+  agentRefNumber String?
 
   // 终态
-  certNo            String?   // 审核通过后写入
-  certIssuedAt      DateTime?
-  status            CertStatus @default(PENDING_REVIEW)
-  rejectionReason   String?
-  reviewedById      String?
-  reviewedAt        DateTime?
+  certNo          String? // 审核通过后写入
+  certIssuedAt    DateTime?
+  status          CertStatus @default(PENDING_REVIEW)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model IpFile {
-  id             String  @id @default(cuid())
+  id             String    @id @default(cuid())
   ipId           String
-  ip             IpAsset @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  ip             IpAsset   @relation(fields: [ipId], references: [id], onDelete: Cascade)
   assetType      AssetType
   originalName   String
   ossKey         String // private bucket key
@@ -300,13 +318,13 @@ model IpFile {
   checksumSha256 String // 用于区块链 hash 计算
 
   // #33 创作过程证据专用元数据 (其它类型为 NULL)
-  description    String?  @db.Text
-  processStep    String?  // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
+  description String? @db.Text
+  processStep String? // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
 
   // 反向关系: 一个 IpFile 最多被一个 IP 选为版权图 (IpAsset.faceCloseupFileId)
-  faceCloseupOf  IpAsset[] @relation("FaceCloseupOf")
-  uploadedAt     DateTime @default(now())
-  validated      Boolean  @default(false)
+  faceCloseupOf IpAsset[] @relation("FaceCloseupOf")
+  uploadedAt    DateTime  @default(now())
+  validated     Boolean   @default(false)
 
   @@index([ipId, assetType])
 }
@@ -314,17 +332,17 @@ model IpFile {
 // ===================== 订单 / 合同 =====================
 
 model Order {
-  id       String @id @default(cuid())
-  buyerId  String
-  buyer    User   @relation("BuyerOrders", fields: [buyerId], references: [id])
-  ipId     String
-  ip       IpAsset @relation(fields: [ipId], references: [id])
+  id      String  @id @default(cuid())
+  buyerId String
+  buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
+  ipId    String
+  ip      IpAsset @relation(fields: [ipId], references: [id])
 
   orderType      OrderType
   licenseScope   LicenseScope?
   amountFen      Int
-  platformFeeFen Int @default(0) // 全额授权 15%, 意向金 0
-  status         OrderStatus @default(CREATED)
+  platformFeeFen Int           @default(0) // 全额授权 15%, 意向金 0
+  status         OrderStatus   @default(CREATED)
 
   paymentChannel String?
   paymentRef     String?
@@ -356,7 +374,7 @@ model Contract {
   variablesJson  Json
 
   // 电子签 (mock)
-  esignProvider    String  @default("mock_fadada")
+  esignProvider    String    @default("mock_fadada")
   esignFlowId      String?
   buyerSignedAt    DateTime?
   platformSignedAt DateTime?
@@ -443,7 +461,7 @@ model ContactLead {
   wechat    String?
   email     String?
   message   String   @db.Text
-  source    String?  // "homepage" / "footer" / "ip-detail" / "direct"
+  source    String? // "homepage" / "footer" / "ip-detail" / "direct"
   // ADMIN 后台手动跟进状态
   status    String   @default("NEW") // NEW / CONTACTED / CLOSED
   notes     String?  @db.Text
@@ -486,11 +504,58 @@ model ApiKey {
   keyHash    String    @unique
   keyPrefix  String
   label      String
-  scopes     String    // CSV: "ips:create,ips:upload"
+  scopes     String // CSV: "ips:create,ips:upload"
   lastUsedAt DateTime?
   expiresAt  DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ===================== 平台任务 (扩官方库) =====================
+// #30 任务发布 / 创作者接单
+// - admin 发布任务 (规格清单 + 预算 + 截止 + 接受上限)
+// - creator 接单, 在简版 IpWizard 提交 IP, IP 关联到 taskId
+// - admin 审稿, 通过走 P1 平台代办证书流程, 版权归平台
+// 报酬 MVP 阶段手工打款 (后台记账)
+
+model IpTask {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @db.Text
+  // 规格 (JSON, 前端按规格预填 IpWizard)
+  // e.g. { count: 36, gender: 'FEMALE', ageBuckets: ['YOUNG','MIDDLE'], styleTags: ['现代'], scenarioTags: ['短剧(单集)'] }
+  spec        Json
+  // 定价 (分)
+  budgetFen   Int // 总预算
+  perIpFen    Int? // 单 IP 报酬 (可空 = 需谈)
+  maxAccepts  Int          @default(10) // 最多多少创作者接
+  deadlineAt  DateTime
+  status      IpTaskStatus @default(OPEN)
+
+  createdById String // admin userId
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  closedAt    DateTime?
+
+  // 反向
+  accepts     IpTaskAccept[]
+  submissions IpAsset[]      @relation("TaskSubmissions")
+
+  @@index([status, deadlineAt])
+  @@index([createdById])
+}
+
+model IpTaskAccept {
+  id             String   @id @default(cuid())
+  taskId         String
+  task           IpTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creatorId      String
+  acceptedAt     DateTime @default(now())
+  // 创作者接单后提交的 IP 数 (统计用, 跟 IpAsset.taskId 反查)
+  submittedCount Int      @default(0)
+
+  @@unique([taskId, creatorId])
+  @@index([creatorId])
 }

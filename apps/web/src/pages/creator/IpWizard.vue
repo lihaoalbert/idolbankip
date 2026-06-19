@@ -40,6 +40,9 @@ const toast = useToast();
 
 const ipId = computed(() => route.params.id as string | undefined);
 const isNew = computed(() => !ipId.value);
+// #30 任务接单上下文 — /creator/ips/new?taskId=xxx 进入简版 wizard
+const taskId = computed(() => (route.query.taskId as string) || '');
+const taskContext = ref<any>(null);
 
 const step = ref<number>(isNew.value ? 1 : 2);
 const ip = ref<any>(null);
@@ -502,7 +505,10 @@ async function saveInfo() {
   try {
     let targetIpId: string;
     if (isNew.value) {
-      const { data } = await apiClient.post('/ips', infoForm.value);
+      // #30 接单提交: 携带 taskId, 后端会写 origin=TASK + taskId 关联
+      const payload: any = { ...infoForm.value };
+      if (taskId.value) payload.taskId = taskId.value;
+      const { data } = await apiClient.post('/ips', payload);
       targetIpId = data.ip.id;
       toast.success('IP 创建成功');
       // 路由跳转前先同步 BIO_TXT, 避免 step 2 看到空状态
@@ -713,8 +719,46 @@ function statusBanner(s: string): {
   return null;
 }
 
-onMounted(loadIp);
+onMounted(async () => {
+  if (taskId.value) {
+    await loadTask();
+  }
+  loadIp();
+});
 watch(() => route.params.id, loadIp);
+
+/**
+ * #30 加载接单任务上下文 — 简版 wizard 模式
+ * 接单后进入, 任务规格预填, 创作者只填素材即可
+ */
+async function loadTask() {
+  if (!taskId.value) return;
+  try {
+    // 创作者端 list 接口返回所有 OPEN 任务; 在 list 里查找
+    const { data } = await apiClient.get('/tasks');
+    const tasks = data || [];
+    const t = tasks.find((x: any) => x.id === taskId.value);
+    if (!t) {
+      toast.error('未找到该任务 (可能已关闭)');
+      return;
+    }
+    if (!t.acceptedByMe) {
+      toast.error('请先接单再提交');
+      router.replace('/creator/tasks');
+      return;
+    }
+    taskContext.value = t;
+    // 预填 spec
+    const spec = t.spec || {};
+    infoForm.value.gender = spec.gender || 'FEMALE';
+    if (spec.ageBuckets?.length) infoForm.value.ageBucket = spec.ageBuckets[0];
+    if (spec.ethnicities?.length) infoForm.value.ethnicity = spec.ethnicities[0];
+    if (spec.styleTags?.length) infoForm.value.styleTags = [...spec.styleTags];
+    if (spec.scenarioTags?.length) infoForm.value.scenarioTags = [...spec.scenarioTags];
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '加载任务失败');
+  }
+}
 
 const stepMeta = [
   { num: 1, label: '基础信息', short: '①' },
@@ -800,6 +844,24 @@ const stepMeta = [
     <!-- 步骤 1: 基础信息 -->
     <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
       <h2 class="font-display text-lg">① 基础信息</h2>
+      <!-- #30 任务接单模式 banner — 预填 spec + 提示"版权归平台" -->
+      <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-xl space-y-2">
+        <div class="flex items-center gap-2 text-sm font-medium text-ink">
+          <span>📋 任务接单模式</span>
+          <span class="text-xs text-ink/50">· {{ taskContext.title }}</span>
+        </div>
+        <div class="text-xs text-ink/70 leading-relaxed">
+          任务规格已预填, 你只需填写名称/小传和上传素材。
+          <span class="text-danger font-medium">本任务 IP 版权归平台所有, 通过审核后获得 ¥{{ ((taskContext.perIpFen || 0) / 100).toFixed(0) }} 报酬。</span>
+        </div>
+        <div v-if="taskContext.spec" class="text-[10px] text-ink/50 font-mono">
+          规格: {{ (taskContext.spec.gender || '不限') }} ·
+          {{ (taskContext.spec.ageBuckets || []).join('/') || '不限' }} ·
+          {{ (taskContext.spec.ethnicities || []).join('/') || '不限' }} ·
+          风格 [{{ (taskContext.spec.styleTags || []).join('·') }}] ·
+          场景 [{{ (taskContext.spec.scenarioTags || []).join('·') }}]
+        </div>
+      </div>
       <div>
         <label class="text-xs text-ink/60 block mb-1">IP 名称 <span class="text-danger">*</span></label>
         <input v-model="infoForm.displayName" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" placeholder="如:林知夏" />

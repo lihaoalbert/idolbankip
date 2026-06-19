@@ -157,6 +157,10 @@ onMounted(fetch);
       <h1 class="font-display text-3xl">创作者中心</h1>
       <div class="flex items-center gap-3">
         <RouterLink
+          to="/creator/tasks"
+          class="text-xs text-ink/60 hover:text-gold transition"
+        >📋 任务板</RouterLink>
+        <RouterLink
           to="/creator/api-keys"
           class="text-xs text-ink/60 hover:text-gold transition"
         >🔑 Agent API Key</RouterLink>

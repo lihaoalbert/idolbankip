@@ -40,6 +40,8 @@ class CreateIpDto {
   faceTags?: FaceTagDto[];
   @IsOptional() @IsInt() @Min(0) depositPriceFen?: number;
   @IsInt() @Min(0) fullLicensePriceFen!: number;
+  // #30 接单任务: 创作者从任务板进入 wizard 时携带, 后端会校验 + 写 origin=TASK
+  @IsOptional() @IsString() taskId?: string;
 }
 
 class UpdateIpDto {

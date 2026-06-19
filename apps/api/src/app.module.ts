@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { KycModule } from './kyc/kyc.module';
 import { IpsModule } from './ips/ips.module';
+import { TasksModule } from './tasks/tasks.module';
 import { UploadModule } from './upload/upload.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { ProofingModule } from './proofing/proofing.module';
@@ -49,6 +50,7 @@ import { configValidationSchema } from './config/config.validation';
     DownloadModule,
     CertModule,
     AdminModule,
+    TasksModule,
     HealthModule,
     LeadsModule,
     NotificationsModule,

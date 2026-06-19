@@ -48,6 +48,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
+    path: '/creator/tasks',
+    name: 'creator-tasks',
+    component: () => import('@/pages/creator/TaskBoardPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  {
     path: '/creator/ips/new',
     name: 'ip-create',
     component: () => import('@/pages/creator/IpWizard.vue'),
