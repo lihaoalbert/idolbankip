@@ -258,7 +258,17 @@ sync_to_ecs() {
 restart_ecs() {
   echo "==== [3/4] 重启 ECS 服务 ===="
   ssh_run "systemctl restart $ECS_API_SERVICE && nginx -s reload"
-  sleep 2
+
+  # 等 API 真正起来 — NestJS 启动 + DB/OSS 握手约 6-8s,直接 smoke 会 502
+  echo "  → 等待 API 启动 (最多 30s)"
+  for i in $(seq 1 30); do
+    if ssh_run "curl -sS -m 2 http://127.0.0.1:3100/health 2>/dev/null | grep -q '\"status\":\"ok\"'" 2>/dev/null; then
+      echo "  ✅ API 健康 (${i}s)"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "  ⚠️  30s 内 API 未通过 health 检查,smoke 可能看到 502"
 }
 
 smoke_ecs() {
