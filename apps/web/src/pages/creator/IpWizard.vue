@@ -905,25 +905,62 @@ const stepMeta = [
 
   <div v-else class="max-w-4xl mx-auto px-6 py-10">
     <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回创作者中心</RouterLink>
-    <div v-if="ip" class="flex items-center justify-between mb-2 gap-4">
+    <div v-if="ip" class="flex items-start justify-between mb-2 gap-4">
       <div class="min-w-0 flex-1">
         <h1 class="font-display text-3xl truncate">{{ ip.displayName }}</h1>
         <span class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
       </div>
-      <!-- #30.6.9 顶部右侧固定显示面部特写缩略图 — 第1/2/3页都看得到, 方便随时切到版权图 -->
-      <div v-if="ip.thumbnailKey" class="shrink-0 relative" :title="ip.faceCloseupFileId ? '已设置版权图' : '未设置版权图'">
-        <img
-          :src="ossUrl(ip.thumbnailKey)"
-          alt="面部特写缩略图"
-          class="w-14 h-14 rounded-xl object-cover border-2"
-          :class="ip.faceCloseupFileId ? 'border-gold' : 'border-line opacity-60'"
-          referrerpolicy="no-referrer"
-        />
-        <span
-          v-if="ip.faceCloseupFileId"
-          class="absolute -top-1 -right-1 w-5 h-5 bg-gold text-ink rounded-full text-[10px] flex items-center justify-center font-bold"
-          title="当前版权图"
-        >⭐</span>
+      <!-- #30.6.11 顶部右侧 — 面部特写入口 + 缩略图, 1-2-3 步上方, 跨步骤可见 -->
+      <div class="shrink-0 flex flex-col items-end gap-1.5">
+        <!-- 无 face closeup: 紧凑上传按钮 + 提示 -->
+        <label
+          v-if="!ip.faceCloseupFileId"
+          :class="[
+            'inline-flex items-center gap-1.5 px-4 py-2 border rounded-full text-xs transition cursor-pointer whitespace-nowrap',
+            quickFaceUploading ? 'bg-line text-ink/40 border-line cursor-wait' : 'bg-ink text-cream border-ink hover:bg-gold hover:border-gold',
+          ]"
+          :title="quickFaceUploading ? '上传中' : '上传面部特写, AI 自动补全 9 字段'"
+        >
+          {{ quickFaceUploading ? `上传中 ${quickFaceProgress}%` : '📷 上传面部特写' }}
+          <input
+            type="file"
+            class="hidden"
+            accept="image/*"
+            :disabled="quickFaceUploading"
+            @change="(e) => {
+              const inp = e.target as HTMLInputElement;
+              const f = inp.files?.[0];
+              if (f) quickUploadFace(f);
+              inp.value = '';
+            }"
+          />
+        </label>
+        <!-- 已上传: 缩略图 + AI 识别 (跨步骤都看得到) -->
+        <div v-else class="flex items-center gap-2">
+          <div class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 第 ② 步可改' : '未设置版权图'">
+            <img
+              :src="ossUrl(ip.thumbnailKey)"
+              alt="面部特写缩略图"
+              class="w-14 h-14 rounded-xl object-cover border-2 border-gold"
+              referrerpolicy="no-referrer"
+            />
+            <span
+              class="absolute -top-1 -right-1 w-5 h-5 bg-gold text-ink rounded-full text-[10px] flex items-center justify-center font-bold"
+              title="当前版权图"
+            >⭐</span>
+          </div>
+          <div v-if="quickFaceFile" class="flex flex-col items-start gap-1">
+            <span class="text-[10px] text-ink/50 max-w-[100px] truncate">✓ {{ quickFaceFile.originalName }}</span>
+            <button
+              type="button"
+              :disabled="aiLoading[quickFaceFile.id]"
+              class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+              title="AI 识别 → 自动填充 9 字段"
+              @click="aiRecognize(quickFaceFile.id)"
+            >{{ aiLoading[quickFaceFile.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
+          </div>
+        </div>
+        <div v-if="!ip.faceCloseupFileId" class="text-[10px] text-ink/45 leading-tight">jpg/png/webp, ≥2048×2048</div>
       </div>
     </div>
     <div v-else class="mb-2">
@@ -988,56 +1025,7 @@ const stepMeta = [
     <!-- 步骤 1: 基础信息 -->
     <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
       <h2 class="font-display text-lg">① 基础信息</h2>
-      <!-- #30.6.7 快速通道: 上传面部特写 → AI 识别自动补全 9 字段 -->
-      <!-- #30.6.9 修改条件: isNew || 没 face closeup (上传失败留个入口) -->
-      <div v-if="!ip?.faceCloseupFileId" class="p-4 bg-gold/5 border border-gold/30 rounded-xl space-y-3">
-        <div class="flex items-start gap-3">
-          <div class="shrink-0 w-9 h-9 rounded-full bg-gold/15 text-gold flex items-center justify-center text-base">✨</div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium text-ink">先传面部特写, AI 自动补全</div>
-            <div class="text-xs text-ink/60 mt-0.5 leading-relaxed">省去手填 9 个字段, 识别后你再确认/修改。</div>
-          </div>
-        </div>
-        <!-- 上传前 / 上传中 -->
-        <div v-if="!quickFaceFile" class="flex items-center gap-3">
-          <label
-            :class="[
-              'px-4 py-2 border rounded-full text-xs transition cursor-pointer shrink-0',
-              quickFaceUploading ? 'bg-line text-ink/40 border-line cursor-wait' : 'bg-ink text-cream border-ink hover:bg-gold hover:border-gold',
-            ]"
-          >
-            {{ quickFaceUploading ? `上传中 ${quickFaceProgress}%` : '上传面部特写' }}
-            <input
-              type="file"
-              class="hidden"
-              accept="image/*"
-              :disabled="quickFaceUploading"
-              @change="(e) => {
-                const inp = e.target as HTMLInputElement;
-                const f = inp.files?.[0];
-                if (f) quickUploadFace(f);
-                inp.value = '';
-              }"
-            />
-          </label>
-          <div class="text-[11px] text-ink/50 leading-relaxed">jpg/png/webp, ≥2048×2048, 100KB-30MB</div>
-        </div>
-        <!-- 上传完成后: 文件名 + AI 识别 + ⭐ -->
-        <div v-else class="space-y-2">
-          <div class="flex items-center gap-2 p-2.5 bg-cream/50 rounded-lg text-xs">
-            <span class="truncate flex-1 text-ink/80">✓ {{ quickFaceFile.originalName }}</span>
-            <button
-              type="button"
-              :disabled="aiLoading[quickFaceFile.id]"
-              class="shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
-              title="AI 识别 → 自动填充 9 字段"
-              @click="aiRecognize(quickFaceFile.id)"
-            >{{ aiLoading[quickFaceFile.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
-            <span v-if="ip?.faceCloseupFileId === quickFaceFile.id" class="text-gold" title="当前版权图">⭐</span>
-          </div>
-          <div class="text-[11px] text-ink/50">或继续手填下方字段, 步骤 ② 还能上传更多面部特写</div>
-        </div>
-      </div>
+      <!-- #30.6.11 面部特写快速通道已挪到顶部右侧, 此处不再展示上传卡 -->
       <!-- #30 任务接单模式 banner — 预填 spec + 提示"版权归平台" -->
       <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-xl space-y-2">
         <div class="flex items-center gap-2 text-sm font-medium text-ink">
