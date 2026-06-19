@@ -937,7 +937,16 @@ const stepMeta = [
         </label>
         <!-- 已上传: 缩略图 + AI 识别 (跨步骤都看得到) -->
         <div v-else class="flex items-center gap-2">
-          <div class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 第 ② 步可改' : '未设置版权图'">
+          <!-- 缩略图损坏 (历史 silent chunking bug, 源 PNG 缺 IEND) → 提示重传 -->
+          <div
+            v-if="!ip.thumbnailKey"
+            class="w-14 h-14 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 flex flex-col items-center justify-center text-amber-700 cursor-help"
+            title="源面部特写文件损坏,请重新上传"
+          >
+            <span class="text-base leading-none">⚠</span>
+            <span class="text-[8px] mt-0.5">重传</span>
+          </div>
+          <div v-else class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 第 ② 步可改' : '未设置版权图'">
             <img
               :src="ossUrl(ip.thumbnailKey)"
               alt="面部特写缩略图"

@@ -25,7 +25,7 @@ const props = defineProps<{
   watermarkText?: string;
 }>();
 
-const thumb = computed(() => ossUrl(props.ip.thumbnailKey));
+const thumb = computed(() => props.ip.thumbnailKey ? ossUrl(props.ip.thumbnailKey) : '');
 const styles = computed(() => props.ip.styleTags.split(',').filter(Boolean));
 const scenarios = computed(() => props.ip.scenarioTags.split(',').filter(Boolean));
 const isConditional = computed(() => props.ip.status === 'PUBLIC_INTENT');
