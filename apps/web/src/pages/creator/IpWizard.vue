@@ -734,9 +734,8 @@ watch(() => route.params.id, loadIp);
 async function loadTask() {
   if (!taskId.value) return;
   try {
-    // 创作者端 list 接口返回所有 OPEN 任务; 在 list 里查找
     const { data } = await apiClient.get('/tasks');
-    const tasks = data || [];
+    const tasks = Array.isArray(data) ? data : data?.items || [];
     const t = tasks.find((x: any) => x.id === taskId.value);
     if (!t) {
       toast.error('未找到该任务 (可能已关闭)');
