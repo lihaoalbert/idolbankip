@@ -50,7 +50,7 @@ async function loadOpen() {
   loading.value = true;
   try {
     const { data } = await apiClient.get('/tasks');
-    openTasks.value = data || [];
+    openTasks.value = Array.isArray(data) ? data : data?.items || [];
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '加载失败');
   } finally {
@@ -62,13 +62,24 @@ async function loadMine() {
   loading.value = true;
   try {
     const { data } = await apiClient.get('/tasks/my/accepts');
-    myAccepts.value = data || [];
+    myAccepts.value = Array.isArray(data) ? data : [];
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '加载失败');
   } finally {
     loading.value = false;
   }
 }
+
+// 我接的任务后端返 {task, acceptedAt, submittedCount} — 摊平到顶层, 让模板字段访问统一
+const visibleTasks = computed(() => {
+  if (tab.value === 'open') return openTasks.value;
+  return myAccepts.value.map((a) => ({
+    ...a.task,
+    acceptedAt: a.acceptedAt,
+    submittedCount: a.submittedCount,
+    acceptedByMe: true,
+  }));
+});
 
 async function load() {
   if (tab.value === 'open') await loadOpen();
@@ -144,7 +155,7 @@ onMounted(() => {
     <div v-else class="grid md:grid-cols-2 gap-4">
       <!-- 任务板卡片 -->
       <div
-        v-for="t in (tab === 'open' ? openTasks : myAccepts)"
+        v-for="t in visibleTasks"
         :key="t.id"
         class="bg-surface rounded-2xl border border-line p-5 hover:border-gold/50 transition"
       >
@@ -184,7 +195,7 @@ onMounted(() => {
             >已接单</span>
             <button
               v-if="(tab === 'open' && t.acceptedByMe) || tab === 'mine'"
-              @click="goSubmit(t.task?.id || t.id)"
+              @click="goSubmit(t.id)"
               class="px-4 py-1.5 border border-gold text-gold rounded-full text-xs font-medium hover:bg-gold hover:text-ink transition"
             >{{ t.submittedCount > 0 ? '继续提交' : '提交 IP' }}</button>
           </div>
