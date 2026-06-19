@@ -39,10 +39,15 @@ apiClient.interceptors.response.use(
 
 export const publicOssBase = import.meta.env.VITE_OSS_PUBLIC_BASE || '';
 
+// OSS URL 拼接 — 默认相对路径,经 nginx /ips/ 反代到 OSS bucket
+// (避免 HTTPS 资源在 HTTP 页面被浏览器当 mixed content 拦截)
+// 设 VITE_OSS_PUBLIC_BASE 为完整 URL (https://...) 时回退到绝对 URL, 用于未配反代的场景
 export function ossUrl(key?: string): string {
   if (!key) return '';
   if (key.startsWith('http')) return key;
-  return `${publicOssBase}/${key}`;
+  if (publicOssBase.startsWith('http')) return `${publicOssBase}/${key}`;
+  // publicOssBase 为空或为路径前缀 (/oss), 都拼成相对路径 — 跟随当前 origin + protocol
+  return `/${key.replace(/^\/+/, '')}`;
 }
 
 export function formatFen(fen: number | string): string {

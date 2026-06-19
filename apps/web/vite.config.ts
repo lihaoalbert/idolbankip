@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_BASE_URL || 'http://localhost:3100',
           changeOrigin: true,
         },
+        // dev: /ips/ → 阿里云 OSS 公共 bucket (prod 由 nginx 反代, 不需此 proxy)
+        '/ips/': {
+          target: 'https://ibi-public.oss-cn-shanghai.aliyuncs.com',
+          changeOrigin: true,
+          secure: true,
+        },
       },
     },
     build: {
