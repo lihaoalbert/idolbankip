@@ -16,6 +16,7 @@ onMounted(() => auth.bootstrap());
           <RouterLink to="/ips/queue" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">IP 审核</RouterLink>
           <RouterLink to="/kyc/queue" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">KYC 审核</RouterLink>
           <RouterLink to="/cert/queue" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">版权证书</RouterLink>
+          <RouterLink to="/tasks" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">任务中心</RouterLink>
           <RouterLink to="/orders" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">订单</RouterLink>
           <RouterLink to="/users" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">用户</RouterLink>
         </nav>

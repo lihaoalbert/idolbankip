@@ -35,6 +35,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/CertQueuePage.vue'),
   },
   {
+    path: '/tasks',
+    name: 'tasks',
+    component: () => import('@/pages/TasksPage.vue'),
+  },
+  {
+    path: '/tasks/:id',
+    name: 'task-detail-admin',
+    component: () => import('@/pages/TaskDetailAdminPage.vue'),
+    props: true,
+  },
+  {
     path: '/orders',
     name: 'orders',
     component: () => import('@/pages/OrdersPage.vue'),
