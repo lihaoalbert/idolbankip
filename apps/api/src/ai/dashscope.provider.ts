@@ -1,15 +1,20 @@
 /**
- * 阿里云通义万相 (DashScope / Model Studio 专用端点) — AI 图生成
+ * 阿里云通义 wan2.x 图像生成 (DashScope multimodal-generation 端点)
  *
- * 用户提供的专用端点 (Bailian 部署) — 走标准 DashScope async API:
- *   1) POST /api/v1/services/aigc/text2image/image-synthesis   → task_id
- *   2) GET  /api/v1/tasks/{task_id}                            → 轮询到 SUCCEEDED
- *   3) 下载 results[0].url → Buffer
+ * 走同步 API — 一次调用直接返回图片 URL, 不需要轮询:
+ *   POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+ *   body: { model, input.messages[].content[].text, parameters.size, parameters.n }
+ *   resp: { output.choices[0].message.content[].image } — URL
  *
- * 模型: wanx2.1-t2i-turbo (5-10s/张, ~¥0.08/张)
+ * 模型: wan2.7-image-pro (同步, 高质量, ~¥0.1/张)
+ *
+ * 为什么不走用户的 Bailian 专用端 (llm-kws2k62lct9sz57k.cn-beijing.maas.aliyuncs.com):
+ * - 该端点只部署了文本 (qwen-plus 等), 不含图像生成的 multimodal-generation 路由
+ * - 公网 dashscope.aliyuncs.com 才是阿里云官方推荐的统一端点
+ * - 同一个 API key 两边通用, 文本走专用端, 图像走公网端
  *
  * 失败处理: 全部走 ServiceUnavailableException (503), 前端展示"AI 服务暂不可用"
- * 配置缺失: apiKey 为空 或 host 为空 → 视为未配置
+ * 配置缺失: apiKey 为空 → 视为未配置
  */
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +23,7 @@ export interface DashScopeImageGenOpts {
   prompt: string;
   /** 输出尺寸, 默认 1024*1024 (square). 16:9 用 1280*720 */
   size?: string;
-  /** 模型覆盖, 默认 wanx2.1-t2i-turbo */
+  /** 模型覆盖, 默认 wan2.7-image-pro */
   model?: string;
 }
 
@@ -26,39 +31,41 @@ export interface DashScopeImageGenOpts {
 export class DashScopeProvider {
   private readonly logger = new Logger(DashScopeProvider.name);
   private readonly apiKey: string;
-  private readonly host: string;
+  private readonly endpoint: string;
   private readonly defaultModel: string;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('DASHSCOPE_API_KEY', '');
-    this.host = config.get<string>('DASHSCOPE_HOST', '').replace(/\/+$/, '');
-    this.defaultModel = config.get<string>('DASHSCOPE_MODEL', 'wanx2.1-t2i-turbo');
+    // 公网端点是 multimodal-generation — wan2.x 同步出图的唯一路径
+    // 用户的 DASHSCOPE_HOST 是 Bailian 专用端 (只跑文本), 这里硬编码公网端
+    this.endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+    this.defaultModel = config.get<string>('DASHSCOPE_MODEL', 'wan2.7-image-pro');
     if (!this.isConfigured()) {
-      this.logger.warn('DASHSCOPE_API_KEY 或 DASHSCOPE_HOST 未配置, AI 图生成会 503');
+      this.logger.warn('DASHSCOPE_API_KEY 未配置, AI 图生成会 503');
+    } else {
+      this.logger.log(`DashScope configured: endpoint=${this.endpoint} model=${this.defaultModel}`);
     }
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey && !!this.host;
+    return !!this.apiKey;
   }
 
   /**
-   * 调通义万相生成一张图
-   * 流程: 提交异步任务 → 轮询最多 60s → 下载结果
-   * 返回: jpeg/png Buffer (MIME 由通义万相决定, 通常 image/jpeg)
+   * 调通义 wan2.x 生成一张图 (同步)
+   * 返回: jpeg/png Buffer + MIME (由 DashScope 决定, 通常 image/png)
    */
   async imageGen(opts: DashScopeImageGenOpts): Promise<{ buffer: Buffer; mime: string }> {
     if (!this.isConfigured()) {
-      throw new ServiceUnavailableException('通义万相未配置 (DASHSCOPE_API_KEY / DASHSCOPE_HOST 缺失)');
+      throw new ServiceUnavailableException('通义万相未配置 (DASHSCOPE_API_KEY 缺失)');
     }
     const model = opts.model || this.defaultModel;
     const size = opts.size || '1024*1024';
 
-    // 1. 提交任务
-    const submitUrl = `${this.host}/api/v1/services/aigc/text2image/image-synthesis`;
-    let taskId: string;
+    // 1. 同步提交 — 直接返回 image URL
+    let imageUrl: string | null = null;
     try {
-      const submitRes = await fetch(submitUrl, {
+      const res = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -66,64 +73,45 @@ export class DashScopeProvider {
         },
         body: JSON.stringify({
           model,
-          input: { prompt: opts.prompt },
+          input: {
+            messages: [
+              { role: 'user', content: [{ text: opts.prompt }] },
+            ],
+          },
           parameters: { size, n: 1 },
         }),
       });
-      if (!submitRes.ok) {
-        const errText = await submitRes.text();
-        this.logger.error(`DashScope submit HTTP ${submitRes.status}: ${errText.slice(0, 500)}`);
-        throw new ServiceUnavailableException(`通义万相提交失败 (HTTP ${submitRes.status})`);
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.error(`DashScope HTTP ${res.status}: ${errText.slice(0, 500)}`);
+        // 403 "synchronous calls" → API key 没开图生成权限
+        const isImageScopeIssue = res.status === 403 && /synchronous calls|image|通义万相/i.test(errText);
+        // 400 "url error" → 模型名错 / 端点错
+        const isUrlError = res.status === 400 && /url error/i.test(errText);
+        const msg = isImageScopeIssue
+          ? '通义万相提交失败 (HTTP 403): API key 未开通图像生成权限, 请到阿里云百炼控制台 → API-Key 管理 → 给此 key 开通【通义万相】服务'
+          : isUrlError
+            ? '通义万相提交失败 (HTTP 400): 模型名或端点无效, 请检查 DASHSCOPE_MODEL 配置 (当前: ' + model + ')'
+            : `通义万相提交失败 (HTTP ${res.status})`;
+        throw new ServiceUnavailableException(msg);
       }
-      const submitJson: any = await submitRes.json();
-      taskId = submitJson?.output?.task_id;
-      if (!taskId) {
-        this.logger.error(`DashScope submit no task_id: ${JSON.stringify(submitJson).slice(0, 500)}`);
-        throw new ServiceUnavailableException('通义万相提交未返回 task_id');
+      const json: any = await res.json();
+      // multimodal-generation 响应: output.choices[0].message.content[].image
+      const content = json?.output?.choices?.[0]?.message?.content ?? [];
+      const imgItem = Array.isArray(content) ? content.find((c: any) => c?.image) : null;
+      imageUrl = imgItem?.image ?? null;
+      if (!imageUrl) {
+        this.logger.error(`DashScope no image in response: ${JSON.stringify(json).slice(0, 500)}`);
+        throw new ServiceUnavailableException('通义万相未返回图片 (内容审核拒绝或响应格式异常)');
       }
-      this.logger.log(`imageGen submitted: model=${model} size=${size} task=${taskId}`);
+      this.logger.log(`imageGen done: model=${model} size=${size} url=${imageUrl.slice(0, 80)}...`);
     } catch (e: any) {
       if (e instanceof ServiceUnavailableException) throw e;
-      this.logger.error(`DashScope submit 网络错误: ${e?.message || e}`);
+      this.logger.error(`DashScope 网络错误: ${e?.message || e}`);
       throw new ServiceUnavailableException('通义万相服务暂不可用');
     }
 
-    // 2. 轮询直到 SUCCEEDED / FAILED, 最多 60s
-    const pollUrl = `${this.host}/api/v1/tasks/${taskId}`;
-    const deadline = Date.now() + 60_000;
-    let imageUrl: string | null = null;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 2_000));
-      let pollJson: any;
-      try {
-        const pollRes = await fetch(pollUrl, {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-        });
-        if (!pollRes.ok) {
-          this.logger.warn(`DashScope poll HTTP ${pollRes.status}, retrying...`);
-          continue;
-        }
-        pollJson = await pollRes.json();
-      } catch (e: any) {
-        this.logger.warn(`DashScope poll 网络错误: ${e?.message || e}, retrying...`);
-        continue;
-      }
-      const status = pollJson?.output?.task_status;
-      if (status === 'SUCCEEDED') {
-        imageUrl = pollJson?.output?.results?.[0]?.url ?? null;
-        break;
-      }
-      if (status === 'FAILED') {
-        this.logger.error(`DashScope task FAILED: ${JSON.stringify(pollJson).slice(0, 500)}`);
-        throw new ServiceUnavailableException('通义万相生成失败 (内容审核/限流)');
-      }
-      // PENDING / RUNNING — 继续轮询
-    }
-    if (!imageUrl) {
-      throw new ServiceUnavailableException('通义万相生成超时 (60s)');
-    }
-
-    // 3. 下载结果
+    // 2. 下载结果
     const imgRes = await fetch(imageUrl);
     if (!imgRes.ok) {
       this.logger.error(`DashScope 结果下载 HTTP ${imgRes.status}`);
@@ -131,8 +119,8 @@ export class DashScopeProvider {
     }
     const ab = await imgRes.arrayBuffer();
     const buffer = Buffer.from(ab);
-    const mime = imgRes.headers.get('content-type') || 'image/jpeg';
-    this.logger.log(`imageGen done: task=${taskId} size=${buffer.length}B mime=${mime}`);
+    const mime = imgRes.headers.get('content-type') || 'image/png';
+    this.logger.log(`imageGen buffer: size=${buffer.length}B mime=${mime}`);
     return { buffer, mime };
   }
 }

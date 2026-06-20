@@ -194,6 +194,7 @@ export class AiService {
     creatorId: string,
     ipId: string,
     imageType: AssetType,
+    size?: string,
     promptOverride?: string,
   ): Promise<{ fileId: string; assetType: AssetType; ossKey: string }> {
     if (!this.dashscope.isConfigured()) {
@@ -205,8 +206,10 @@ export class AiService {
     const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
     if (!ip) throw new NotFoundException('IP 不存在');
     if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
-    if (ip.status !== 'PENDING_REVIEW') {
-      throw new BadRequestException(`仅 PENDING_REVIEW 状态可生成图片, 当前 ${ip.status}`);
+    // 允许 PENDING_REVIEW / PUBLIC_INTENT / OFFICIAL_REGISTERED 状态 (创作者总能补图)
+    // 仅拒绝 REVIEWED_PROOFING (审核中, 等审完再补) / REJECTED (被拒) / ARCHIVED (归档)
+    if (!['PENDING_REVIEW', 'PUBLIC_INTENT', 'OFFICIAL_REGISTERED'].includes(ip.status)) {
+      throw new BadRequestException(`当前 IP 状态 ${ip.status} 不允许 AI 生成, 仅 PENDING_REVIEW/PUBLIC_INTENT/OFFICIAL_REGISTERED 可用`);
     }
     // 面部特写是参考基准 — 没有就不能 AI 生成
     const faceCloseupId = ip.faceCloseupFileId;
@@ -230,7 +233,8 @@ export class AiService {
     const t0 = Date.now();
     const { buffer, mime } = await this.dashscope.imageGen({
       prompt: fullPrompt,
-      size: IMAGE_GEN_SIZES[imageType] || undefined,
+      // 优先用前端传的 size, 否则用 prompts.ts 的默认值
+      size: size || IMAGE_GEN_SIZES[imageType] || undefined,
     });
     const ms = Date.now() - t0;
     this.logger.log(`AI image gen done: ipId=${ipId} type=${imageType} ms=${ms} bytes=${buffer.length} mime=${mime}`);
@@ -278,8 +282,8 @@ export class AiService {
     const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
     if (!ip) throw new NotFoundException('IP 不存在');
     if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
-    if (ip.status !== 'PENDING_REVIEW') {
-      throw new BadRequestException(`仅 PENDING_REVIEW 状态可生成, 当前 ${ip.status}`);
+    if (!['PENDING_REVIEW', 'PUBLIC_INTENT', 'OFFICIAL_REGISTERED'].includes(ip.status)) {
+      throw new BadRequestException(`当前 IP 状态 ${ip.status} 不允许 AI 生成, 仅 PENDING_REVIEW/PUBLIC_INTENT/OFFICIAL_REGISTERED 可用`);
     }
     // faceTags (Prisma Json) — 安全 stringify
     const faceTagsText = Array.isArray(ip.faceTags)

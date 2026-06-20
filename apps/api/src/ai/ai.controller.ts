@@ -46,7 +46,7 @@ export class AiController {
   @Roles(UserRole.CREATOR)
   @Post('generate-image')
   async generateImage(@CurrentUser() u: JwtUser, @Body() body: GenerateImageDto) {
-    return this.ai.generateImage(u.id, body.ipId, body.imageType, body.promptOverride);
+    return this.ai.generateImage(u.id, body.ipId, body.imageType, body.size, body.promptOverride);
   }
 
   /**
