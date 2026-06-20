@@ -3,14 +3,18 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { apiClient, ossUrl, formatFen } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useHonor } from '@/composables/useHonor';
 import WatermarkOverlay from '@/components/WatermarkOverlay.vue';
 import Skeleton from '@/components/Skeleton.vue';
 import { useToast } from '@/composables/useToast';
+import HonorChip from '@/components/HonorChip.vue';
+import type { HonorLevelInfo } from '@/api/client';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const toast = useToast();
+const honor = useHonor();
 
 const code = computed(() => route.params.code as string);
 const ip = ref<any>(null);
@@ -85,7 +89,7 @@ const licenseTiers = computed(() => {
 });
 
 const statusTimeline = computed(() => [
-  { code: 'CREATED', label: '创作者上传', ts: ip.value?.createdAt },
+  { code: 'CREATED', label: '捏脸师上传', ts: ip.value?.createdAt },
   { code: 'PUBLIC_INTENT', label: '区块链存证 + 公示', ts: ip.value?.publishedAt },
   { code: 'OFFICIAL_REGISTERED', label: '官方著作权登记', ts: ip.value?.officialAt },
 ]);
@@ -99,7 +103,13 @@ async function fetchDetail() {
   try {
     const { data } = await apiClient.get(`/ips/${code.value}`);
     ip.value = data.ip;
+    creator.value = data.creator;
     files.value = data.files;
+    // #30.6.20 — 作者公开页加载其荣誉面板 (等级 + 称号 chip)
+    if (creator.value?.id) {
+      const profile = await honor.loadProfile(creator.value.id);
+      creatorHonorLevel.value = profile?.honor?.level ?? null;
+    }
   } catch (e: any) {
     const msg = e?.response?.data?.message || '加载失败';
     error.value = msg;
@@ -108,6 +118,9 @@ async function fetchDetail() {
     loading.value = false;
   }
 }
+
+const creator = ref<{ id: string; displayName: string; avatarUrl?: string | null; bio?: string | null } | null>(null);
+const creatorHonorLevel = ref<HonorLevelInfo | null>(null);
 
 function checkout(orderType: 'DEPOSIT_INTENT' | 'FULL_LICENSE', scope?: string) {
   if (!auth.isAuthenticated) {
@@ -223,6 +236,20 @@ onMounted(fetchDetail);
           <div class="flex gap-2 mt-3 flex-wrap">
             <span v-for="t in (ip.styleTags?.split(',') || []).filter(Boolean)" :key="t" class="px-2 py-0.5 text-[10px] bg-white/20 backdrop-blur rounded-full">{{ t }}</span>
           </div>
+          <!-- #30.6.20 — 捏脸师署名 + 称号 chip — 跳转到公开主页 -->
+          <RouterLink
+            v-if="creator"
+            :to="`/u/${creator.id}`"
+            class="mt-3 inline-flex items-center gap-2 group"
+          >
+            <span class="text-xs text-white/80 group-hover:text-white transition">by</span>
+            <span class="text-sm font-medium text-white group-hover:text-gold transition">{{ creator.displayName }}</span>
+            <HonorChip
+              v-if="creatorHonorLevel"
+              :level="creatorHonorLevel"
+              variant="chip"
+            />
+          </RouterLink>
         </div>
         <div class="text-right shrink-0">
           <div class="text-xs font-mono text-white/80">{{ ip.code }}</div>
@@ -443,7 +470,7 @@ onMounted(fetchDetail);
           </div>
           <p class="text-[11px] text-ink/40 mt-3 leading-relaxed">
             所有正式授权均含电子签授权书 + 完整资产包下载。<br>
-            阶梯价基于创作者设定起价,具体可在商务洽谈阶段调整。
+            阶梯价基于捏脸师设定起价,具体可在商务洽谈阶段调整。
           </p>
         </div>
       </aside>

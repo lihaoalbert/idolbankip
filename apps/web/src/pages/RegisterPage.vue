@@ -32,7 +32,7 @@ const isCreator = computed(() => form.value.roles.CREATOR);
 async function submit() {
   if (!form.value.agree) { error.value = '请先同意用户协议'; return; }
   if (selectedRoles.value.length === 0) {
-    error.value = '请至少勾选一个身份 (创作者 / 采购方)';
+    error.value = '请至少勾选一个身份 (捏脸师 / 采购方)';
     return;
   }
   error.value = '';
@@ -69,7 +69,7 @@ async function submit() {
         :class="{ 'border-gold bg-gold/5': form.roles.CREATOR }">
         <input v-model="form.roles.CREATOR" type="checkbox" class="mt-1" />
         <div>
-          <div class="font-medium text-sm">我是创作者 (A 端)</div>
+          <div class="font-medium text-sm">我是捏脸师 (A 端)</div>
           <div class="text-xs text-ink/60 mt-0.5">上传虚拟人资产、设置授权价格、获得收益分成</div>
         </div>
       </label>

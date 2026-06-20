@@ -54,3 +54,116 @@ export function formatFen(fen: number | string): string {
   const n = typeof fen === 'string' ? parseInt(fen, 10) : fen;
   return `¥${(n / 100).toFixed(2)}`;
 }
+
+// ===================== 荣誉系统 API =====================
+
+export interface HonorLevelInfo {
+  level: number;
+  minPoints: number;
+  title: string;
+  icon: string;
+  colorHex: string;
+}
+
+export interface HonorStreak {
+  current: number;
+  longest: number;
+  totalDays: number;
+}
+
+export interface HonorMe {
+  totalPoints: number;
+  level: HonorLevelInfo;
+  streak: HonorStreak;
+  badgesEarned: number;
+  ipsCreated: number;
+  recentLedger: Array<{
+    id: string;
+    action: string;
+    delta: number;
+    reason: string;
+    createdAt: string;
+  }>;
+  nextLevel: HonorLevelInfo | null;
+}
+
+export interface HonorBadge {
+  code: string;
+  name: string;
+  desc: string;
+  icon: string;
+  tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  grantedAt?: string;
+}
+
+export interface HonorLeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  periodPoints: number;
+  level: HonorLevelInfo;
+  streak: number;
+}
+
+export interface UserProfileData {
+  user: {
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+    bio: string | null;
+    createdAt: string;
+  };
+  honor: {
+    totalPoints: number;
+    level: HonorLevelInfo;
+    streak: HonorStreak;
+  };
+  stats: {
+    ipCount: number;
+    totalViews: number;
+    totalFavorites: number;
+  };
+  badges: HonorBadge[];
+  ips: Array<{
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+    priceFen: number;
+    viewCount: number;
+    favoriteCount: number;
+    thumbUrl: string | null;
+    styleTags: string;
+    createdAt: string;
+  }>;
+}
+
+/** 当前用户的荣誉面板 */
+export async function getHonorMe(): Promise<HonorMe> {
+  const r = await apiClient.get<HonorMe>('/honor/me');
+  return r.data;
+}
+
+/** 公开排行榜 */
+export async function getHonorLeaderboard(
+  period: 'week' | 'month' | 'all' = 'all',
+  limit = 50,
+): Promise<HonorLeaderboardEntry[]> {
+  const r = await apiClient.get<HonorLeaderboardEntry[]>('/honor/leaderboard', {
+    params: { period, limit },
+  });
+  return r.data;
+}
+
+/** 公开个人主页 */
+export async function getUserProfile(userId: string): Promise<UserProfileData> {
+  const r = await apiClient.get<UserProfileData>(`/users/${userId}/profile`);
+  return r.data;
+}
+
+/** 公开 — 用户已获徽章 */
+export async function getUserBadges(userId: string): Promise<HonorBadge[]> {
+  const r = await apiClient.get<HonorBadge[]>(`/users/${userId}/badges`);
+  return r.data;
+}

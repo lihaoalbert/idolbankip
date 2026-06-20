@@ -78,6 +78,14 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/creator/ApiKeysPage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  // 公开个人主页 — 捏脸师 /u/:userId
+  {
+    path: '/u/:userId',
+    name: 'user-profile',
+    component: () => import('@/pages/UserProfilePage.vue'),
+    props: true,
+    meta: { public: true },
+  },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/pages/NotFoundPage.vue') },
 ];
 

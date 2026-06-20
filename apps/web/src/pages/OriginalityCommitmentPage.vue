@@ -78,7 +78,7 @@ const version = 'v1.0';
     </article>
 
     <div class="mt-8 text-center">
-      <RouterLink to="/creator/ips/new" class="text-xs text-gold hover:underline">← 返回创作者中心</RouterLink>
+      <RouterLink to="/creator/ips/new" class="text-xs text-gold hover:underline">← 返回捏脸师中心</RouterLink>
     </div>
   </div>
 </template>

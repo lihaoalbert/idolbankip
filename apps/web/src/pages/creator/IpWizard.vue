@@ -1034,7 +1034,7 @@ const stepMeta = [
   </div>
 
   <div v-else class="max-w-4xl mx-auto px-6 py-10">
-    <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回创作者中心</RouterLink>
+    <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回捏脸师中心</RouterLink>
     <!-- 标题区 + 顶部右侧面部特写入口 — 跨步骤、新建/已建都可见 (修了 #30.6.11 v-else 漏改) -->
     <div class="flex items-start justify-between mb-2 gap-4">
       <div class="min-w-0 flex-1">

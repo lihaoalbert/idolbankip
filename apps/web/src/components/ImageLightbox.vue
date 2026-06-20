@@ -190,7 +190,7 @@ function onKeydown(e: KeyboardEvent) {
           <!-- AI prompt 展开 (仅 AI 生成图) -->
           <details v-if="showAiPrompt" class="px-5 py-3 border-t border-line shrink-0 text-xs">
             <summary class="cursor-pointer text-ink/70 hover:text-ink select-none">
-              🪄 查看 AI 提示词 (创作者可复制到 Midjourney/ComfyUI 等工具二次微调)
+              🪄 查看 AI 提示词 (捏脸师可复制到 Midjourney/ComfyUI 等工具二次微调)
             </summary>
             <pre class="mt-2 p-3 bg-cream/60 rounded-lg whitespace-pre-wrap break-words text-[11px] leading-relaxed text-ink/80 max-h-40 overflow-auto">{{ file.aiPrompt }}</pre>
           </details>

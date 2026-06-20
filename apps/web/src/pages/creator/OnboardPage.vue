@@ -91,7 +91,7 @@ async function goToCreator() {
     }
     await router.push('/creator');
   } catch {
-    toast.error('进入创作者中心失败');
+    toast.error('进入捏脸师中心失败');
     upgrading.value = false;
   }
 }
@@ -101,9 +101,9 @@ onMounted(fetchStatus);
 
 <template>
   <div class="max-w-2xl mx-auto px-6 py-12">
-    <h1 class="font-display text-3xl mb-2">升级为创作者</h1>
+    <h1 class="font-display text-3xl mb-2">升级为捏脸师</h1>
     <p class="text-sm text-ink/60 mb-10">
-      想把自己创造的虚拟形象上架到 ibi.ren? 完成 KYC 认证即可开通创作者权限。
+      想把自己创造的虚拟形象上架到 ibi.ren? 完成 KYC 认证即可开通捏脸师权限。
     </p>
 
     <div v-if="loading" class="space-y-4">

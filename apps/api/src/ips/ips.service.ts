@@ -609,12 +609,18 @@ export class IpsService {
     if (ip.status === 'PENDING_REVIEW' || ip.status === 'REJECTED' || ip.status === 'ARCHIVED') {
       throw new NotFoundException('该 IP 暂不可见');
     }
+    // #30.6.20 加载捏脸师公开信息 — 用于详情页作者名旁的称号 chip
+    const creator = await this.prisma.user.findUnique({
+      where: { id: ip.creatorId },
+      select: { id: true, displayName: true, avatarUrl: true, bio: true, roles: true },
+    });
     const files = await this.prisma.ipFile.findMany({
       where: { ipId: ip.id },
       orderBy: { assetType: 'asc' },
     });
     return {
       ip,
+      creator,
       files: files.map(f => ({
         id: f.id,
         assetType: f.assetType,

@@ -30,7 +30,7 @@ onMounted(async () => {
 const steps = [
   {
     title: '上传资产包',
-    desc: '创作者按 8 类标准上传: 三视图 / 表情 / 立绘 / LoRA / Prompt / 小传 / 声音 / 资产包。',
+    desc: '捏脸师按 8 类标准上传: 三视图 / 表情 / 立绘 / LoRA / Prompt / 小传 / 声音 / 资产包。',
   },
   {
     title: '三道审核',
@@ -125,7 +125,7 @@ const layers = [
           >浏览资产库 →</RouterLink>
           <BecomeCreatorLink
             class="px-7 py-3.5 border border-ink rounded-full hover:bg-ink hover:text-cream transition tracking-wide"
-          >成为创作者</BecomeCreatorLink>
+          >成为捏脸师</BecomeCreatorLink>
         </div>
       </div>
     </section>
@@ -296,7 +296,7 @@ const layers = [
             </h3>
             <p class="text-cream/70 leading-relaxed mb-6">
               你的虚拟人 vs 国内外明星库, 人脸相似度比对。
-              创作者上架前自检 + 采购方下单前确认, 双重保险。
+              捏脸师上架前自检 + 采购方下单前确认, 双重保险。
             </p>
             <ul class="space-y-2 text-sm text-cream/80 mb-6">
               <li class="flex gap-2">

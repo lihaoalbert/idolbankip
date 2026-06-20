@@ -28,7 +28,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
           <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
-          <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">创作者中心</RouterLink>
+          <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">捏脸师中心</RouterLink>
           <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
           <RouterLink v-if="showBuyerLinks" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
           <template v-if="!auth.isAuthenticated">
@@ -99,7 +99,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
           <h4 class="font-medium mb-3">产品</h4>
           <ul class="space-y-1.5 text-xs text-ink/60">
             <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
-            <li><BecomeCreatorLink class="hover:text-ink">成为创作者</BecomeCreatorLink></li>
+            <li><BecomeCreatorLink class="hover:text-ink">成为捏脸师</BecomeCreatorLink></li>
             <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
           </ul>
         </div>

@@ -3,11 +3,15 @@ import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
+import { useHonor } from '@/composables/useHonor';
 import Skeleton from '@/components/Skeleton.vue';
 import EmptyState from '@/components/EmptyState.vue';
+import HonorChip from '@/components/HonorChip.vue';
+import HonorStreakChip from '@/components/HonorStreakChip.vue';
 
 const auth = useAuthStore();
 const toast = useToast();
+const { me: honorMe, loadMe: loadHonorMe } = useHonor();
 const items = ref<any[]>([]);
 const loading = ref(true);
 const kycStatus = ref<string | null>(null);
@@ -148,13 +152,30 @@ const filterChips = [
   { key: 'ARCHIVED', label: '已归档' },
 ] as const;
 
-onMounted(fetch);
+onMounted(async () => {
+  await Promise.all([fetch(), loadHonorMe()]);
+});
+
+// 距离下一级还差多少捏脸币 — 进度条百分比 (0-100)
+const progressToNextPct = computed(() => {
+  const me = honorMe.value;
+  if (!me?.nextLevel) return 0;
+  const target = Math.max(1, me.nextLevel.minPoints);
+  return Math.min(100, Math.round((me.totalPoints / target) * 100));
+});
+
+// 进度条标签 — 当前 / 目标
+const progressLabel = computed(() => {
+  const me = honorMe.value;
+  if (!me?.nextLevel) return null;
+  return `${me.totalPoints.toLocaleString()} / ${me.nextLevel.minPoints.toLocaleString()}`;
+});
 </script>
 
 <template>
   <div class="max-w-6xl mx-auto px-6 py-10">
     <div class="flex items-baseline justify-between mb-2">
-      <h1 class="font-display text-3xl">创作者中心</h1>
+      <h1 class="font-display text-3xl">捏脸师中心</h1>
       <div class="flex items-center gap-3">
         <RouterLink
           to="/creator/tasks"
@@ -172,6 +193,60 @@ onMounted(fetch);
     </div>
     <p class="text-sm text-ink/60 mb-8">{{ auth.user?.displayName }} · {{ auth.user?.email }}</p>
 
+    <!-- 捏脸师荣誉面板 (#30.6.20) — 等级 / 称号 / 连续天数 / 累计捏脸币 / 最近流水 -->
+    <section v-if="honorMe" class="mb-8 p-5 bg-surface border border-line rounded-2xl">
+      <div class="flex items-center gap-4 flex-wrap">
+        <HonorChip :level="honorMe.level" variant="block" />
+        <HonorStreakChip
+          v-if="honorMe.streak.current"
+          :current="honorMe.streak.current"
+          :longest="honorMe.streak.longest"
+        />
+        <span class="px-3 py-1 rounded-full bg-gradient-to-br from-yellow-50 to-amber-200 text-amber-800 text-sm font-semibold">
+          💰 {{ honorMe.totalPoints.toLocaleString() }} 捏脸币
+        </span>
+        <span class="text-xs text-ink/50">
+          🏅 {{ honorMe.badgesEarned }} 徽章 · 🎨 {{ honorMe.ipsCreated }} IP
+        </span>
+        <RouterLink
+          v-if="auth.user?.id"
+          :to="`/u/${auth.user.id}`"
+          class="ml-auto text-xs text-ink/60 hover:text-gold transition"
+        >
+          查看我的主页 →
+        </RouterLink>
+      </div>
+      <!-- 进度条: 距离下一级还差多少捏脸币 -->
+      <div v-if="honorMe.nextLevel" class="mt-4">
+        <div class="flex items-center justify-between text-xs text-ink/60 mb-1">
+          <span>距下一级 {{ honorMe.nextLevel.icon }} {{ honorMe.nextLevel.title }}</span>
+          <span class="font-mono">{{ progressLabel }}</span>
+        </div>
+        <div class="h-1.5 bg-cream rounded-full overflow-hidden">
+          <div
+            class="h-full bg-gold transition-all"
+            :style="{ width: progressToNextPct + '%' }"
+          />
+        </div>
+      </div>
+      <!-- 最近 3 条流水 -->
+      <div v-if="honorMe.recentLedger?.length" class="mt-4 pt-4 border-t border-line/50">
+        <div class="text-xs text-ink/50 mb-2">最近荣誉流水</div>
+        <ul class="space-y-1">
+          <li
+            v-for="row in honorMe.recentLedger.slice(0, 3)"
+            :key="row.id"
+            class="flex items-center justify-between text-xs"
+          >
+            <span class="text-ink/70 truncate flex-1 mr-3">{{ row.reason }}</span>
+            <span :class="row.delta >= 0 ? 'text-success font-mono' : 'text-danger font-mono'">
+              {{ row.delta >= 0 ? '+' : '' }}{{ row.delta }}
+            </span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <!-- KYC 审核中提示 banner — 见 #19, 创作者 KYC PENDING 时 dashboard 也要能看见 -->
     <div
       v-if="kycStatus === 'PENDING' || kycStatus === 'REJECTED'"
@@ -188,7 +263,7 @@ onMounted(fetch);
           </div>
           <div :class="['leading-relaxed', kycStatus === 'PENDING' ? 'text-blue-800/80' : 'text-red-800/80']">
             <template v-if="kycStatus === 'PENDING'">
-              升级为创作者需要先完成 KYC。审核通常 1-2 个工作日,完成后会自动开通创作者权限。
+              升级为捏脸师需要先完成 KYC。审核通常 1-2 个工作日,完成后会自动开通捏脸师权限。
             </template>
             <template v-else>
               KYC 未通过,无法上传 IP。请修正后重新提交。
