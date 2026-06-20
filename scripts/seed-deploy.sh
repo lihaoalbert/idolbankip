@@ -6,6 +6,7 @@
 #   bash scripts/seed-deploy.sh all           # users + ips
 #   bash scripts/seed-deploy.sh gen-images    # 生成占位图
 #   bash scripts/seed-deploy.sh upload-thumbs # 缩略图上传 OSS
+#   bash scripts/seed-deploy.sh honor         # 荣誉系统规则 (HonorRule/HonorLevel/HonorBadge)
 #
 # 替换 AGENTS.md §3.3 的 4 行手敲命令:
 #   cd /opt/ibiren/apps/api
@@ -91,6 +92,10 @@ case "$CMD" in
     warn_idempotent "upload-thumbs: 缩略图上传 OSS"
     run_ecs_seed "pnpm run upload:thumbs"
     ;;
+  honor)
+    warn_idempotent "seed-honor: 荣誉系统规则 (HonorRule 23 + HonorLevel 24 + HonorBadge 35)"
+    run_ecs_seed "pnpm exec tsx ../../scripts/seed-honor.ts"
+    ;;
   status)
     # 不写,只查看当前 ECS 上的数据状态
     echo "==== ECS 数据库状态 ===="
@@ -109,7 +114,7 @@ case "$CMD" in
        \" 2>&1 | tail -10"
     ;;
   *)
-    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|status}"
+    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|honor|status}"
     exit 1
     ;;
 esac

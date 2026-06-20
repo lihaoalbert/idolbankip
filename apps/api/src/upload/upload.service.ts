@@ -2,9 +2,11 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { ConfigService } from '@nestjs/config';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
-import { AssetType, CertFileType, IpAsset, IpStatus } from '@prisma/client';
+import { AssetType, CertFileType, HonorAction, IpAsset, IpStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WatermarkService } from '../watermark/watermark.service';
+import { HonorService } from '../honor/honor.service';
+import { publicOssUrl } from './oss.util';
 
 export interface PolicyResult {
   host: string;
@@ -34,6 +36,15 @@ export type ProcessStep = typeof PROCESS_STEPS[number];
 
 // #33 单 IP 累计证据上限 (600MB) — 限 PROCESS_EVIDENCE 类型, 其它资产包不受影响
 export const PROCESS_EVIDENCE_TOTAL_MAX_BYTES = 600 * 1024 * 1024;
+
+// assetType → 上传类 HonorAction (其它类型不上分)
+const UPLOAD_HONOR_ACTION: Partial<Record<AssetType, HonorAction>> = {
+  [AssetType.FACE_CLOSEUP]: HonorAction.UPLOAD_FACE,
+  [AssetType.THREE_VIEW]: HonorAction.UPLOAD_THREE_VIEW,
+  [AssetType.TRANSPARENT_RENDER]: HonorAction.UPLOAD_RENDER,
+  [AssetType.EXPRESSION_GRID]: HonorAction.UPLOAD_EXPRESSION,
+  [AssetType.RECIPE_TXT]: HonorAction.UPLOAD_RECIPE,
+};
 
 // 校验规则集中放这里,这样 UI 端如果要展示"最大 5MB"也能 import
 export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: number; ext: RegExp; label: string }> = {
@@ -70,6 +81,7 @@ export class UploadService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly watermark: WatermarkService,
+    private readonly honor: HonorService,
   ) {
     const region = config.get<string>('OSS_REGION', 'oss-cn-hangzhou');
     const accessKeyId = config.get<string>('OSS_ACCESS_KEY_ID', '');
@@ -354,6 +366,20 @@ export class UploadService {
         this.logger.warn(`thumbnail gen failed for ${ip.code}: ${e?.message ?? e}`),
       );
     }
+
+    // 写入荣誉流水 — 面部特写/三视图/立绘/表情矩阵/说明书 各加对应分值
+    // 不 await, 失败也不影响主流程; record 内部限流自带 (maxPerDay / maxPerUser)
+    const action = UPLOAD_HONOR_ACTION[assetType];
+    if (action) {
+      this.honor.record(ip.creatorId, action, {
+        refType: 'IpFile',
+        refId: file.id,
+        metadata: { ipCode: ip.code, assetType },
+      }).catch((e) =>
+        this.logger.warn(`honor record failed for upload ${file.id}: ${e?.message ?? e}`),
+      );
+    }
+
     return { ok: true, fileId: file.id };
   }
 
@@ -633,6 +659,15 @@ export class UploadService {
     } catch {
       return false;
     }
+  }
+
+  /** public 桶 URL 拼装 (key → https URL, 不上传)。给个人主页等公开场景用。 */
+  publicUrlFor(key: string): string {
+    return publicOssUrl(
+      this.publicClient.options.bucket as string,
+      this.config.get('OSS_REGION') as string,
+      key,
+    );
   }
 
   private guessMime(name: string): string {

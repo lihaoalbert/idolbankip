@@ -5,13 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AgeBucket, AssetType, Ethnicity, Gender, IpAsset, IpStatus, OrderType } from '@prisma/client';
+import { AgeBucket, AssetType, Ethnicity, Gender, HonorAction, IpAsset, IpStatus, OrderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
 import { UserRole, rolesContains } from '../common/util/roles.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadService } from '../upload/upload.service';
+import { HonorService } from '../honor/honor.service';
 
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
@@ -75,6 +76,7 @@ export class IpsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly upload: UploadService,
+    private readonly honor: HonorService,
   ) {}
 
   generateNextCode(): Promise<string> {
@@ -315,6 +317,24 @@ export class IpsService {
       targetId: ip.id,
       payload: { from: ip.status, to: next },
     });
+
+    // 荣誉流水 — 状态流转触发奖励 (发奖 / 通过 / 拒绝)
+    // IP_PUBLISH (PUBLIC_INTENT) +200, IP_APPROVED (OFFICIAL_REGISTERED) +500, IP_REJECTED -100
+    const honorAction =
+      next === 'PUBLIC_INTENT' ? HonorAction.IP_PUBLISH
+      : next === 'OFFICIAL_REGISTERED' ? HonorAction.IP_APPROVED
+      : next === 'REJECTED' ? HonorAction.IP_REJECTED
+      : null;
+    if (honorAction) {
+      this.honor.record(ip.creatorId, honorAction, {
+        refType: 'IpAsset',
+        refId: ip.id,
+        metadata: { ipCode: ip.code, from: ip.status, to: next },
+      }).catch((e) =>
+        this.logger.warn(`honor record (${honorAction}) failed: ${e?.message ?? e}`),
+      );
+    }
+
     return updated;
   }
 

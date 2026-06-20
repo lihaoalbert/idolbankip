@@ -19,6 +19,7 @@
     "seed:ips": "ts-node -r tsconfig-paths/register ../../scripts/seed-ips.ts",
     "seed:users": "ts-node -r tsconfig-paths/register ../../scripts/seed-users.ts",
     "seed:all": "ts-node -r tsconfig-paths/register ../../scripts/seed-all.ts",
+    "seed:honor": "tsx ../../scripts/seed-honor.ts",
     "gen:images": "ts-node -r tsconfig-paths/register ../../scripts/lib/generate-placeholder-image.ts",
     "upload:thumbs": "ts-node -r tsconfig-paths/register ../../scripts/upload-thumbs.ts"
   },
@@ -70,6 +71,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.5.0"
   }
 }

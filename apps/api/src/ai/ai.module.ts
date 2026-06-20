@@ -8,9 +8,10 @@ import { AiController } from './ai.controller';
 import { DashScopeProvider } from './dashscope.provider';
 import { PrismaModule } from '../prisma/prisma.module';
 import { UploadModule } from '../upload/upload.module';
+import { HonorModule } from '../honor/honor.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, UploadModule],
+  imports: [ConfigModule, PrismaModule, UploadModule, HonorModule],
   providers: [AiService, DashScopeProvider],
   controllers: [AiController],
   exports: [AiService],

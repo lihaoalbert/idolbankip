@@ -135,6 +135,7 @@ model User {
   kycStatus    KycStatus @default(NOT_SUBMITTED)
   kycData      Json?
   avatarUrl    String?
+  bio          String?  @db.Text // 捏脸师个人简介
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -145,6 +146,11 @@ model User {
   kycSubs       KycSubmission[]
   notifications Notification[]
   apiKeys       ApiKey[]
+
+  // #30.6.20 捏脸师荣誉系统
+  honorLedger   HonorLedger[]
+  honorGrants   HonorBadgeGrant[]
+  honorStreak   HonorStreak?
 
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
@@ -225,6 +231,10 @@ model IpAsset {
   thumbnailKey     String // 600x600 缩略图 OSS key (FACE_CLOSEUP 优先, 否则 THREE_VIEW 兜底)
   heroVideoKey     String? // 可选 mp4
   previewImageKeys Json // [string, ...] 预览图 OSS key 列表
+
+  // 互动指标 — #30.6.20 荣誉系统 / 个人主页用
+  viewCount     Int @default(0)
+  favoriteCount Int @default(0)
 
   // 版权登记证据 — 创作者上传多张 FACE_CLOSEUP, 由其指定这一张作为版权图
   // 存量 IP 迁移时自动用第一张 THREE_VIEW 填入 (UI 标记 "占位中", 可后补)
@@ -562,4 +572,148 @@ model IpTaskAccept {
 
   @@unique([taskId, creatorId])
   @@index([creatorId])
+}
+
+// ===================== 捏脸师荣誉系统 =====================
+// 设计原则 (见 feedback_config_driven memory):
+//   - 业务规则全落 DB + seed, 代码只做 evaluator
+//   - HonorRule / HonorLevel / HonorBadge 都通过 seed-honor.ts upsert 维护
+//   - 新动作 = 加 HonorAction 枚举值 + seed 行; 不用改代码
+//   - 复杂条件走 HonorBadge.conditionJson + 注册的 evaluator 函数
+
+enum HonorAction {
+  // 上传类
+  UPLOAD_FACE
+  UPLOAD_THREE_VIEW
+  UPLOAD_RENDER
+  UPLOAD_EXPRESSION
+  UPLOAD_RECIPE
+
+  // AI 辅助类
+  AI_RECOGNIZE
+  AI_GEN_THREE_VIEW
+  AI_GEN_RENDER
+  AI_GEN_EXPRESSION
+  AI_GEN_RECIPE
+
+  // 发布类
+  IP_PUBLISH
+  IP_APPROVED
+  IP_REJECTED
+
+  // 互动类
+  IP_VIEWED
+  IP_FAVORITED
+  IP_ORDERED
+
+  // 每日活跃
+  DAILY_LOGIN
+  STREAK_3D
+  STREAK_7D
+  STREAK_30D
+
+  // 审核类 (内部)
+  CONTENT_AUDITED
+  CONTENT_REPORTED
+
+  // 系统事件
+  BADGE_EARNED         // 拿徽章本身的奖励
+  POINTS_REDEEMED      // 兑换 (商用阶段)
+  POINTS_EXPIRED       // 过期清零 (年结)
+}
+
+enum BadgeTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+/// 业务规则表 (action → 奖励值), 通过 seed-honor.ts 维护
+model HonorRule {
+  id          String      @id @default(cuid())
+  action      HonorAction @unique
+  delta       Int         // 正数=奖励, 负数=惩罚
+  reason      String      // 流水备注
+  enabled     Boolean     @default(true)
+  // 高级字段 — 留给未来活动 / 防刷
+  maxPerDay   Int?        // 单用户每日上限 (null=不限)
+  maxPerUser  Int?        // 单用户终身上限 (null=不限)
+  startAt     DateTime?
+  endAt       DateTime?   // 限时活动
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+/// 等级表 (捏脸币 → 等级 + 称号 + 颜色), 通过 seed-honor.ts 维护
+model HonorLevel {
+  level     Int    @id   // 1, 2, 3, ...
+  minPoints Int    @unique  // 入门捏脸币阈值 (>= 该值进入本等级)
+  title     String         // 称号 e.g. "新人捏脸师"
+  icon      String         // emoji e.g. "🌱"
+  colorHex  String         // UI 颜色 e.g. "#CD7F32"
+}
+
+/// 徽章目录, 通过 seed-honor.ts 维护
+model HonorBadge {
+  id            String     @id @default(cuid())
+  code          String     @unique // "FIRST_IP" / "AI_PIONEER"
+  name          String             // "初出茅庐"
+  desc          String             // 描述
+  icon          String             // emoji
+  tier          BadgeTier
+  /// JSON 描述符 — 形如 { type: "TOTAL_VIEWS_GTE", threshold: 1000 }
+  /// null 表示纯事件徽章 (e.g. "上传第一张脸" — 上传成功后直接给)
+  /// evaluator 注册在 honor/badge-evaluators.ts
+  conditionJson Json?
+  sortOrder     Int        @default(0)
+  enabled       Boolean    @default(true)
+  grants        HonorBadgeGrant[]
+
+  @@index([tier, sortOrder])
+}
+
+/// 徽章授予记录 (每用户每徽章最多一行, 唯一约束保证幂等)
+model HonorBadgeGrant {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  badgeId   String
+  badge     HonorBadge @relation(fields: [badgeId], references: [id])
+  grantedAt DateTime   @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+/// 连续活跃天数 (用户维度, 1:1)
+model HonorStreak {
+  userId          String    @id
+  user            User      @relation(fields: [userId], references: [id])
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastActiveDate  DateTime?  // UTC+8 凌晨为分界
+  totalActiveDays Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+}
+
+/// 荣誉流水 — append-only, 一切激励的单一事实源
+/// monetaryValueFen 是未来 ¥ 分润预留字段, 现在默认 0
+model HonorLedger {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  action           HonorAction
+  delta            Int         // 捏脸币增减
+  reason           String
+  refType          String?     // "IpAsset" / "Order" / "IpFile" / "HonorBadge" / null
+  refId            String?
+  /// 未来 ¥ 分润用, 现在默认 0; 商用阶段填 (e.g. 订单分销 ¥5)
+  monetaryValueFen Int         @default(0)
+  metadata         Json?
+  createdAt        DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([refType, refId])
 }

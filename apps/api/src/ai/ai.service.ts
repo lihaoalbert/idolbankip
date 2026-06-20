@@ -13,6 +13,8 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { HonorAction } from '@prisma/client';
+import { HonorService } from '../honor/honor.service';
 import { AssetType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
@@ -87,6 +89,7 @@ export class AiService {
     private readonly prisma: PrismaService,
     private readonly upload: UploadService,
     private readonly dashscope: DashScopeProvider,
+    private readonly honor: HonorService,
   ) {
     const apiKey = this.config.get<string>('MINIMAX_API_KEY', '');
     const baseURL = this.config.get<string>('MINIMAX_BASE_URL', 'https://api.minimaxi.com');
@@ -141,6 +144,15 @@ export class AiService {
     }
     const validated = validateIpWizardFields(parsed);
     this.logger.log(`recognizeFace: ${fileId} → ${Object.keys(validated).join(',')}`);
+
+    // 荣誉流水 — AI 面部识别 +20 (不 await, 失败不影响主流程)
+    this.honor.record(creatorId, HonorAction.AI_RECOGNIZE, {
+      refType: 'IpFile',
+      refId: fileId,
+    }).catch((e) =>
+      this.logger.warn(`honor record (AI_RECOGNIZE) failed: ${e?.message ?? e}`),
+    );
+
     return validated as Prisma.JsonObject;
   }
 
@@ -268,6 +280,23 @@ export class AiService {
       );
     }
 
+    // 荣誉流水 — AI 生成图各类型 +20
+    const aiActionMap: Partial<Record<AssetType, HonorAction>> = {
+      [AssetType.THREE_VIEW]: HonorAction.AI_GEN_THREE_VIEW,
+      [AssetType.TRANSPARENT_RENDER]: HonorAction.AI_GEN_RENDER,
+      [AssetType.EXPRESSION_GRID]: HonorAction.AI_GEN_EXPRESSION,
+    };
+    const honorAction = aiActionMap[imageType];
+    if (honorAction) {
+      this.honor.record(creatorId, honorAction, {
+        refType: 'IpFile',
+        refId: file.id,
+        metadata: { ipCode: ip.code, assetType: imageType, ai: true },
+      }).catch((e) =>
+        this.logger.warn(`honor record (${honorAction}) failed: ${e?.message ?? e}`),
+      );
+    }
+
     return { fileId: file.id, assetType: imageType, ossKey: key };
   }
 
@@ -344,6 +373,15 @@ ${ip.description}
         aiPrompt: RECIPE_SYSTEM_PROMPT.slice(0, 500) + '...', // 截短, 完整 prompt 在 system 端
       },
     });
+
+    // 荣誉流水 — AI 生成说明书 +10
+    this.honor.record(creatorId, HonorAction.AI_GEN_RECIPE, {
+      refType: 'IpFile',
+      refId: file.id,
+      metadata: { ipCode: ip.code, ai: true },
+    }).catch((e) =>
+      this.logger.warn(`honor record (AI_GEN_RECIPE) failed: ${e?.message ?? e}`),
+    );
 
     return { fileId: file.id, assetType: AssetType.RECIPE_TXT, ossKey: key };
   }

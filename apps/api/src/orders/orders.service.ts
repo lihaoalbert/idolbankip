@@ -5,13 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { LicenseScope, Order, OrderStatus, OrderType } from '@prisma/client';
+import { HonorAction, LicenseScope, Order, OrderStatus, OrderType } from '@prisma/client';
 import { PaymentChannel } from '@ibi-ren/shared-contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { IpsService } from '../ips/ips.service';
 import { PaymentService } from '../payment/payment.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { HonorService } from '../honor/honor.service';
 
 const PLATFORM_FEE_RATE = 0.15; // 15%
 
@@ -25,6 +26,7 @@ export class OrdersService {
     private readonly payment: PaymentService,
     private readonly contracts: ContractsService,
     private readonly audit: AuditService,
+    private readonly honor: HonorService,
   ) {}
 
   async create(params: {
@@ -115,6 +117,18 @@ export class OrdersService {
       targetId: orderId,
       payload: { amountFen: order.amountFen, channel },
     });
+
+    // 荣誉流水 — IP 创作者获得 IP_ORDERED 奖励 (+1000 基础 + 订单金额元数 × 10)
+    // monetaryValueFen 留作未来 ¥ 分润 (现在 HonorRule 里 IP_ORDERED delta=1000, monetaryValueFen 仅记录)
+    this.honor.record(ip.creatorId, HonorAction.IP_ORDERED, {
+      refType: 'Order',
+      refId: orderId,
+      monetaryValueFen: order.amountFen,
+      metadata: { ipCode: ip.code, amountFen: order.amountFen, channel },
+    }).catch((e) =>
+      this.logger.warn(`honor record (IP_ORDERED) failed: ${e?.message ?? e}`),
+    );
+
     return updated;
   }
 
