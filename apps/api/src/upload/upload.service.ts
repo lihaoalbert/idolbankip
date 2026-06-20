@@ -548,11 +548,17 @@ export class UploadService {
 
   /**
    * 下载授权签名 URL (浏览器会弹下载框)
+   *
+   * 注意: ali-oss SDK 会自动给 response key 加 "response-" 前缀
+   * (见 node_modules/ali-oss/lib/common/signUtils.js:332), 所以传裸 key 即可.
+   *
+   * 不要传 `x-oss-force-download` — SDK 会拼成 `response-x-oss-force-download`,
+   * OSS 不认这个伪 header (它的 force-download 行为由 content-disposition=attachment 自动触发).
    */
   async signDownloadUrl(ossKey: string, bucket: 'private' | 'contracts' = 'private', filename?: string): Promise<string> {
     const client = bucket === 'contracts' ? this.contractsClient : this.privateClient;
-    const response: Record<string, string> = { 'x-oss-force-download': 'true' };
-    if (filename) response['response-content-disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`;
+    const response: Record<string, string> = {};
+    if (filename) response['content-disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`;
     const url = client.signatureUrl(ossKey, { expires: 300, response });
     return url;
   }
@@ -560,10 +566,18 @@ export class UploadService {
   /**
    * 普通 GET-able 签名 URL — 给后端服务或 LLM 拉取内容用 (无 force-download 头)
    * 默认 1 小时有效
+   *
+   * 注意: response 头参数必须通过 ali-oss 的 `response` 选项传入签名,
+   * 不能事后用 `&response-...=` 拼接 — 那样签名不匹配, OSS 返回 SignatureDoesNotMatch.
    */
-  signViewUrl(ossKey: string, bucket: 'public' | 'private' | 'contracts' = 'private', expiresSec = 3600): string {
+  signViewUrl(
+    ossKey: string,
+    bucket: 'public' | 'private' | 'contracts' = 'private',
+    expiresSec = 3600,
+    response?: Record<string, string>,
+  ): string {
     const client = bucket === 'contracts' ? this.contractsClient : bucket === 'public' ? this.publicClient : this.privateClient;
-    return client.signatureUrl(ossKey, { expires: expiresSec });
+    return client.signatureUrl(ossKey, { expires: expiresSec, response });
   }
 
   /**

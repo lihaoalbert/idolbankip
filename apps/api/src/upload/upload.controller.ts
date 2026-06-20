@@ -169,12 +169,12 @@ export class UploadController {
       throw new ForbiddenException('无权预览此文件');
     }
     // 1h 有效, 签名里带 response-content-disposition=inline 让浏览器渲染 (不下载)
-    const params = new URLSearchParams({
-      'response-content-disposition': `inline; filename="${encodeURIComponent(file.originalName)}"`,
-      'response-content-type': file.mimeType || 'image/jpeg',
+    // 必须传 response 给 ali-oss.signatureUrl, 不能事后拼接 (会导致 SignatureDoesNotMatch)
+    // ali-oss SDK 会自动给 key 加 "response-" 前缀, 所以传裸 key 即可 (不要写 "response-content-...")
+    // 不加 content-type — OSS 不允许 query param 覆盖 content-type (报 InvalidRequest)
+    const url = this.upload.signViewUrl(file.ossKey, 'private', 3600, {
+      'content-disposition': `inline; filename="${encodeURIComponent(file.originalName)}"`,
     });
-    const baseUrl = this.upload.signViewUrl(file.ossKey, 'private', 3600);
-    const url = `${baseUrl}&${params.toString()}`;
     return { url, expiresIn: 3600 };
   }
 }
