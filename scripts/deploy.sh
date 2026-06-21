@@ -263,6 +263,17 @@ sync_to_ecs() {
   echo "  → pnpm install --frozen-lockfile (on ECS)"
   ssh_run "cd $ECS_PROJECT_DIR && pnpm install --frozen-lockfile 2>&1 | tail -5"
 
+  # 同步 prisma/schema.prisma (改了 schema 必须传,否则 db push 拿不到新字段)
+  # §5.X 类坑: 不传的话 prisma db push 会 "already in sync",但 prisma client 还是旧的 → 字段 Unknown
+  echo "  → sync apps/api/prisma/schema.prisma"
+  ssh_run "mkdir -p $ECS_PROJECT_DIR/apps/api/prisma"
+  scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no \
+    "$PROJECT_ROOT/apps/api/prisma/schema.prisma" "$SSH_TARGET:$ECS_PROJECT_DIR/apps/api/prisma/schema.prisma"
+
+  # ECS 上重新生成 prisma client (schema 改了必须重 generate,否则运行时拿不到新字段)
+  echo "  → prisma generate (on ECS, schema 同步后)"
+  ssh_run "cd $ECS_PROJECT_DIR/apps/api && set -a && source $ECS_PROJECT_DIR/.env && set +a && pnpm exec prisma generate 2>&1 | tail -3"
+
   # api 的 CJK 字体 (nest build 不打包非 TS 资源,合同 PDF 需要) — apps/api/assets/fonts/
   # 同步到 ECS 的 apps/api/assets/fonts/,否则 onModuleInit 找不到字体,合同 PDF 中文 tofu
   if [[ -d "$PROJECT_ROOT/apps/api/assets" ]]; then

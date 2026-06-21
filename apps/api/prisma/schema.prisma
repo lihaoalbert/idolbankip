@@ -135,7 +135,7 @@ model User {
   kycStatus    KycStatus @default(NOT_SUBMITTED)
   kycData      Json?
   avatarUrl    String?
-  bio          String?  @db.Text // 捏脸师个人简介
+  bio          String?  @db.Text // 捏者个人简介
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -147,7 +147,10 @@ model User {
   notifications Notification[]
   apiKeys       ApiKey[]
 
-  // #30.6.20 捏脸师荣誉系统
+  // 平台代办员角色
+  registrationsAsAgent CopyrightRegistration[] @relation("RegistrationAgents")
+
+  // #30.6.20 捏者荣誉系统
   honorLedger   HonorLedger[]
   honorGrants   HonorBadgeGrant[]
   honorStreak   HonorStreak?
@@ -227,6 +230,14 @@ model IpAsset {
   // 官方著作权登记号 (admin 录入)
   officialCertNo String?
 
+  // 外部来源溯源 — 多维表格/合作伙伴系统导入时填入
+  // externalRecordId 唯一,作为幂等 key (重跑导入不会重复创建)
+  // applicant = 飞书"备案主体"列原值 (李昊/陆旻泉/国风/企业),映射不到 fallback "未指定"
+  externalSource    String? // 'FEISHU_BITABLE' | 'DOUBAO' | ...
+  externalRecordId  String? @unique
+  externalUpdatedAt DateTime? // 源系统记录最后修改时间,用于增量同步
+  applicant         String? // 著作权申请人 (飞书"备案主体"列值)
+
   // 展示素材
   thumbnailKey     String // 600x600 缩略图 OSS key (FACE_CLOSEUP 优先, 否则 THREE_VIEW 兜底)
   heroVideoKey     String? // 可选 mp4
@@ -255,12 +266,87 @@ model IpAsset {
   proofs     BlockchainProof[]
   watermarks WatermarkRecord[]
   cert       CopyrightCertificate?
+  registration CopyrightRegistration?
 
   @@index([status])
   @@index([creatorId])
   @@index([gender, ageBucket, ethnicity])
   @@index([styleTags])
   @@index([scenarioTags])
+  @@index([externalSource])
+}
+
+// ===================== 版权登记 (平台代办 / 进度追踪) =====================
+
+enum CopyrightOwnerType {
+  COMPANY    // 公司主体
+  INDIVIDUAL // 个人创作者
+}
+
+enum RegistrationStage {
+  DRAFT         // 创作者填了资料,还没提交
+  SUBMITTED     // 已提交版权局/代办机构
+  ACCEPTED      // 受理 (收到受理通知书)
+  UNDER_REVIEW  // 审查中
+  REJECTED      // 驳回 (可重提)
+  CERTIFIED     // 发证 (证书到手)
+  WITHDRAWN     // 撤回 (创作者主动撤回)
+}
+
+enum RegistrationType {
+  NATIONAL    // 国家版权局 (国作登字)
+  PROVINCIAL  // 省级版权局
+}
+
+model CopyrightRegistration {
+  id   String   @id @default(cuid())
+  ipId String   @unique
+  ip   IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+
+  // 著作权人 — 跟 IpAsset.copyrightOwner* 同源,但允许代办时修订
+  ownerName     String              // "北京某某科技有限公司" 或 "张三"
+  ownerType     CopyrightOwnerType  // COMPANY / INDIVIDUAL
+  ownerIdNumber String?             // base64 编码,INDIVIDUAL 必填
+
+  // 备案地区 + 类型
+  registrationRegion String             // "北京市" / "广东省" / "上海市"
+  registrationType   RegistrationType   // NATIONAL / PROVINCIAL
+
+  // 平台代办员 (P1 启用)
+  agentUserId String?
+  agent       User?  @relation("RegistrationAgents", fields: [agentUserId], references: [id], onDelete: SetNull)
+
+  // 进度时间链
+  workflowStage RegistrationStage @default(DRAFT)
+  submittedAt   DateTime?
+  acceptedAt    DateTime?  // 受理
+  reviewedAt    DateTime?  // 审查通过
+  certifiedAt   DateTime?  // 发证
+  withdrawnAt   DateTime?  // 撤回
+
+  // 文号 (版权局给的)
+  applicationNo String?  // 申请号 / 受理号
+  certificateNo String?  // 作品登记证号 (国作登字-2026-F-xxxxxxxx)
+
+  // 附件 (OSS 私有桶 key)
+  acceptanceLetterKey String?  // 受理通知书 .pdf
+  certificateFileKey  String?  // 证书原件 .pdf
+  rejectionLetterKey  String?  // 驳回通知书 .pdf (如果有)
+  powerOfAttorneyKey  String?  // 创作者代办委托书 .pdf (代办必填)
+
+  // 备注 / 备注时间
+  notes          String?  @db.Text
+  lastContactAt  DateTime?  // 上次联系代办/版权局的时间
+  nextFollowupAt DateTime?  // 下次跟进日期 (代办员设置)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workflowStage])
+  @@index([agentUserId])
+  @@index([registrationRegion])
+  @@index([registrationType])
+  @@index([submittedAt])
 }
 
 // ===================== 版权证书 =====================
@@ -574,7 +660,7 @@ model IpTaskAccept {
   @@index([creatorId])
 }
 
-// ===================== 捏脸师荣誉系统 =====================
+// ===================== 捏者荣誉系统 =====================
 // 设计原则 (见 feedback_config_driven memory):
 //   - 业务规则全落 DB + seed, 代码只做 evaluator
 //   - HonorRule / HonorLevel / HonorBadge 都通过 seed-honor.ts upsert 维护
@@ -649,7 +735,7 @@ model HonorRule {
 model HonorLevel {
   level     Int    @id   // 1, 2, 3, ...
   minPoints Int    @unique  // 入门捏脸币阈值 (>= 该值进入本等级)
-  title     String         // 称号 e.g. "新人捏脸师"
+  title     String         // 称号 e.g. "新人捏者"
   icon      String         // emoji e.g. "🌱"
   colorHex  String         // UI 颜色 e.g. "#CD7F32"
 }
