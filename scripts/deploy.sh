@@ -85,6 +85,11 @@ preflight() {
   pnpm install --frozen-lockfile || { echo "❌ pnpm install 失败"; exit 1; }
   echo "  ✅ 依赖与 lockfile 一致"
 
+  # ECS 缺新依赖时同步 lockfile(参见 §5.16):
+  # 本机 package.json 加新包后必须 git commit pnpm-lock.yaml,ECS 上拉新代码后
+  # 再 --frozen-lockfile 才能拉到新包。如果 ECS 报 MODULE_NOT_FOUND,先确认
+  # 本机 lockfile 已 commit + 拉取。
+
   # 3. prisma generate (AGENTS §5.14 — 没跑 IsEnum 装饰器秒 crash)
   echo ""
   echo "  → pnpm prisma:generate"
@@ -233,6 +238,30 @@ sync_to_ecs() {
       tar czf - .
     ) | ssh_run "(cd $ECS_PROJECT_DIR/apps/$app/dist && tar xzf -)"
   done
+
+  # 同步 packages/*/dist — 共享契约 (e.g. @ibi-ren/shared-contracts 改 Symbol/接口必须同步,否则 Nest DI 报 Symbol undefined)
+  for pkg in shared-contracts; do
+    if [[ -d "$PROJECT_ROOT/packages/$pkg/dist" ]]; then
+      echo "  → sync packages/$pkg/dist"
+      ssh_run "mkdir -p $ECS_PROJECT_DIR/packages/$pkg/dist"
+      (cd "$PROJECT_ROOT/packages/$pkg/dist" && tar czf - .) | ssh_run "(cd $ECS_PROJECT_DIR/packages/$pkg/dist && tar xzf -)"
+    fi
+  done
+
+  # 同步 package.json + pnpm-lock.yaml (新加依赖时 ECS 需要拿到,否则 MODULE_NOT_FOUND)
+  # dist 已经是编译产物,但运行时还需 node_modules (cloudauth/ocr SDK 等)
+  echo "  → sync package.json + pnpm-lock.yaml"
+  for app in api web admin; do
+    ssh_run "mkdir -p $ECS_PROJECT_DIR/apps/$app"
+    scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no \
+      "$PROJECT_ROOT/apps/$app/package.json" "$SSH_TARGET:$ECS_PROJECT_DIR/apps/$app/package.json" 2>/dev/null || true
+  done
+  scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no \
+    "$PROJECT_ROOT/pnpm-lock.yaml" "$SSH_TARGET:$ECS_PROJECT_DIR/pnpm-lock.yaml"
+
+  # ECS 上重新装依赖 (锁文件与本机一致才能 --frozen-lockfile)
+  echo "  → pnpm install --frozen-lockfile (on ECS)"
+  ssh_run "cd $ECS_PROJECT_DIR && pnpm install --frozen-lockfile 2>&1 | tail -5"
 
   # api 的 CJK 字体 (nest build 不打包非 TS 资源,合同 PDF 需要) — apps/api/assets/fonts/
   # 同步到 ECS 的 apps/api/assets/fonts/,否则 onModuleInit 找不到字体,合同 PDF 中文 tofu

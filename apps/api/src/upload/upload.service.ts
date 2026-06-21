@@ -201,6 +201,15 @@ export class UploadService {
   }
 
   /**
+   * 生成 private bucket 签名 URL — 给外部服务(如阿里云 OCR)访问私有 OSS 资源
+   *   expires:秒,默认 300 (5 分钟,OCR 同步调用足够)
+   */
+  async getSignedUrl(ossKey: string, expiresSec = 300): Promise<string> {
+    if (!ossKey) throw new Error('ossKey is empty');
+    return this.privateClient.signatureUrl(ossKey, { expires: expiresSec });
+  }
+
+  /**
    * 读 cert 文件 Buffer (用于 admin 预览)
    * - 用 SDK get() 直接走内部签名, 避免 signed URL 的 Range+response 签名 bug
    * - 限制 maxBytes (默认 30MB) 防止恶意大文件拖垮 API

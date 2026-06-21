@@ -29,7 +29,8 @@ export const configValidationSchema = Joi.object({
   BLOCKCHAIN_DRIVER: Joi.string().valid('mock', 'antchain', 'tencent').default('mock'),
   ESIGN_DRIVER: Joi.string().valid('mock', 'fadada', 'esign').default('mock'),
   PAYMENT_DRIVER: Joi.string().valid('mock', 'alipay', 'wechat').default('mock'),
-  KYC_DRIVER: Joi.string().valid('mock', 'aliyun_idverify').default('mock'),
+  KYC_DRIVER: Joi.string().valid('mock', 'aliyun', 'aliyun_idverify').default('mock'),
+  OCR_DRIVER: Joi.string().valid('mock', 'aliyun').default('mock'),
   WATERMARK_DRIVER: Joi.string().valid('mock', 'opencv_dwt_svd').default('mock'),
   MODERATION_DRIVER: Joi.string().valid('mock', 'real').default('mock'),
 

@@ -1,10 +1,11 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { KycStatus } from '@prisma/client';
-import { KYC_CLIENT, KycClient } from '@ibi-ren/shared-contracts';
+import { KYC_CLIENT, KycClient, OCR_CLIENT, OcrClient } from '@ibi-ren/shared-contracts';
 import { AuditService } from '../audit/audit.service';
 import { parseRoles, serializeRoles, UserRole } from '../common/util/roles.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class KycService {
@@ -14,7 +15,9 @@ export class KycService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly upload: UploadService,
     @Inject(KYC_CLIENT) private readonly client: KycClient,
+    @Inject(OCR_CLIENT) private readonly ocr: OcrClient | null,
   ) {}
 
   /**
@@ -101,6 +104,121 @@ export class KycService {
       orderBy: { createdAt: 'desc' },
     });
     return { status: user.kycStatus, latest };
+  }
+
+  /**
+   * 企业 KYC 提交 — 法人姓名+身份证号 (营业执照信息由前端在 OCR 步骤拿到并二次确认)
+   * 流程:
+   *   1. 重新 OCR 营业执照图片(防止前端篡改 OCR 结果)
+   *   2. 校验:法人姓名 必须等于 OCR 出来的 legalPerson
+   *   3. 调 AliyunKycClient.verifyIdentity(法人姓名, 法人身份证号) 做二要素
+   *   4. APPROVED → User.companyName = OCR 出来的 enterpriseName
+   */
+  async submitEnterprise(
+    userId: string,
+    payload: {
+      licenseImageKey: string;
+      legalPersonName: string;
+      legalPersonIdNumber: string;
+      phone?: string;
+    },
+  ) {
+    if (!this.ocr) {
+      throw new BadRequestException('OCR 服务未配置 (OCR_DRIVER=aliyun)');
+    }
+
+    // 1. 重新 OCR 营业执照,防止前端 OCR 结果被篡改
+    const imageUrl = await this.upload.getSignedUrl(payload.licenseImageKey, 300);
+    const ocrResult = await this.ocr.recognizeBusinessLicense({ imageUrl });
+
+    // 2. 校验法人姓名一致
+    const ocrLegal = (ocrResult.legalPerson || '').trim();
+    const inputLegal = payload.legalPersonName.trim();
+    if (!ocrLegal || ocrLegal !== inputLegal) {
+      // 记录到 submission 但 REJECTED,留 audit 痕迹
+      const submission = await this.prisma.kycSubmission.create({
+        data: {
+          userId,
+          payload: { ...payload, ocrResult } as any,
+          status: 'REJECTED',
+          reviewedAt: new Date(),
+          notes: `法人姓名不一致 (OCR=${ocrLegal}, 输入=${inputLegal})`,
+        },
+      });
+      await this.audit.log({
+        actorId: userId,
+        action: 'KYC_ENTERPRISE_REJECTED_NAME_MISMATCH',
+        targetType: 'KycSubmission',
+        targetId: submission.id,
+        payload: { ocrLegal, inputLegal },
+      });
+      return submission;
+    }
+
+    // 3. 法人二要素核验
+    const result = await this.client.verifyIdentity({
+      realName: payload.legalPersonName,
+      idNumber: payload.legalPersonIdNumber,
+      // 企业 KYC 不走 livenessImageKey (法人代表公司,不需要活体)
+      // 但保留 bizId 让阿里云按"任务"维度去重
+      bizId: `enterprise-${userId}-${Date.now()}`,
+    });
+
+    const status: KycStatus =
+      result.status === 'APPROVED' ? 'APPROVED' : result.status === 'REJECTED' ? 'REJECTED' : 'PENDING';
+
+    const submission = await this.prisma.kycSubmission.create({
+      data: {
+        userId,
+        payload: { ...payload, ocrResult, aliyunRef: result.refId } as any,
+        status,
+        reviewedAt: status !== 'PENDING' ? new Date() : null,
+        notes: result.reason,
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: status,
+        // 法人 = 真实姓名 (用于合同显示),公司名 = OCR 出的 enterpriseName
+        realName: payload.legalPersonName,
+        companyName: ocrResult.enterpriseName || undefined,
+        kycData: {
+          refId: result.refId,
+          type: 'ENTERPRISE',
+          licenseNo: ocrResult.licenseNo,
+          legalPerson: ocrResult.legalPerson,
+        } as any,
+      },
+    });
+
+    if (status === 'APPROVED') {
+      await this.grantCreatorRoleOnApproval(userId, userId);
+      await this.notifications.create({
+        userId,
+        type: 'KYC_APPROVED',
+        title: '企业实名认证已通过',
+        body: `公司 ${ocrResult.enterpriseName} 已通过认证,可上架虚拟人资产。`,
+        link: '/creator/onboard',
+      });
+    } else if (status === 'REJECTED') {
+      await this.notifications.create({
+        userId,
+        type: 'KYC_REJECTED',
+        title: '企业实名认证未通过',
+        body: result.reason || '请检查法人信息后重新提交。',
+        link: '/creator/onboard',
+      });
+    }
+    await this.audit.log({
+      actorId: userId,
+      action: 'KYC_ENTERPRISE_SUBMITTED',
+      targetType: 'KycSubmission',
+      targetId: submission.id,
+      payload: { status, ocrLegal, inputLegal, licenseNo: ocrResult.licenseNo },
+    });
+    return submission;
   }
 
   async adminApprove(submissionId: string, reviewerId: string, notes?: string) {
