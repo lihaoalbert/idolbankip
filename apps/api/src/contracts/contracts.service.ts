@@ -15,10 +15,20 @@ import {
 @Injectable()
 export class ContractsService implements OnModuleInit {
   private readonly logger = new Logger(ContractsService.name);
-  // CJK 字体 (pdf-lib StandardFonts.Helvetica 不支持中文,所有 CJK 字会渲染成 tofu/缺失)
-  // Noto Sans SC SubsetOTF 简体字,~8MB/weight,在 apps/api/assets/fonts/
+  // CJK 字体 (pdf-lib StandardFonts.Helvetica 不支持中文,会渲染成 tofu/缺失)
+  // 字体文件: NotoSansSC Regular/Bold TTF (~7.3MB each, GB2312 范围 21K chars)
+  //   apps/api/assets/fonts/NotoSansSC-Regular.gb2312.ttf
+  //   apps/api/assets/fonts/NotoSansSC-Bold.gb2312.ttf
   // 部署时单独 tar 同步到 /opt/ibiren/apps/api/assets/fonts/ (nest build 不打包非 TS 资源)
-  // 注: PDFFont 绑定到 PDFDocument,不能跨 doc 复用。所以缓存的是 bytes,每次生成新 PDF 时 embedFont(bytes, {subset:true})
+  //
+  // 为何 OTF 不行:
+  //   Noto Sans SC 的 SubsetOTF 是 CID-keyed CFF (Adobe CIDFont),glyph 名为 cid00001
+  //   pdf-lib + fontkit 重新 subset 会触发 "Out of bounds subrIndex for callsubr" CFF bug
+  //   即使不 subset,OFT 在 pdfjs 之外渲染也 CID mapping 错位
+  // 为何 TTF + subset:false:
+  //   TTF 用 TrueType outlines,fontkit 处理可靠
+  //   subset:false 是因为 pdf-lib 即使预 subset 的字体也会 re-subset,re-subset 会破坏 CJK outlines
+  //   不用 subset 的代价:每个合同 PDF ~8.8MB (合同非高频生成,可接受)
   private fontRegularBytes: Buffer | null = null;
   private fontBoldBytes: Buffer | null = null;
 
@@ -31,15 +41,15 @@ export class ContractsService implements OnModuleInit {
 
   async onModuleInit() {
     const fontDir = path.join(process.cwd(), 'assets', 'fonts');
-    const regPath = path.join(fontDir, 'NotoSansSC-Regular.otf');
-    const boldPath = path.join(fontDir, 'NotoSansSC-Bold.otf');
+    const regPath = path.join(fontDir, 'NotoSansSC-Regular.gb2312.ttf');
+    const boldPath = path.join(fontDir, 'NotoSansSC-Bold.gb2312.ttf');
     try {
       if (!fs.existsSync(regPath) || !fs.existsSync(boldPath)) {
         throw new Error(`字体文件缺失: ${regPath} / ${boldPath}`);
       }
       this.fontRegularBytes = fs.readFileSync(regPath);
       this.fontBoldBytes = fs.readFileSync(boldPath);
-      this.logger.log(`CJK fonts loaded: NotoSansSC Regular+Bold from ${fontDir}`);
+      this.logger.log(`CJK fonts loaded: NotoSansSC Regular+Bold (TTF, GB2312 范围) from ${fontDir}`);
     } catch (e: any) {
       // 不 throw — 让服务先起来,生成 PDF 时 fallback 到 Helvetica (中文会 tofu, 但不会 crash)
       // 部署时必须 assets/fonts/ 同步好,否则合同全 tofu
@@ -47,12 +57,12 @@ export class ContractsService implements OnModuleInit {
     }
   }
 
-  /** 每次新 PDFDocument 注册 fontkit + 用 subset 嵌入(避免 ASCII 字符 CID 编码错位,文件 15MB→47KB) */
+  /** 每次新 PDFDocument 注册 fontkit,embed font 不再 subset(避免 CJK outlines 被破坏) */
   private async embedFonts(pdf: PDFDocument): Promise<{ reg: PDFFont; bold: PDFFont }> {
     pdf.registerFontkit(fontkit);
     if (this.fontRegularBytes && this.fontBoldBytes) {
-      const reg = await pdf.embedFont(this.fontRegularBytes, { subset: true });
-      const bold = await pdf.embedFont(this.fontBoldBytes, { subset: true });
+      const reg = await pdf.embedFont(this.fontRegularBytes, { subset: false });
+      const bold = await pdf.embedFont(this.fontBoldBytes, { subset: false });
       return { reg, bold };
     }
     const { StandardFonts } = await import('pdf-lib');

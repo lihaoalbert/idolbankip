@@ -234,6 +234,14 @@ sync_to_ecs() {
     ) | ssh_run "(cd $ECS_PROJECT_DIR/apps/$app/dist && tar xzf -)"
   done
 
+  # api 的 CJK 字体 (nest build 不打包非 TS 资源,合同 PDF 需要) — apps/api/assets/fonts/
+  # 同步到 ECS 的 apps/api/assets/fonts/,否则 onModuleInit 找不到字体,合同 PDF 中文 tofu
+  if [[ -d "$PROJECT_ROOT/apps/api/assets" ]]; then
+    echo "  → sync apps/api/assets (CJK 字体等 nest 不打包的资源)"
+    ssh_run "mkdir -p $ECS_PROJECT_DIR/apps/api/assets"
+    (cd "$PROJECT_ROOT/apps/api/assets" && tar czf - .) | ssh_run "(cd $ECS_PROJECT_DIR/apps/api/assets && tar xzf -)"
+  fi
+
   # web/admin 静态文件额外同步到 nginx 目录 (AGENTS §3.5)
   if [[ -d "$PROJECT_ROOT/apps/web/dist" && "$ECS_WEB_DIR" != "" ]]; then
     echo "  → sync web → $ECS_WEB_DIR"
