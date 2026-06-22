@@ -9,6 +9,10 @@ export interface AuthUser {
   displayName: string;
   roles: UserRole[];
   companyName?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  realName?: string;
+  phone?: string;
 }
 
 interface State {

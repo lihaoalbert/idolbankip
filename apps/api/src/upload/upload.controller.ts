@@ -32,6 +32,11 @@ class AutoFileDto {
   @IsString() content!: string;
 }
 
+class AvatarPolicyDto {
+  @IsString() filename!: string;
+  @IsInt() @Min(0) size!: number;
+}
+
 class SetFaceCloseupDto {
   @IsString() fileId!: string;
 }
@@ -120,6 +125,23 @@ export class UploadController {
     @CurrentUser() u: JwtUser,
   ) {
     return this.upload.setFaceCloseup(ipId, body.fileId, u.id);
+  }
+
+  /**
+   * 用户头像 OSS 直传策略 (不依赖 ipId)
+   * - 路径: users/{userId}/avatar/{ts}/{filename}
+   * - 限制: jpg/png/webp, 100KB-5MB
+   * - 前端拿到 key 后 PATCH /users/me 写 avatarUrl
+   */
+  @Post('avatar-policy')
+  async avatarPolicy(@CurrentUser() u: JwtUser, @Body() body: AvatarPolicyDto) {
+    if (!/\.(jpe?g|png|webp)$/i.test(body.filename)) {
+      throw new BadRequestException('头像仅支持 jpg/png/webp 格式');
+    }
+    if (body.size < 100 * 1024 || body.size > 5 * 1024 * 1024) {
+      throw new BadRequestException(`头像大小 ${body.size} 字节越界, 期望 100KB - 5MB`);
+    }
+    return this.upload.generateAvatarPolicy(u.id, body.filename);
   }
 
   /**

@@ -10,6 +10,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/contact', name: 'contact', component: () => import('@/pages/ContactPage.vue'), meta: { public: true } },
   { path: '/legal/originality-commitment', name: 'legal-originality-commitment', component: () => import('@/pages/OriginalityCommitmentPage.vue'), meta: { public: true } },
   {
+    path: '/guide/creator',
+    name: 'creator-guide',
+    component: () => import('@/pages/CreatorGuidePage.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/checkout/:code',
     name: 'checkout',
     component: () => import('@/pages/CheckoutPage.vue'),
@@ -73,12 +79,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('@/pages/SettingsPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/creator/api-keys',
     name: 'creator-api-keys',
     component: () => import('@/pages/creator/ApiKeysPage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
-  // 公开个人主页 — 捏脸师 /u/:userId
+  // 公开个人主页 — 捏者 /u/:userId
   {
     path: '/u/:userId',
     name: 'user-profile',

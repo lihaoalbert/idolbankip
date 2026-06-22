@@ -201,6 +201,48 @@ export class UploadService {
   }
 
   /**
+   * 用户头像直传策略 (不依赖 ip)
+   * - 路径: users/{userId}/avatar/{ts}/{filename}
+   * - 大小上限 5MB + 1MB 缓冲
+   * - 不入库; 前端拿到 key 后 PATCH /users/me 写 avatarUrl
+   */
+  async generateAvatarPolicy(userId: string, filename: string): Promise<PolicyResult & { url: string; bucket: string; key: string }> {
+    const safeName = filename.replace(/[\\/\0]/g, '_').slice(-200);
+    const dir = `users/${userId}/avatar/${Date.now()}/`;
+    const key = dir + safeName;
+    const expireEpoch = Math.floor(Date.now() / 1000) + 600;
+    const maxSize = 5 * 1024 * 1024 + 1024 * 1024;
+
+    const policy = {
+      expiration: new Date(expireEpoch * 1000).toISOString(),
+      conditions: [
+        ['content-length-range', 0, maxSize],
+        ['eq', '$key', key],
+        ['starts-with', '$key', dir],
+      ],
+    };
+
+    const { policy: policyBase64, Signature: signature } = (
+      this.privateClient as unknown as {
+        calculatePostSignature: (p: object) => { policy: string; Signature: string };
+      }
+    ).calculatePostSignature(policy);
+
+    return {
+      host: `https://${this.privateClient.options.bucket}.${this.config.get('OSS_REGION')}.aliyuncs.com`,
+      policy: policyBase64,
+      signature,
+      dir,
+      key,
+      expire: expireEpoch,
+      accessKeyId: this.config.get<string>('OSS_ACCESS_KEY_ID') || '',
+      callback: '',
+      url: this.privateClient.options.endpoint || '',
+      bucket: this.privateClient.options.bucket || '',
+    };
+  }
+
+  /**
    * 生成 private bucket 签名 URL — 给外部服务(如阿里云 OCR)访问私有 OSS 资源
    *   expires:秒,默认 300 (5 分钟,OCR 同步调用足够)
    */
@@ -410,9 +452,8 @@ export class UploadService {
         if (!meta.width || !meta.height) {
           return { ok: false, reason: '无法读取图片尺寸' };
         }
-        if (meta.width < 2048 || meta.height < 2048) {
-          return { ok: false, reason: `图片尺寸 ${meta.width}×${meta.height}, 要求 ≥2048×2048` };
-        }
+        // #30.6.21 飞书 import 场景下图片通常是预览尺寸, 取消 ≥2048×2048 硬要求
+        //   尺寸仅作 sanity check (能解析即可), 真正合规由 AI 识别 (recognizeFace) + 人审把关
         if (type === AssetType.TRANSPARENT_RENDER) {
           if (meta.format !== 'png') {
             return { ok: false, reason: '立绘必须是 PNG 格式 (带 alpha 通道)' };

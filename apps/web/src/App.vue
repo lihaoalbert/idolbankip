@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
+import { ossUrl } from '@/api/client';
 import ToastContainer from '@/components/ToastContainer.vue';
 import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
 import NotificationBell from '@/components/NotificationBell.vue';
@@ -15,6 +16,17 @@ onMounted(async () => {
 
 const showCreatorLink = computed(() => auth.hasAnyRole(['CREATOR']));
 const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
+
+// 用户菜单 — header 头像下拉
+const menuOpen = ref(false);
+const menuRef = ref<HTMLElement | null>(null);
+function onDocClick(e: MouseEvent) {
+  if (menuOpen.value && menuRef.value && !menuRef.value.contains(e.target as Node)) {
+    menuOpen.value = false;
+  }
+}
+onMounted(() => document.addEventListener('click', onDocClick));
+onUnmounted(() => document.removeEventListener('click', onDocClick));
 </script>
 
 <template>
@@ -28,7 +40,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
           <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
-          <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">捏脸师中心</RouterLink>
+          <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">捏者中心</RouterLink>
           <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
           <RouterLink v-if="showBuyerLinks" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
           <template v-if="!auth.isAuthenticated">
@@ -41,10 +53,85 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
           </template>
           <div v-else class="flex items-center gap-3">
             <NotificationBell />
-            <span class="text-xs text-ink/60">{{ auth.user?.email }}</span>
-            <button @click="auth.logout" class="text-xs underline text-ink/60 hover:text-danger">
-              退出
-            </button>
+            <div ref="menuRef" class="relative">
+              <button
+                @click="menuOpen = !menuOpen"
+                class="flex items-center gap-2 hover:opacity-80 transition"
+                aria-label="用户菜单"
+              >
+                <img
+                  v-if="auth.user?.avatarUrl"
+                  :src="ossUrl(auth.user.avatarUrl)"
+                  :alt="auth.user.displayName"
+                  class="w-8 h-8 rounded-full object-cover border-0.5 border-line"
+                  referrerpolicy="no-referrer"
+                />
+                <div
+                  v-else
+                  class="w-8 h-8 rounded-full bg-ink text-cream flex items-center justify-center text-xs font-display border-0.5 border-line"
+                >
+                  {{ auth.user?.displayName?.slice(0, 1) }}
+                </div>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="currentColor"
+                  class="text-ink/40"
+                  :class="{ 'rotate-180': menuOpen }"
+                  style="transition: transform 0.18s"
+                >
+                  <path d="M2 3.5l3 3 3-3" />
+                </svg>
+              </button>
+              <transition name="fade">
+                <div
+                  v-if="menuOpen"
+                  class="absolute right-0 top-full mt-2 w-56 bg-surface border-0.5 border-ink shadow-xl z-50"
+                >
+                  <div class="px-4 py-3 border-b border-line">
+                    <div class="text-sm text-ink truncate font-medium">{{ auth.user?.displayName }}</div>
+                    <div class="text-[10px] text-ink/50 truncate font-mono mt-0.5">{{ auth.user?.email }}</div>
+                  </div>
+                  <RouterLink
+                    to="/settings"
+                    @click="menuOpen = false"
+                    class="block px-4 py-2.5 text-sm text-ink hover:bg-cream transition"
+                  >
+                    个人设置
+                  </RouterLink>
+                  <RouterLink
+                    :to="`/u/${auth.user?.id}`"
+                    @click="menuOpen = false"
+                    class="block px-4 py-2.5 text-sm text-ink hover:bg-cream transition"
+                  >
+                    我的公开主页
+                  </RouterLink>
+                  <RouterLink
+                    v-if="showCreatorLink"
+                    to="/creator"
+                    @click="menuOpen = false"
+                    class="block px-4 py-2.5 text-sm text-ink hover:bg-cream transition"
+                  >
+                    捏者中心
+                  </RouterLink>
+                  <RouterLink
+                    v-if="showBuyerLinks"
+                    to="/orders"
+                    @click="menuOpen = false"
+                    class="block px-4 py-2.5 text-sm text-ink hover:bg-cream transition"
+                  >
+                    我的订单
+                  </RouterLink>
+                  <button
+                    @click="auth.logout"
+                    class="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-cream hover:text-danger transition border-t border-line"
+                  >
+                    退出登录
+                  </button>
+                </div>
+              </transition>
+            </div>
           </div>
           <!-- 主题切换 -->
           <button
@@ -99,7 +186,8 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
           <h4 class="font-medium mb-3">产品</h4>
           <ul class="space-y-1.5 text-xs text-ink/60">
             <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
-            <li><BecomeCreatorLink class="hover:text-ink">成为捏脸师</BecomeCreatorLink></li>
+            <li><BecomeCreatorLink class="hover:text-ink">成为捏者</BecomeCreatorLink></li>
+            <li><RouterLink to="/guide/creator" class="hover:text-ink">捏者使用手册</RouterLink></li>
             <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
           </ul>
         </div>
