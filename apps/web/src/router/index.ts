@@ -16,6 +16,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
+    path: '/guide/face',
+    name: 'guide-face',
+    component: () => import('@/pages/FacePromptGuidePage.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/checkout/:code',
     name: 'checkout',
     component: () => import('@/pages/CheckoutPage.vue'),

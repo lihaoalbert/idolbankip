@@ -31,7 +31,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 
 <template>
   <div class="min-h-screen flex flex-col">
-    <header class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40">
+    <header class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40 print:hidden">
       <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-xl">
           <span class="inline-block w-7 h-7 rounded-full bg-ink"></span>
@@ -164,7 +164,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 
     <ToastContainer />
 
-    <footer class="border-t border-line mt-12 py-10">
+    <footer class="border-t border-line mt-12 py-10 print:hidden">
       <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-sm">
         <div>
           <div class="flex items-center gap-2 font-display text-lg mb-2">
@@ -188,6 +188,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
             <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
             <li><BecomeCreatorLink class="hover:text-ink">成为捏者</BecomeCreatorLink></li>
             <li><RouterLink to="/guide/creator" class="hover:text-ink">捏者使用手册</RouterLink></li>
+            <li><RouterLink to="/guide/face" class="hover:text-ink">捏脸提示词教程</RouterLink></li>
             <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
           </ul>
         </div>
