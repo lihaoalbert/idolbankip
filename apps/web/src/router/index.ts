@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore, type UserRole } from '@/stores/auth';
+import { useBlueprintFeatureFlag } from '@/composables/useBlueprintFeatureFlag';
 
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/pages/HomePage.vue') },
@@ -81,18 +82,27 @@ const routes: RouteRecordRaw[] = [
   // FaceBlueprint 8 步向导 (Phase 1 Layered Prompt Generator)
   // /creator/blueprint/new/step/:step? → 进入向导,自动 POST 创建空 Blueprint 再 redirect 到 :id/step/:step
   // /creator/blueprint/:id/step/:step? → 已有 Blueprint,跳到指定步(1~8)
+  // featureFlag: Phase C R2 kill switch — flag off 时 beforeEach redirect 到 creator-dashboard
   {
     path: '/creator/blueprint/new/step/:step?',
     name: 'blueprint-new',
     component: () => import('@/pages/creator/blueprint/BlueprintWizard.vue'),
-    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+    meta: {
+      requiresAuth: true,
+      roles: ['CREATOR'] as UserRole[],
+      featureFlag: 'BLUEPRINT_WIZARD',
+    },
   },
   {
     path: '/creator/blueprint/:id/step/:step?',
     name: 'blueprint-step',
     component: () => import('@/pages/creator/blueprint/BlueprintWizard.vue'),
     props: true,
-    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+    meta: {
+      requiresAuth: true,
+      roles: ['CREATOR'] as UserRole[],
+      featureFlag: 'BLUEPRINT_WIZARD',
+    },
   },
   {
     path: '/notifications',
@@ -138,6 +148,15 @@ router.beforeEach((to, _from, next) => {
   const requiredRoles = to.meta.roles as UserRole[] | undefined;
   if (requiredRoles && requiredRoles.length > 0 && !auth.hasAnyRole(requiredRoles)) {
     return next({ name: 'home' });
+  }
+  // Feature flag 守卫 (Phase C R2) — VITE_BLUEPRINT_WIZARD_ENABLED=false 时
+  // 把 /creator/blueprint/* 跳到 /creator。Dashboard 卡片同时 v-if flag off 不渲染
+  const requiredFlag = to.meta.featureFlag as string | undefined;
+  if (requiredFlag === 'BLUEPRINT_WIZARD') {
+    const { enabled } = useBlueprintFeatureFlag();
+    if (!enabled.value) {
+      return next({ name: 'creator-dashboard' });
+    }
   }
   next();
 });
