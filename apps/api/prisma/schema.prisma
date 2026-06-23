@@ -155,6 +155,9 @@ model User {
   honorGrants   HonorBadgeGrant[]
   honorStreak   HonorStreak?
 
+  // 捏脸蓝图 8 层分解 — 创作者原创脸 (Phase 1)
+  blueprints    FaceBlueprint[]  @relation("BlueprintOwner")
+
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
 }
@@ -267,6 +270,7 @@ model IpAsset {
   watermarks WatermarkRecord[]
   cert       CopyrightCertificate?
   registration CopyrightRegistration?
+  faceBlueprint FaceBlueprint?
 
   @@index([status])
   @@index([creatorId])
@@ -274,6 +278,59 @@ model IpAsset {
   @@index([styleTags])
   @@index([scenarioTags])
   @@index([externalSource])
+}
+
+// ===================== 脸谱蓝图 (Layered Prompt Generator) =====================
+// Phase 1: 8 层分解模型, 创作者通过 /creator/blueprint/* 8 步向导填写
+// Phase 2: 与 IpWizard 衔接, /creator/ips/new?blueprintId=xxx 注入 description
+// Phase 3: 接入 FLAME / 3DMM 真实反推 + embedding 原创度评估
+//
+// 8 层结构 (见 docs/loop-engineering.md):
+//   L1_skeleton      骨骼 (颅型 / 脸型指数 / 颧骨 / 下颌角 / 三庭比例)         8 项
+//   L2_softTissue    软组织 (皮下脂肪 / 咬肌 / 颊脂垫 / 眼窝深度 / 眉弓突出)  6 项
+//   L3_features      五官定位 (眼距 / 眼型 / 鼻长 / 鼻宽 / 唇宽 / 耳位 / 人中) 12 项
+//   L4_skin          皮肤 (Fitzpatrick 等级 / 冷暖调 / L*a*b* / 肤质)         4 项
+//   L5_hair          毛发 (发型 / 发色 / 发际线 / 眉形 / 眉色 / 睫毛)         8 项
+//   L6_decoration    修饰 (眼线 / 眼影 / 腮红 / 唇色 / 美瞳 / 饰品)           6 项
+//   L7_render        渲染 prompt 整合 (中英 + 平台: mj/sd/jimeng/doubao)      string
+//   L8_evaluation    评估 (mock 评分, Phase 3 接 FLAME)
+//
+// 8 层全部 Json? — 应用层用 zod 校验具体 shape
+// 关系: 1 个 IP 最多 1 个 Blueprint (1:1, optional), 1 个 user 可有 N 个 Blueprint (1:N)
+
+model FaceBlueprint {
+  id          String  @id @default(cuid())
+
+  ownerId     String
+  owner       User    @relation("BlueprintOwner", fields: [ownerId], references: [id])
+
+  // 关联 IP — Phase 1 暂不强制; Phase 2 由 /creator/ips/new?blueprintId=xxx 写入
+  ipId        String? @unique
+  ip          IpAsset? @relation(fields: [ipId], references: [id], onDelete: SetNull)
+
+  // 8 层参数 (Json? — 创作者逐步填充, 每层独立 PATCH)
+  L1_skeleton   Json?
+  L2_softTissue Json?
+  L3_features   Json?
+  L4_skin       Json?
+  L5_hair       Json?
+  L6_decoration Json?
+  L7_render     Json?
+  L8_evaluation Json?
+
+  // 元数据
+  title       String?       // "原创脸 #001" — 创作者自命名
+  description String?  @db.Text // 一句话描述
+  tags        String   @default("") // 逗号分隔: "国风,高冷,清冷" — 检索用, 空串兜底避免应用层必传
+  version     Int      @default(1) // 1.0=初始; 单层改=patch, 多层改=minor, 脸型改=major
+
+  isArchived  Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([createdAt])
 }
 
 // ===================== 版权登记 (平台代办 / 进度追踪) =====================
