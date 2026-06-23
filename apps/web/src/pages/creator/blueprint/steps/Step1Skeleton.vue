@@ -44,6 +44,10 @@ const draft = useBlueprintDraft<L1Skeleton>({
 
 const draftRestored = draft.draftRestored;
 
+// R8 修:setup 阶段同步从 localStorage 恢复草稿(必须在 server watch 之前)
+// 如果等到 onMounted,server 同步会先跑(blueprint 加载完),草稿被覆盖
+draft.load();
+
 // 当 context.blueprint 变化(server 推回来),把 server 数据同步到 form(仅当没有草稿时)
 // 草稿恢复逻辑:如果 draftRestored=true,优先用草稿;否则用 server
 watch(

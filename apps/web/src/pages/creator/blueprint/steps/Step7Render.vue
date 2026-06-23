@@ -11,7 +11,7 @@
  *   3. 用户选 platforms → PATCH /step/7 同步到后端
  *   4. 后端 buildPrompts 重新计算并写回 L7_render(权威)
  */
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 import {
   L7_DEFAULTS,
   type L7Render,

@@ -36,6 +36,10 @@ const draft = useBlueprintDraft<L4Skin>({
 
 const draftRestored = draft.draftRestored;
 
+// R8 修:挂载时从 localStorage 恢复草稿
+// R8.2 修:同步调用,避免 server 同步先跑覆盖草稿
+draft.load();
+
 watch(
   () => blueprintCtx.blueprint.value?.layers.L4_skin,
   (serverLayer) => {
