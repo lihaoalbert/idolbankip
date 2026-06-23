@@ -7,6 +7,11 @@ export const MOCK_NI_JWT_SECRET = 'mock-ni-jwt-secret-v1-DEV-ONLY';
 export const MOCK_USER_ID = 'mock-user-ni-v1';
 export const MOCK_USER_EMAIL = 'dev@ni.example.com';
 
+// 苏晚头像公网 URL — ibi-public bucket / mock-ni-api/* 前缀已开公共读
+// 真接口时这些字段会从 DB / OSS 签名 URL 生成,不再硬编码
+export const SUWAN_PORTRAIT_BASE =
+  'https://ibi-public.oss-cn-shanghai.aliyuncs.com/mock-ni-api/suwan-portrait.jpg';
+
 export interface MockIp {
   id: string;
   name: string;
@@ -51,8 +56,8 @@ export const MOCK_IPS: MockIp[] = [
   {
     id: 'ip_ni_suwan_001',
     name: '苏晚',
-    avatar_url: 'https://placehold.co/256x256/png?text=SuWan',
-    preview_url: 'https://placehold.co/1024x1024/png?text=SuWan+Preview',
+    avatar_url: SUWAN_PORTRAIT_BASE,
+    preview_url: SUWAN_PORTRAIT_BASE,
     tags: ['温柔', '内敛', '建筑师', '上海'],
     voice_id: 'volcano_voice_zh_female_calm_01',
     personality_summary: '28岁建筑设计师,独居上海,喜欢爵士乐和混凝土的质感。',
@@ -144,8 +149,8 @@ export const MOCK_CHARACTERS: Record<string, MockCharacter> = {
 
 export const MOCK_ASSETS: Record<string, MockAssets> = {
   ip_ni_suwan_001: {
-    preview_2k_url: 'https://placehold.co/2048x2048/png?text=SuWan+2K',
-    preview_4k_url: 'https://placehold.co/4096x4096/png?text=SuWan+4K',
+    preview_2k_url: SUWAN_PORTRAIT_BASE,
+    preview_4k_url: SUWAN_PORTRAIT_BASE,
     voice_sample_url: 'https://placehold.co/300x50/png?text=SuWan+Voice+30s',
     expression_set_url: 'https://placehold.co/100x100/png?text=SuWan+Expressions',
   },

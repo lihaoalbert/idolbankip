@@ -130,7 +130,7 @@ describe('Mock Ni API (e2e)', () => {
       expect(res.body.name).toBe('苏晚');
       expect(res.body.character.id).toBe('char_suwan_001');
       expect(res.body.character.personality_traits).toContain('温柔');
-      expect(res.body.assets.preview_2k_url).toMatch(/placehold\.co/);
+      expect(res.body.assets.preview_2k_url).toMatch(/oss-cn-shanghai/);
       expect(res.body.license.type).toBe('personal_perpetual');
       expect(res.body.license.can_offline_use).toBe(true); // perpetual 允许离线
       expect(res.body.license.download_quota).toBe(3);
@@ -178,7 +178,7 @@ describe('Mock Ni API (e2e)', () => {
         .set('Authorization', `Bearer ${validToken}`)
         .expect(200);
 
-      expect(res.body.url).toMatch(/placehold\.co/);
+      expect(res.body.url).toMatch(/oss-cn-shanghai/);
       expect(res.body.url).toContain('mock_signed=true');
       expect(res.body.expires_in_seconds).toBe(3600);
       expect(new Date(res.body.expires_at).getTime()).toBeGreaterThan(
