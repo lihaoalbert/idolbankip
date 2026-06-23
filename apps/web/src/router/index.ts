@@ -78,6 +78,22 @@ const routes: RouteRecordRaw[] = [
     props: true,
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  // FaceBlueprint 8 步向导 (Phase 1 Layered Prompt Generator)
+  // /creator/blueprint/new/step/:step? → 进入向导,自动 POST 创建空 Blueprint 再 redirect 到 :id/step/:step
+  // /creator/blueprint/:id/step/:step? → 已有 Blueprint,跳到指定步(1~8)
+  {
+    path: '/creator/blueprint/new/step/:step?',
+    name: 'blueprint-new',
+    component: () => import('@/pages/creator/blueprint/BlueprintWizard.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  {
+    path: '/creator/blueprint/:id/step/:step?',
+    name: 'blueprint-step',
+    component: () => import('@/pages/creator/blueprint/BlueprintWizard.vue'),
+    props: true,
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
   {
     path: '/notifications',
     name: 'notifications',
