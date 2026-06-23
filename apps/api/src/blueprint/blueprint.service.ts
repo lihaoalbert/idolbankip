@@ -5,7 +5,9 @@ import {
   L1SkeletonDto,
   L2SoftTissueDto,
   L3FeaturesDto,
+  L4SkinDto,
   L5HairDto,
+  L6DecorationDto,
   L7RenderDto,
   L8EvaluationDto,
 } from './dto/blueprint.dto';
@@ -13,6 +15,7 @@ import {
   detectContradictions,
   type Contradiction,
 } from './contradictions';
+import { buildPrompts } from './prompt-builder';
 
 export const BLUEPRINT_LAYERS = [
   'L1_skeleton',
@@ -28,14 +31,14 @@ export const BLUEPRINT_LAYERS = [
 export type LayerKey = (typeof BLUEPRINT_LAYERS)[number];
 
 // 按 step 路由到 DTO 类的映射
-// L3/L5 R5b 起接入校验,L4/L6 留 R6
+// L3/L5 R5b 起接入校验,L4/L6 R6 接入
 const STEP_VALIDATORS: Record<number, new () => unknown> = {
   1: L1SkeletonDto as new () => unknown,
   2: L2SoftTissueDto as new () => unknown,
   3: L3FeaturesDto as new () => unknown,
-  4: null as unknown as new () => unknown,
+  4: L4SkinDto as new () => unknown,
   5: L5HairDto as new () => unknown,
-  6: null as unknown as new () => unknown,
+  6: L6DecorationDto as new () => unknown,
   7: L7RenderDto as new () => unknown,
   8: L8EvaluationDto as new () => unknown,
 };
@@ -171,7 +174,22 @@ export class BlueprintService {
   ): Promise<BlueprintEntity & { contradictions: Contradiction[] }> {
     const entity = this.getById(id);
     const validated = await this.validateLayerData(step, input.data);
-    entity.layers[layer] = validated;
+
+    // L7 计算层:从 L1~L6 自动生成 prompt,合并用户传的 platforms
+    if (step === 7) {
+      const userData = validated as { platforms?: string[]; promptZh?: string; promptEn?: string; variants?: string[] };
+      const platforms = (userData.platforms ?? ['mj', 'sd', 'jimeng', 'doubao']) as any;
+      const built = buildPrompts(entity.layers as any, platforms);
+      entity.layers[layer] = {
+        platforms: built.variants.map((v) => v.platform),
+        promptZh: built.promptZh,
+        promptEn: built.promptEn,
+        variants: built.variants.map((v) => `${v.platform}:${v.prompt}`),
+      };
+    } else {
+      entity.layers[layer] = validated;
+    }
+
     entity.updatedAt = new Date().toISOString();
     entity.version += 1;
     return {

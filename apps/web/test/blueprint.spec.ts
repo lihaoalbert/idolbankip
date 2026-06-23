@@ -9,18 +9,26 @@ import {
   L1_DEFAULTS,
   L2_DEFAULTS,
   L3_DEFAULTS,
+  L4_DEFAULTS,
   L5_DEFAULTS,
+  L6_DEFAULTS,
   L1_SLIDER_FIELDS,
   L2_SLIDER_FIELDS,
   L3_SLIDER_FIELDS,
+  L4_SLIDER_FIELDS,
   L5_SLIDER_FIELDS,
+  L6_SLIDER_FIELDS,
   L1_SELECT_FIELDS,
   L3_SELECT_FIELDS,
+  L4_SELECT_FIELDS,
   L5_SELECT_FIELDS,
+  L6_SELECT_FIELDS,
   type L1Skeleton,
   type L2SoftTissue,
   type L3Features,
+  type L4Skin,
   type L5Hair,
+  type L6Decoration,
   stepToLayer,
   BLUEPRINT_LAYERS,
 } from '../src/api/blueprint';
@@ -468,5 +476,148 @@ describe('detectContradictions (R5b B2 前端镜像)', () => {
       L5_hair: L5_DEFAULTS,
     });
     expect(result).toEqual([]);
+  });
+});
+// ============================================================
+// Phase B Round 6 — L4 皮肤 + L6 修饰 + L7 prompt 生成器
+// ============================================================
+
+describe('L4 皮肤 (6 项)', () => {
+  it('有 4 个 slider + 2 个 select 字段', () => {
+    expect(L4_SLIDER_FIELDS).toHaveLength(4);
+    expect(L4_SELECT_FIELDS).toHaveLength(2);
+    const totalKeys = new Set([
+      ...L4_SLIDER_FIELDS.map((f) => f.key),
+      ...L4_SELECT_FIELDS.map((f) => f.key),
+    ]);
+    expect(totalKeys.size).toBe(6);
+  });
+
+  it('默认值都在合法范围 / 枚举内', () => {
+    for (const f of L4_SLIDER_FIELDS) {
+      const v = (L4_DEFAULTS as any)[f.key];
+      expect(v).toBeGreaterThanOrEqual(f.min);
+      expect(v).toBeLessThanOrEqual(f.max);
+    }
+    for (const f of L4_SELECT_FIELDS) {
+      const v = (L4_DEFAULTS as any)[f.key];
+      const valid = f.options.map((o) => o.value);
+      expect(valid).toContain(v);
+    }
+  });
+
+  it('form ↔ JSON 序列化无精度损失', () => {
+    const input: L4Skin = {
+      skinTone: 'olive',
+      skinTexture: 'matte',
+      freckles: 0.35,
+      moles: 0.12,
+      wrinkles: 0.08,
+      pores: 0.55,
+    };
+    expect(JSON.parse(JSON.stringify(input))).toEqual(input);
+  });
+});
+
+describe('L6 修饰 (6 项)', () => {
+  it('有 3 个 slider + 3 个 select 字段', () => {
+    expect(L6_SLIDER_FIELDS).toHaveLength(3);
+    expect(L6_SELECT_FIELDS).toHaveLength(3);
+    const totalKeys = new Set([
+      ...L6_SLIDER_FIELDS.map((f) => f.key),
+      ...L6_SELECT_FIELDS.map((f) => f.key),
+    ]);
+    expect(totalKeys.size).toBe(6);
+  });
+
+  it('默认值都在合法范围 / 枚举内', () => {
+    for (const f of L6_SLIDER_FIELDS) {
+      const v = (L6_DEFAULTS as any)[f.key];
+      expect(v).toBeGreaterThanOrEqual(f.min);
+      expect(v).toBeLessThanOrEqual(f.max);
+    }
+    for (const f of L6_SELECT_FIELDS) {
+      const v = (L6_DEFAULTS as any)[f.key];
+      const valid = f.options.map((o) => o.value);
+      expect(valid).toContain(v);
+    }
+  });
+
+  it('form ↔ JSON 序列化无精度损失', () => {
+    const input: L6Decoration = {
+      makeup: 'heavy',
+      lipColor: 'dark',
+      blush: 0.7,
+      eyeshadow: 0.55,
+      accessory: 'glasses',
+      facePaint: 0.0,
+    };
+    expect(JSON.parse(JSON.stringify(input))).toEqual(input);
+  });
+});
+
+describe('buildPrompts (R6 B2 前端镜像)', () => {
+  it('空 layers 仍返回基础 prompt', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({});
+    expect(r.promptZh).toMatch(/肖像/);
+    expect(r.promptEn).toMatch(/portrait/);
+    expect(r.variants).toHaveLength(4);
+  });
+
+  it('L1+L3+L4 拼出含肤色 + 眼型 + 颅型 的中文', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({
+      L1_skeleton: { ...L1_DEFAULTS, craniumShape: 'long' },
+      L3_features: { ...L3_DEFAULTS, eyeShape: 'phoenix' },
+      L4_skin: { ...L4_DEFAULTS, skinTone: 'tan' },
+    });
+    expect(r.promptZh).toMatch(/长颅/);
+    expect(r.promptZh).toMatch(/丹凤眼/);
+    expect(r.promptZh).toMatch(/小麦/);
+  });
+
+  it('英文 prompt 含 cinematic 风格后缀', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({});
+    expect(r.promptEn).toMatch(/cinematic/);
+    expect(r.promptEn).toMatch(/85mm/);
+  });
+
+  it('MJ 变体含 --ar 标志', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({}, ['mj']);
+    expect(r.variants).toHaveLength(1);
+    expect(r.variants[0].platform).toBe('mj');
+    expect(r.variants[0].prompt).toMatch(/--ar/);
+    expect(r.variants[0].prompt).toMatch(/--style raw/);
+  });
+
+  it('SD 变体含 Negative prompt', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({}, ['sd']);
+    expect(r.variants[0].prompt).toMatch(/Negative prompt/);
+  });
+
+  it('jimeng/doubao 用中文 prompt', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const r = buildPrompts({}, ['jimeng', 'doubao']);
+    expect(r.variants[0].prompt).toMatch(/肖像/);
+    expect(r.variants[1].prompt).toMatch(/肖像/);
+  });
+
+  it('确定性:相同输入 → 相同输出', async () => {
+    const { buildPrompts } = await import('../src/api/prompt-builder');
+    const layers = {
+      L1_skeleton: L1_DEFAULTS,
+      L3_features: L3_DEFAULTS,
+      L4_skin: L4_DEFAULTS,
+      L5_hair: L5_DEFAULTS,
+    };
+    const a = buildPrompts(layers, ['mj']);
+    const b = buildPrompts(layers, ['mj']);
+    expect(a.promptZh).toBe(b.promptZh);
+    expect(a.promptEn).toBe(b.promptEn);
+    expect(a.variants[0].prompt).toBe(b.variants[0].prompt);
   });
 });

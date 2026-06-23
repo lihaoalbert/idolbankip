@@ -459,33 +459,7 @@ describe('FaceBlueprint skeleton (e2e)', () => {
   });
 
   describe('L3~L6 passthrough (no zod yet)', () => {
-    it('accepts arbitrary data for L4 (no validator)', async () => {
-      const created = await request(app.getHttpServer())
-        .post('/blueprint')
-        .send({})
-        .expect(201);
-
-      const res = await request(app.getHttpServer())
-        .patch(`/blueprint/${created.body.id}/step/4`)
-        .send({ data: { anyField: 'any value' } })
-        .expect(200);
-
-      expect(res.body.layers.L4_skin).toEqual({ anyField: 'any value' });
-    });
-
-    it('accepts arbitrary data for L6 (no validator)', async () => {
-      const created = await request(app.getHttpServer())
-        .post('/blueprint')
-        .send({})
-        .expect(201);
-
-      const res = await request(app.getHttpServer())
-        .patch(`/blueprint/${created.body.id}/step/6`)
-        .send({ data: { anyField: 'any value' } })
-        .expect(200);
-
-      expect(res.body.layers.L6_decoration).toEqual({ anyField: 'any value' });
-    });
+    // L4/L6 R6 起接入校验,移除了"passthrough" 测试 — 现在 L4/L6 都会 400
   });
 
   // ============================================================
@@ -775,25 +749,241 @@ describe('FaceBlueprint skeleton (e2e)', () => {
     });
   });
 
-  describe('L7 render (R6 placeholder) + L8 evaluation (R7 placeholder)', () => {
-    it('accepts L7 with promptZh string (200)', async () => {
+  // ============================================================
+  // Phase B Round 6 — L4 皮肤 (6 项) + L6 修饰 (6 项) + L7 prompt 整合
+  // ============================================================
+
+  const validL4 = {
+    skinTone: 'medium',
+    skinTexture: 'normal',
+    freckles: 0.2,
+    moles: 0.1,
+    wrinkles: 0.05,
+    pores: 0.3,
+  };
+
+  const validL6 = {
+    makeup: 'light',
+    lipColor: 'pink',
+    blush: 0.4,
+    eyeshadow: 0.3,
+    accessory: 'earrings',
+    facePaint: 0.0,
+  };
+
+  describe('PATCH L4 skin (Phase B R6 B1)', () => {
+    it('accepts a complete valid L4 payload (200)', async () => {
       const created = await request(app.getHttpServer())
         .post('/blueprint')
         .send({})
         .expect(201);
 
       const res = await request(app.getHttpServer())
-        .patch(`/blueprint/${created.body.id}/step/7`)
-        .send({ data: { promptZh: '青衣少女', promptEn: 'a girl in cyan', platforms: ['mj', 'sd'] } })
+        .patch(`/blueprint/${created.body.id}/step/4`)
+        .send({ data: validL4 })
         .expect(200);
 
-      expect(res.body.layers.L7_render).toMatchObject({
-        promptZh: '青衣少女',
-        promptEn: 'a girl in cyan',
-        platforms: ['mj', 'sd'],
-      });
+      expect(res.body.layers.L4_skin).toEqual(validL4);
     });
 
+    it('rejects L4 with invalid skinTone enum (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/4`)
+        .send({ data: { ...validL4, skinTone: 'ghostly' } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L4 with wrinkles > 1 (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/4`)
+        .send({ data: { ...validL4, wrinkles: 1.5 } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L4 with missing fields (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const { freckles: _omit, ...partial } = validL4;
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/4`)
+        .send({ data: partial })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+  });
+
+  describe('PATCH L6 decoration (Phase B R6 B1)', () => {
+    it('accepts a complete valid L6 payload (200)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/6`)
+        .send({ data: validL6 })
+        .expect(200);
+
+      expect(res.body.layers.L6_decoration).toEqual(validL6);
+    });
+
+    it('rejects L6 with invalid makeup enum (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/6`)
+        .send({ data: { ...validL6, makeup: 'cosplay' } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L6 with eyeshadow > 1 (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/6`)
+        .send({ data: { ...validL6, eyeshadow: 2.0 } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+  });
+
+  describe('L7 prompt generation (Phase B R6 B2)', () => {
+    async function setupFullBlueprint(): Promise<string> {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      // 填 L1~L6 完整数据,触发 L7 prompt 计算
+      const fullL1 = {
+        craniumShape: 'medium',
+        faceIndex: 1.35,
+        cheekboneWidth: 0.55,
+        cheekboneProminence: 0.4,
+        jawWidth: 0.5,
+        jawAngle: 'medium',
+        upperThirdRatio: 0.33,
+        midThirdRatio: 0.34,
+      };
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/1`)
+        .send({ data: fullL1 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/4`)
+        .send({ data: validL4 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/6`)
+        .send({ data: validL6 })
+        .expect(200);
+      return id;
+    }
+
+    it('auto-generates promptZh and promptEn from L1~L6', async () => {
+      const id = await setupFullBlueprint();
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['mj', 'sd'] } })
+        .expect(200);
+
+      const l7 = res.body.layers.L7_render;
+      expect(l7.promptZh).toEqual(expect.any(String));
+      expect(l7.promptEn).toEqual(expect.any(String));
+      expect(l7.promptZh.length).toBeGreaterThan(10);
+      expect(l7.promptEn.length).toBeGreaterThan(10);
+      // 平台选择
+      expect(l7.platforms).toEqual(['mj', 'sd']);
+    });
+
+    it('prompt is deterministic for same input', async () => {
+      const id = await setupFullBlueprint();
+      const a = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['mj'] } })
+        .expect(200);
+
+      // 再发一次同样请求
+      const b = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['mj'] } })
+        .expect(200);
+
+      expect(b.body.layers.L7_render.promptZh).toBe(a.body.layers.L7_render.promptZh);
+      expect(b.body.layers.L7_render.promptEn).toBe(a.body.layers.L7_render.promptEn);
+    });
+
+    it('MJ variant includes Midjourney flags', async () => {
+      const id = await setupFullBlueprint();
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['mj'] } })
+        .expect(200);
+
+      const mjVariant = res.body.layers.L7_render.variants.find((v: string) => v.startsWith('mj:'));
+      expect(mjVariant).toBeDefined();
+      expect(mjVariant).toMatch(/--ar/);
+      expect(mjVariant).toMatch(/--style raw/);
+    });
+
+    it('jimeng/doubao variants use Chinese prompt', async () => {
+      const id = await setupFullBlueprint();
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['jimeng', 'doubao'] } })
+        .expect(200);
+
+      const jimeng = res.body.layers.L7_render.variants.find((v: string) => v.startsWith('jimeng:'));
+      const doubao = res.body.layers.L7_render.variants.find((v: string) => v.startsWith('doubao:'));
+      expect(jimeng).toBeDefined();
+      expect(doubao).toBeDefined();
+      // 中文字符检测 — 含"肖像"或"半身"
+      expect(jimeng).toMatch(/肖像|半身|中/);
+      expect(doubao).toMatch(/肖像|半身|中/);
+    });
+
+    it('SD variant includes negative prompt', async () => {
+      const id = await setupFullBlueprint();
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/7`)
+        .send({ data: { platforms: ['sd'] } })
+        .expect(200);
+
+      const sd = res.body.layers.L7_render.variants.find((v: string) => v.startsWith('sd:'));
+      expect(sd).toBeDefined();
+      expect(sd).toMatch(/Negative prompt/);
+    });
+  });
+
+  describe('L8 evaluation (R7 placeholder)', () => {
     it('rejects L8 with out-of-range score (400)', async () => {
       const created = await request(app.getHttpServer())
         .post('/blueprint')

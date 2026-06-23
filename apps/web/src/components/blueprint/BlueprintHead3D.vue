@@ -13,7 +13,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { buildHead, disposeHead, type HeadParams } from '@/three/headBuilder';
-import { L1_DEFAULTS, L2_DEFAULTS, L3_DEFAULTS, L5_DEFAULTS } from '@/api/blueprint';
+import { L1_DEFAULTS, L2_DEFAULTS, L3_DEFAULTS, L4_DEFAULTS, L5_DEFAULTS, L6_DEFAULTS } from '@/api/blueprint';
 import { BlueprintKey } from '@/pages/creator/blueprint/context';
 
 const ctx = inject(BlueprintKey);
@@ -27,7 +27,9 @@ const headParams = computed<HeadParams>(() => {
     L1: (bp?.layers.L1_skeleton as any) ?? L1_DEFAULTS,
     L2: (bp?.layers.L2_softTissue as any) ?? L2_DEFAULTS,
     L3: (bp?.layers.L3_features as any) ?? L3_DEFAULTS,
+    L4: (bp?.layers.L4_skin as any) ?? L4_DEFAULTS,
     L5: (bp?.layers.L5_hair as any) ?? L5_DEFAULTS,
+    L6: (bp?.layers.L6_decoration as any) ?? L6_DEFAULTS,
   };
 });
 
@@ -192,9 +194,7 @@ onBeforeUnmount(() => {
       v-if="webglSupported"
       class="pointer-events-none absolute left-2 top-2 rounded bg-cream/80 px-2 py-1 text-xs text-ink/60 backdrop-blur"
     >
-      L1 颅型: <span class="font-mono text-stamp-red">{{ headParams.L1.craniumShape }}</span>
-      · L3 眼: <span class="font-mono text-stamp-red">{{ headParams.L3.eyeShape }}</span>
-      · L5 发: <span class="font-mono text-stamp-red">{{ headParams.L5.hairStyle }}</span>
+      L1 {{ headParams.L1.craniumShape }} · L4 {{ headParams.L4.skinTone }} · L5 {{ headParams.L5.hairStyle }} · L6 {{ headParams.L6.accessory }}
     </div>
   </div>
 </template>

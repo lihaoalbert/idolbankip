@@ -11,13 +11,15 @@
 // - 不缓存 geometry,dispose 在组件 unmount 时统一做
 
 import * as THREE from 'three';
-import type { L1Skeleton, L2SoftTissue, L3Features, L5Hair } from '@/api/blueprint';
+import type { L1Skeleton, L2SoftTissue, L3Features, L4Skin, L5Hair, L6Decoration } from '@/api/blueprint';
 
 export interface HeadParams {
   L1: L1Skeleton;
   L2: L2SoftTissue;
   L3: L3Features;
+  L4: L4Skin;
   L5: L5Hair;
+  L6: L6Decoration;
 }
 
 // 颜色常量 — 跟 catalog paper 色系对齐
@@ -74,10 +76,10 @@ function hairColorHex(c: string): number {
   }
 }
 
-function makeSkinMat(opacity = 0.78): THREE.MeshStandardMaterial {
+function makeSkinMat(opacity = 0.78, color: number = COLOR_SKIN, roughness: number = 0.65): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: COLOR_SKIN,
-    roughness: 0.65,
+    color,
+    roughness,
     metalness: 0.0,
     transparent: true,
     opacity,
@@ -85,14 +87,39 @@ function makeSkinMat(opacity = 0.78): THREE.MeshStandardMaterial {
   });
 }
 
+// L4 肤色 → 16 进制颜色 (Fitzpatrick scale 简化)
+const SKIN_TONE_HEX: Record<string, number> = {
+  fair: 0xf5dcc7,  // 瓷白
+  light: 0xecd1b3, // 自然白
+  medium: 0xe8d5b7, // 米黄 (默认)
+  olive: 0xd9b88a, // 黄调
+  tan: 0xc99565,   // 小麦
+  brown: 0x8b5a3c, // 古铜
+  dark: 0x5a3a28,  // 深棕
+};
+
+// L6 唇色覆盖 (粉红默认 COLOR_LIP)
+const LIP_COLOR_HEX: Record<string, number> = {
+  natural: 0xc47266, // 自然(默认)
+  red: 0xc01818,     // 正红
+  pink: 0xe87a90,    // 粉
+  orange: 0xd65a2a,  // 橘
+  nude: 0xb89080,    // 裸
+  dark: 0x6a1820,    // 暗红
+};
+
 export function buildHead(params: HeadParams): THREE.Group {
-  const { L1, L2, L3, L5 } = params;
+  const { L1, L2, L3, L4, L5, L6 } = params;
   const group = new THREE.Group();
   group.name = 'BlueprintHead';
 
+  // L4 派生:肤色主色 + 肤质 → roughness
+  const skinColor = SKIN_TONE_HEX[L4.skinTone] ?? COLOR_SKIN;
+  const skinRoughness = L4.skinTexture === 'matte' ? 0.85 : L4.skinTexture === 'oily' ? 0.25 : L4.skinTexture === 'rough' ? 0.9 : 0.65;
+
   // 1. 颅骨主体 — SphereGeometry + 三轴缩放
   const craniumGeom = new THREE.SphereGeometry(1, 48, 48);
-  const cranium = new THREE.Mesh(craniumGeom, makeSkinMat(0.85));
+  const cranium = new THREE.Mesh(craniumGeom, makeSkinMat(0.85, skinColor, skinRoughness));
   // faceIndex (1.0~1.6) → y 缩放,默认 1.35
   cranium.scale.set(1, L1.faceIndex / 1.35, 1);
   // craniumShape 在 faceIndex 基础上叠加
@@ -104,7 +131,7 @@ export function buildHead(params: HeadParams): THREE.Group {
 
   // 2. 颧骨 ×2
   const cheekboneGeom = new THREE.SphereGeometry(1, 24, 24);
-  const cheekboneMat = makeSkinMat(0.82);
+  const cheekboneMat = makeSkinMat(0.82, skinColor, skinRoughness);
   [-1, 1].forEach((side) => {
     const width = L1.cheekboneWidth;
     const prominence = L1.cheekboneProminence;
@@ -118,7 +145,7 @@ export function buildHead(params: HeadParams): THREE.Group {
   // 3. 下颌 — ConeGeometry,4 边模拟下颌骨
   const jaw = new THREE.Mesh(
     new THREE.ConeGeometry(1, 1.0, 4, 1, true),
-    makeSkinMat(0.82),
+    makeSkinMat(0.82, skinColor, skinRoughness),
   );
   const [jawRadiusTop, jawRadiusBot] = JAW_ANGLE_RADII[L1.jawAngle] ?? [0.42, 0.6];
   jaw.scale.set(jawRadiusBot * (0.6 + L1.jawWidth * 0.6), 1.2, jawRadiusBot * (0.6 + L1.jawWidth * 0.6));
@@ -146,7 +173,7 @@ export function buildHead(params: HeadParams): THREE.Group {
   });
 
   // 5. 眉弓 ×2 — BoxGeometry 弧形
-  const browMat = makeSkinMat(0.85);
+  const browMat = makeSkinMat(0.85, skinColor, skinRoughness);
   [-1, 1].forEach((side) => {
     const brow = new THREE.Mesh(
       new THREE.BoxGeometry(0.25, 0.04 + L2.browRidge * 0.05, 0.06),
@@ -203,7 +230,7 @@ export function buildHead(params: HeadParams): THREE.Group {
 
   // 8. 鼻 — ConeGeometry (高鼻梁更尖)
   const noseGeom = new THREE.ConeGeometry(0.08, 0.18, 8);
-  const nose = new THREE.Mesh(noseGeom, makeSkinMat(0.92));
+  const nose = new THREE.Mesh(noseGeom, makeSkinMat(0.92, skinColor, skinRoughness));
   const noseLenScale = 0.7 + L3.noseLength * 0.6; // 0.7 ~ 1.3
   const noseWidthScale = 0.7 + L3.noseWidth * 0.6;
   const bridgeZ = L3.noseBridge === 'high' ? 0.96 : L3.noseBridge === 'low' ? 0.84 : 0.9;
@@ -217,7 +244,7 @@ export function buildHead(params: HeadParams): THREE.Group {
   [-1, 1].forEach((side) => {
     const wing = new THREE.Mesh(
       new THREE.SphereGeometry(0.025 + L3.noseWidth * 0.04, 12, 12),
-      makeSkinMat(0.92),
+      makeSkinMat(0.92, skinColor, skinRoughness),
     );
     wing.position.set(side * (0.04 + L3.noseWidth * 0.06), -0.04, 0.88);
     wing.name = `noseWing_${side > 0 ? 'R' : 'L'}`;
@@ -254,8 +281,10 @@ export function buildHead(params: HeadParams): THREE.Group {
   });
 
   // 11. 唇 — TorusGeometry (上唇细线) + 半圆下唇
+  // L6 唇色覆盖默认 COLOR_LIP
+  const lipColor = LIP_COLOR_HEX[L6.lipColor] ?? COLOR_LIP;
   const lipMat = new THREE.MeshStandardMaterial({
-    color: COLOR_LIP,
+    color: lipColor,
     roughness: 0.55,
     transparent: true,
     opacity: 0.7 + L3.lipThickness * 0.25,
@@ -287,7 +316,7 @@ export function buildHead(params: HeadParams): THREE.Group {
   [-1, 1].forEach((side) => {
     const ear = new THREE.Mesh(
       new THREE.SphereGeometry(earSize, 12, 12),
-      makeSkinMat(0.85),
+      makeSkinMat(0.85, skinColor, skinRoughness),
     );
     ear.scale.set(0.5, 1.4, 0.6);
     ear.position.set(side * (0.55 + earSize * 0.3), 0.3 + earYOffset, 0.18);
@@ -358,6 +387,55 @@ export function buildHead(params: HeadParams): THREE.Group {
     brow.name = `brow_${side > 0 ? 'R' : 'L'}_L5`;
     group.add(brow);
   });
+
+  // ====== L6 修饰 (眼镜 / 耳环 placeholder) ======
+
+  // 眼镜 — BoxGeometry 镜框 + 镜腿,只有 accessory=glasses 时画
+  if (L6.accessory === 'glasses') {
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x2a1a10,
+      roughness: 0.4,
+      metalness: 0.3,
+      transparent: true,
+      opacity: 0.7,
+    });
+    [-1, 1].forEach((side) => {
+      const lens = new THREE.Mesh(
+        new THREE.RingGeometry(0.06, 0.09, 16),
+        glassMat,
+      );
+      lens.position.set(side * 0.18, 0.32, 0.9);
+      lens.name = `lens_${side > 0 ? 'R' : 'L'}`;
+      group.add(lens);
+    });
+    // 镜桥
+    const bridge = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.06, 8),
+      glassMat,
+    );
+    bridge.rotation.z = Math.PI / 2;
+    bridge.position.set(0, 0.32, 0.9);
+    bridge.name = 'glassBridge';
+    group.add(bridge);
+  }
+
+  // 耳环 — SphereGeometry,accessory=earrings 时画
+  if (L6.accessory === 'earrings') {
+    const earringMat = new THREE.MeshStandardMaterial({
+      color: 0xe8c878,
+      roughness: 0.2,
+      metalness: 0.9,
+    });
+    [-1, 1].forEach((side) => {
+      const earring = new THREE.Mesh(
+        new THREE.SphereGeometry(0.025, 12, 12),
+        earringMat,
+      );
+      earring.position.set(side * 0.55, 0.15, 0.18);
+      earring.name = `earring_${side > 0 ? 'R' : 'L'}`;
+      group.add(earring);
+    });
+  }
 
   return group;
 }

@@ -290,9 +290,131 @@ export class L5HairDto {
   sideburns!: number;
 }
 
+// ===================== L4 皮肤 (6 项) =====================
+// 肤色 (Fitzpatrick scale) + 肤质 + 雀斑/痣/皱纹/毛孔
+// 数字 0~1 归一化,枚举约束
+// R6 接入校验
+
+export enum SkinTone {
+  FAIR = 'fair',       // 1型:瓷白
+  LIGHT = 'light',     // 2型:自然白
+  MEDIUM = 'medium',   // 3型:自然色
+  OLIVE = 'olive',     // 3.5型:黄调
+  TAN = 'tan',         // 4型:小麦
+  BROWN = 'brown',     // 5型:古铜
+  DARK = 'dark',       // 6型:深棕
+}
+
+export enum SkinTexture {
+  SMOOTH = 'smooth',   // 婴儿肌/磨皮
+  NORMAL = 'normal',   // 标准
+  ROUGH = 'rough',     // 粗糙
+  MATTE = 'matte',     // 哑光(出油少)
+  OILY = 'oily',       // 油光
+}
+
+export class L4SkinDto {
+  @IsEnum(SkinTone)
+  skinTone!: SkinTone;
+
+  @IsEnum(SkinTexture)
+  skinTexture!: SkinTexture;
+
+  // 雀斑密度 (0=无,1=满脸)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  freckles!: number;
+
+  // 痣数量 (0=无,1=多)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  moles!: number;
+
+  // 皱纹/细纹 (0=光滑,1=深纹)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  wrinkles!: number;
+
+  // 毛孔 (0=细腻,1=粗大)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  pores!: number;
+}
+
+// ===================== L6 修饰 (6 项) =====================
+// 妆容强度 + 唇色 + 腮红/眼影 + 装饰 + 面部彩绘
+// 跟 L1~L5 配合成"最终形象"
+
+export enum MakeupLevel {
+  NONE = 'none',
+  NATURAL = 'natural', // 素颜感
+  LIGHT = 'light',     // 淡妆
+  HEAVY = 'heavy',     // 浓妆
+  COSTUME = 'costume', // 戏妆/Cos
+}
+
+export enum LipColor {
+  NATURAL = 'natural',
+  RED = 'red',         // 正红
+  PINK = 'pink',
+  ORANGE = 'orange',
+  NUDE = 'nude',
+  DARK = 'dark',       // 暗红/姨妈色
+}
+
+export enum Accessory {
+  NONE = 'none',
+  EARRINGS = 'earrings',
+  NECKLACE = 'necklace',
+  HEADBAND = 'headband',
+  MASK = 'mask',
+  GLASSES = 'glasses',
+}
+
+export class L6DecorationDto {
+  @IsEnum(MakeupLevel)
+  makeup!: MakeupLevel;
+
+  @IsEnum(LipColor)
+  lipColor!: LipColor;
+
+  // 腮红 (0=无,1=重)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  blush!: number;
+
+  // 眼影 (0=裸眼,1=重眼影)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  eyeshadow!: number;
+
+  @IsEnum(Accessory)
+  accessory!: Accessory;
+
+  // 面部彩绘 (戏曲/Cos 风格,0=无,1=满)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  facePaint!: number;
+}
+
 // ===================== L7 渲染 prompt 整合 (R6 实现) =====================
-// R4 stub: 仅占位, R6 会扩展中英 + MJ/SD/jimeng/doubao 多平台
+// L7 是"计算层" — 用户只 PATCH platforms,service 自动从 L1~L6 拼中英 prompt
+// promptZh / promptEn 字段由 service 写入,前端通常 GET 才能看到(POST/PATCH 后也会随响应返回)
+
 export class L7RenderDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  platforms?: string[]; // ['mj', 'sd', 'jimeng', 'doubao']
+
+  // 下面是 service 计算写入的字段,PATCH 时可选传(覆盖模式)
   @IsOptional()
   @IsString()
   @MaxLength(4000)
@@ -306,7 +428,7 @@ export class L7RenderDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  platforms?: string[]; // ['mj', 'sd', 'jimeng', 'doubao']
+  variants?: string[]; // 各平台变体:['mj:'+..., 'sd:'+..., ...]
 }
 
 // ===================== L8 评估 (R7 实现) =====================

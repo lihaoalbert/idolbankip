@@ -100,12 +100,44 @@ export interface L5Hair {
   sideburns: number; // 0~1
 }
 
-// ===================== L7 渲染 prompt (R6 详) =====================
+// ===================== L4 皮肤 (6 项) =====================
+
+export type SkinTone = 'fair' | 'light' | 'medium' | 'olive' | 'tan' | 'brown' | 'dark';
+export type SkinTexture = 'smooth' | 'normal' | 'rough' | 'matte' | 'oily';
+
+export interface L4Skin {
+  skinTone: SkinTone;
+  skinTexture: SkinTexture;
+  freckles: number; // 0~1
+  moles: number; // 0~1
+  wrinkles: number; // 0~1
+  pores: number; // 0~1
+}
+
+// ===================== L6 修饰 (6 项) =====================
+
+export type MakeupLevel = 'none' | 'natural' | 'light' | 'heavy' | 'costume';
+export type LipColor = 'natural' | 'red' | 'pink' | 'orange' | 'nude' | 'dark';
+export type Accessory = 'none' | 'earrings' | 'necklace' | 'headband' | 'mask' | 'glasses';
+
+export interface L6Decoration {
+  makeup: MakeupLevel;
+  lipColor: LipColor;
+  blush: number; // 0~1
+  eyeshadow: number; // 0~1
+  accessory: Accessory;
+  facePaint: number; // 0~1
+}
+
+// ===================== L7 渲染 prompt (R6 计算层) =====================
+
+export type Platform = 'mj' | 'sd' | 'jimeng' | 'doubao';
 
 export interface L7Render {
   promptZh?: string;
   promptEn?: string;
-  platforms?: string[];
+  platforms?: Platform[];
+  variants?: string[]; // ['mj:...', 'sd:...', ...]
 }
 
 // ===================== L8 评估 (R7 详) =====================
@@ -233,6 +265,28 @@ export const L5_DEFAULTS: L5Hair = {
   sideburns: 0.2,
 };
 
+export const L4_DEFAULTS: L4Skin = {
+  skinTone: 'medium',
+  skinTexture: 'normal',
+  freckles: 0.1,
+  moles: 0.05,
+  wrinkles: 0.05,
+  pores: 0.2,
+};
+
+export const L6_DEFAULTS: L6Decoration = {
+  makeup: 'natural',
+  lipColor: 'natural',
+  blush: 0.2,
+  eyeshadow: 0.1,
+  accessory: 'none',
+  facePaint: 0.0,
+};
+
+export const L7_DEFAULTS: L7Render = {
+  platforms: ['mj', 'sd', 'jimeng', 'doubao'],
+};
+
 export const L3_SLIDER_FIELDS: SliderFieldDef[] = [
   { key: 'eyeDistance', label: '眼距', min: 0, max: 1, step: 0.01, hint: '0=近,1=远' },
   { key: 'eyeApertureHeight', label: '眼裂高度', min: 0, max: 1, step: 0.01 },
@@ -311,6 +365,64 @@ export const L5_SELECT_FIELDS: SelectFieldDef<HairStyle | HairColor | Hairline |
     { value: 'short_dense', label: '短密' },
     { value: 'long_sparse', label: '长疏' },
     { value: 'short_sparse', label: '短疏' },
+  ]},
+];
+
+export const L4_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'freckles', label: '雀斑', min: 0, max: 1, step: 0.01, hint: '0=无,1=满脸' },
+  { key: 'moles', label: '痣', min: 0, max: 1, step: 0.01 },
+  { key: 'wrinkles', label: '皱纹/细纹', min: 0, max: 1, step: 0.01 },
+  { key: 'pores', label: '毛孔', min: 0, max: 1, step: 0.01 },
+];
+
+export const L4_SELECT_FIELDS: SelectFieldDef<SkinTone | SkinTexture>[] = [
+  { key: 'skinTone', label: '肤色 (Fitzpatrick)', options: [
+    { value: 'fair', label: '瓷白 (1型)' },
+    { value: 'light', label: '自然白 (2型)' },
+    { value: 'medium', label: '自然色 (3型)' },
+    { value: 'olive', label: '黄调 (3.5型)' },
+    { value: 'tan', label: '小麦 (4型)' },
+    { value: 'brown', label: '古铜 (5型)' },
+    { value: 'dark', label: '深棕 (6型)' },
+  ]},
+  { key: 'skinTexture', label: '肤质', options: [
+    { value: 'smooth', label: '光滑' },
+    { value: 'normal', label: '标准' },
+    { value: 'rough', label: '粗糙' },
+    { value: 'matte', label: '哑光' },
+    { value: 'oily', label: '油光' },
+  ]},
+];
+
+export const L6_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'blush', label: '腮红', min: 0, max: 1, step: 0.01, hint: '0=无,1=重' },
+  { key: 'eyeshadow', label: '眼影', min: 0, max: 1, step: 0.01 },
+  { key: 'facePaint', label: '面部彩绘', min: 0, max: 1, step: 0.01, hint: '戏曲/Cos 风格' },
+];
+
+export const L6_SELECT_FIELDS: SelectFieldDef<MakeupLevel | LipColor | Accessory>[] = [
+  { key: 'makeup', label: '妆容', options: [
+    { value: 'none', label: '素颜' },
+    { value: 'natural', label: '素颜感' },
+    { value: 'light', label: '淡妆' },
+    { value: 'heavy', label: '浓妆' },
+    { value: 'costume', label: '戏妆' },
+  ]},
+  { key: 'lipColor', label: '唇色', options: [
+    { value: 'natural', label: '自然' },
+    { value: 'red', label: '正红' },
+    { value: 'pink', label: '粉' },
+    { value: 'orange', label: '橘' },
+    { value: 'nude', label: '裸' },
+    { value: 'dark', label: '暗红' },
+  ]},
+  { key: 'accessory', label: '装饰', options: [
+    { value: 'none', label: '无' },
+    { value: 'earrings', label: '耳环' },
+    { value: 'necklace', label: '项链' },
+    { value: 'headband', label: '发箍' },
+    { value: 'mask', label: '面具' },
+    { value: 'glasses', label: '眼镜' },
   ]},
 ];
 
