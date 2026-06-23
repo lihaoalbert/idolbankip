@@ -142,10 +142,22 @@ export interface L7Render {
 
 // ===================== L8 评估 (R7 详) =====================
 
+export interface L8SubScores {
+  L1_complexity: number;
+  L2_expressiveness: number;
+  L3_distinctiveness: number;
+  L4_skin_realism: number;
+  L5_hair_coverage: number;
+  L6_decoration_completeness: number;
+  L7_prompt_quality: number;
+  L8_contradiction_bonus: number;
+}
+
 export interface L8Evaluation {
   originality?: number;
   consistency?: number;
   aesthetics?: number;
+  subScores?: L8SubScores;
   evaluatedAt?: string;
 }
 
@@ -160,6 +172,7 @@ export interface EvaluationResult {
   scores: EvaluationScores;
   evaluated_at: string;
   contradictions: Contradiction[];
+  sub_scores?: L8SubScores;
 }
 
 export interface Contradiction {

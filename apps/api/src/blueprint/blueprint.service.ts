@@ -16,6 +16,7 @@ import {
   type Contradiction,
 } from './contradictions';
 import { buildPrompts } from './prompt-builder';
+import { evaluate as runEvaluation, type EvaluationResult } from './evaluator/mock-evaluator';
 
 export const BLUEPRINT_LAYERS = [
   'L1_skeleton',
@@ -202,41 +203,34 @@ export class BlueprintService {
    * L8 mock 评分 — Phase 1 占位
    * 真实 Phase 3 接入 FLAME / 3DMM 反推 + embedding 原创度
    *
-   * why deterministic hash:相同输入必须返相同分(RC-3 拍板 mock 公式前稳定可测)
+   * R7 起:委托 evaluator/mock-evaluator.ts(8 维 sub-score → 3 维主分)
+   * 持久化到 entity.layers.L8_evaluation,后续 GET /blueprint/:id 能看到
    */
   evaluate(id: string): {
     id: string;
     scores: EvaluationScores;
     evaluated_at: string;
     contradictions: Contradiction[];
+    sub_scores: EvaluationResult['subScores'];
   } {
     const entity = this.getById(id);
-    const fingerprint = JSON.stringify(entity.layers);
-    const hash = simpleHash(fingerprint);
-    const originality = 5 + (hash % 51) / 10; // 5.0 ~ 10.0
-    const consistency = 5 + ((hash >> 3) % 51) / 10;
-    const aesthetics = 5 + ((hash >> 7) % 51) / 10;
+    const result = runEvaluation(entity.layers as any);
+    // 持久化到 L8 层(权威记录最近一次评估)
+    entity.layers.L8_evaluation = {
+      originality: result.scores.originality,
+      consistency: result.scores.consistency,
+      aesthetics: result.scores.aesthetics,
+      subScores: result.subScores,
+      evaluatedAt: result.evaluatedAt,
+    };
+    entity.updatedAt = new Date().toISOString();
+    entity.version += 1;
     return {
       id: entity.id,
-      scores: {
-        originality: round1(originality),
-        consistency: round1(consistency),
-        aesthetics: round1(aesthetics),
-      },
-      evaluated_at: new Date().toISOString(),
-      contradictions: detectContradictions(entity.layers as any),
+      scores: result.scores,
+      evaluated_at: result.evaluatedAt,
+      contradictions: result.contradictions,
+      sub_scores: result.subScores,
     };
   }
-}
-
-function simpleHash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) {
-    h = (h * 31 + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
 }

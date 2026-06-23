@@ -222,12 +222,15 @@ describe('FaceBlueprint skeleton (e2e)', () => {
         consistency: expect.any(Number),
         aesthetics: expect.any(Number),
       });
-      // 范围 5.0 ~ 10.0
+      // 范围 0.0 ~ 10.0 (R7 改 mock 公式,空 blueprint 评估 originality~4.5,consistency=10,aesthetics~4.8)
       for (const k of ['originality', 'consistency', 'aesthetics']) {
-        expect(res.body.scores[k]).toBeGreaterThanOrEqual(5);
+        expect(res.body.scores[k]).toBeGreaterThanOrEqual(0);
         expect(res.body.scores[k]).toBeLessThanOrEqual(10);
       }
       expect(res.body.evaluated_at).toEqual(expect.any(String));
+      // R7: response 多了 sub_scores 字段
+      expect(res.body.sub_scores).toBeDefined();
+      expect(res.body.sub_scores.L1_complexity).toEqual(expect.any(Number));
     });
 
     it('is deterministic for same input', async () => {
@@ -996,6 +999,308 @@ describe('FaceBlueprint skeleton (e2e)', () => {
         .expect(400);
 
       expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+  });
+
+  // ============================================================
+  // Phase B Round 7 — L8 mock 评估公式 (8 维 → 3 维)
+  // ============================================================
+
+  describe('POST /blueprint/:id/evaluate (R7 详: 8 维 sub-score + 矛盾 bonus)', () => {
+    it('returns 8-dim subScores alongside 3 main scores', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'u_sub' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/blueprint/${created.body.id}/evaluate`)
+        .expect(201);
+
+      // 8 个 sub-score 全部存在,范围 0~1
+      for (const k of [
+        'L1_complexity',
+        'L2_expressiveness',
+        'L3_distinctiveness',
+        'L4_skin_realism',
+        'L5_hair_coverage',
+        'L6_decoration_completeness',
+        'L7_prompt_quality',
+        'L8_contradiction_bonus',
+      ]) {
+        expect(res.body.sub_scores[k]).toEqual(expect.any(Number));
+        expect(res.body.sub_scores[k]).toBeGreaterThanOrEqual(0);
+        expect(res.body.sub_scores[k]).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('persists evaluation result into L8_evaluation layer (GET 返回)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'u_persist' })
+        .expect(201);
+      const id = created.body.id;
+
+      await request(app.getHttpServer())
+        .post(`/blueprint/${id}/evaluate`)
+        .expect(201);
+
+      const get = await request(app.getHttpServer())
+        .get(`/blueprint/${id}`)
+        .expect(200);
+
+      expect(get.body.layers.L8_evaluation).toBeDefined();
+      expect(get.body.layers.L8_evaluation.originality).toEqual(expect.any(Number));
+      expect(get.body.layers.L8_evaluation.subScores).toBeDefined();
+      expect(get.body.layers.L8_evaluation.evaluatedAt).toEqual(expect.any(String));
+    });
+
+    it('contradiction-rich layers boost originality via L8_contradiction_bonus', async () => {
+      // 故意构造一个矛盾组合 (光头+长鬓角 + M 型发际线+高眉弓)
+      // 让 sub.L8_contradiction_bonus 上升,originality 应当 >= 无矛盾 baseline
+      const withContradiction = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'u_contra' })
+        .expect(201);
+      const wcId = withContradiction.body.id;
+
+      // 填 L1
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${wcId}/step/1`)
+        .send({
+          data: {
+            craniumShape: 'medium',
+            faceIndex: 1.35,
+            cheekboneWidth: 0.55,
+            cheekboneProminence: 0.4,
+            jawWidth: 0.5,
+            jawAngle: 'medium',
+            upperThirdRatio: 0.33,
+            midThirdRatio: 0.34,
+          },
+        })
+        .expect(200);
+      // 填 L2 (高眉弓 0.8, 触发 m_hairline_high_brow)
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${wcId}/step/2`)
+        .send({
+          data: {
+            subcutaneousFat: 0.5,
+            masseter: 0.5,
+            buccalFat: 0.5,
+            eyeSocketDepth: 0.3,
+            browRidge: 0.8,
+            nasolabialFold: 0.1,
+          },
+        })
+        .expect(200);
+      // 填 L5 (bald + sideburns=0.9 + m_shape)
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${wcId}/step/5`)
+        .send({
+          data: {
+            hairStyle: 'bald',
+            hairColor: 'black',
+            hairline: 'm_shape',
+            browShape: 'arched',
+            browColor: 'black',
+            browDensity: 0.5,
+            lashes: 'long_dense',
+            sideburns: 0.9,
+          },
+        })
+        .expect(200);
+
+      const evalWc = await request(app.getHttpServer())
+        .post(`/blueprint/${wcId}/evaluate`)
+        .expect(201);
+
+      // 至少有 2 条矛盾
+      expect(evalWc.body.contradictions.length).toBeGreaterThanOrEqual(2);
+      // 矛盾 bonus 应当 > 0
+      expect(evalWc.body.sub_scores.L8_contradiction_bonus).toBeGreaterThan(0);
+      // consistency 应当因矛盾扣分 (< 10)
+      expect(evalWc.body.scores.consistency).toBeLessThan(10);
+    });
+
+    it('is deterministic: same L1+L2 layers → same sub_scores', async () => {
+      const a = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'det_a' })
+        .expect(201);
+      const b = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'det_b' })
+        .expect(201);
+
+      // 同样的 L1 + L2
+      const payload = {
+        L1: {
+          craniumShape: 'long',
+          faceIndex: 1.5,
+          cheekboneWidth: 0.7,
+          cheekboneProminence: 0.6,
+          jawWidth: 0.3,
+          jawAngle: 'sharp',
+          upperThirdRatio: 0.35,
+          midThirdRatio: 0.32,
+        },
+        L2: {
+          subcutaneousFat: 0.2,
+          masseter: 0.7,
+          buccalFat: 0.3,
+          eyeSocketDepth: 0.8,
+          browRidge: 0.7,
+          nasolabialFold: 0.4,
+        },
+      };
+      for (const id of [a.body.id, b.body.id]) {
+        await request(app.getHttpServer())
+          .patch(`/blueprint/${id}/step/1`)
+          .send({ data: payload.L1 })
+          .expect(200);
+        await request(app.getHttpServer())
+          .patch(`/blueprint/${id}/step/2`)
+          .send({ data: payload.L2 })
+          .expect(200);
+      }
+
+      const evalA = await request(app.getHttpServer())
+        .post(`/blueprint/${a.body.id}/evaluate`)
+        .expect(201);
+      const evalB = await request(app.getHttpServer())
+        .post(`/blueprint/${b.body.id}/evaluate`)
+        .expect(201);
+
+      expect(evalB.body.sub_scores).toEqual(evalA.body.sub_scores);
+      expect(evalB.body.scores).toEqual(evalA.body.scores);
+    });
+
+    it('main scores are 0~10 with 1-decimal precision', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({ ownerId: 'u_range' })
+        .expect(201);
+      const id = created.body.id;
+      // 极端参数: 脸型极长, 各项极值
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/1`)
+        .send({
+          data: {
+            craniumShape: 'long',
+            faceIndex: 1.6,
+            cheekboneWidth: 0.1,
+            cheekboneProminence: 1.0,
+            jawWidth: 0.1,
+            jawAngle: 'sharp',
+            upperThirdRatio: 0.5,
+            midThirdRatio: 0.2,
+          },
+        })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/blueprint/${id}/evaluate`)
+        .expect(201);
+
+      for (const k of ['originality', 'consistency', 'aesthetics']) {
+        const v = res.body.scores[k];
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(10);
+        // 1 位小数 — v*10 应当是整数
+        expect(v * 10).toBe(Math.round(v * 10));
+      }
+    });
+  });
+
+  // ============================================================
+  // mock-evaluator 单元测试(直接调函数,不走 HTTP)
+  // ============================================================
+
+  describe('mock-evaluator unit (R7 公式直测)', () => {
+    it('empty layers give reasonable defaults (4-10 range)', async () => {
+      const { evaluate } = await import('../src/blueprint/evaluator/mock-evaluator');
+      const result = evaluate({
+        L1_skeleton: null,
+        L2_softTissue: null,
+        L3_features: null,
+        L4_skin: null,
+        L5_hair: null,
+        L6_decoration: null,
+        L7_render: null,
+      });
+      // 空 layers: sub-scores 0~0.5, 主分约 4-10
+      expect(result.scores.originality).toBeGreaterThan(0);
+      expect(result.scores.consistency).toBe(10); // 无矛盾
+      expect(result.scores.aesthetics).toBeGreaterThan(0);
+      expect(result.contradictions).toEqual([]);
+    });
+
+    it('extreme L1 (long + 1.6 faceIndex) boosts L1_complexity sub-score', async () => {
+      const { evaluate } = await import('../src/blueprint/evaluator/mock-evaluator');
+      const typical = evaluate({
+        L1_skeleton: {
+          craniumShape: 'medium',
+          faceIndex: 1.35,
+          cheekboneWidth: 0.55,
+          cheekboneProminence: 0.4,
+          jawWidth: 0.5,
+          jawAngle: 'medium',
+          upperThirdRatio: 0.33,
+          midThirdRatio: 0.34,
+        } as any,
+        L2_softTissue: null,
+        L3_features: null,
+        L4_skin: null,
+        L5_hair: null,
+        L6_decoration: null,
+        L7_render: null,
+      });
+      const extreme = evaluate({
+        L1_skeleton: {
+          craniumShape: 'long',
+          faceIndex: 1.6,
+          cheekboneWidth: 0.1,
+          cheekboneProminence: 1.0,
+          jawWidth: 0.1,
+          jawAngle: 'sharp',
+          upperThirdRatio: 0.5,
+          midThirdRatio: 0.2,
+        } as any,
+        L2_softTissue: null,
+        L3_features: null,
+        L4_skin: null,
+        L5_hair: null,
+        L6_decoration: null,
+        L7_render: null,
+      });
+      expect(extreme.subScores.L1_complexity).toBeGreaterThan(typical.subScores.L1_complexity);
+    });
+
+    it('L7 prompt quality increases with prompt length', async () => {
+      const { evaluate } = await import('../src/blueprint/evaluator/mock-evaluator');
+      const short = evaluate({
+        L1_skeleton: null,
+        L2_softTissue: null,
+        L3_features: null,
+        L4_skin: null,
+        L5_hair: null,
+        L6_decoration: null,
+        L7_render: { promptZh: '脸', promptEn: 'face' },
+      });
+      const long = evaluate({
+        L1_skeleton: null,
+        L2_softTissue: null,
+        L3_features: null,
+        L4_skin: null,
+        L5_hair: null,
+        L6_decoration: null,
+        L7_render: {
+          promptZh: '长颅型脸庞,中颅指数,锐角下颌,皮肤白皙,黑发,双眼皮,高鼻梁,丰唇,戴眼镜,妆容淡雅,精致五官,清晰轮廓,五庭比例均匀,真人人像',
+          promptEn: 'a long cranium face shape, medium face index, sharp jawline, fair skin, black hair, double eyelids, high nose bridge, full lips, glasses, natural makeup, refined features, clear contours, balanced facial thirds, photorealistic portrait',
+        },
+      });
+      expect(long.subScores.L7_prompt_quality).toBeGreaterThan(short.subScores.L7_prompt_quality);
     });
   });
 });

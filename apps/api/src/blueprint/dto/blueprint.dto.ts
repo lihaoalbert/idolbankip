@@ -432,7 +432,9 @@ export class L7RenderDto {
 }
 
 // ===================== L8 评估 (R7 实现) =====================
-// R4 stub: POST /evaluate 写入的字段
+// 三大主分 + 8 维 sub-score + 时间戳
+// R4 stub → R7 改:由 evaluator 自动算并写回,前端通常 GET 才能看到
+// 但 PATCH 仍允许覆盖(高级用户手动调分)
 export class L8EvaluationDto {
   @IsOptional()
   @IsNumber()
@@ -451,6 +453,19 @@ export class L8EvaluationDto {
   @Min(0)
   @Max(10)
   aesthetics?: number;
+
+  @IsOptional()
+  @IsObject()
+  subScores?: {
+    L1_complexity?: number;
+    L2_expressiveness?: number;
+    L3_distinctiveness?: number;
+    L4_skin_realism?: number;
+    L5_hair_coverage?: number;
+    L6_decoration_completeness?: number;
+    L7_prompt_quality?: number;
+    L8_contradiction_bonus?: number;
+  };
 
   @IsOptional()
   @IsString()

@@ -5,6 +5,7 @@
 // 范围:L1 + L2 数据形状 + useBlueprintDraft localStorage key 协议
 // Phase B R5 起:加 L3+L5+L7+L8 测试
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ref, nextTick } from 'vue';
 import {
   L1_DEFAULTS,
   L2_DEFAULTS,
@@ -619,5 +620,151 @@ describe('buildPrompts (R6 B2 前端镜像)', () => {
     expect(a.promptZh).toBe(b.promptZh);
     expect(a.promptEn).toBe(b.promptEn);
     expect(a.variants[0].prompt).toBe(b.variants[0].prompt);
+  });
+});
+
+// ============================================================
+// Phase B R7 — L8 Evaluation: 前端 RadarChart + L8 types
+// ============================================================
+
+import {
+  computeAvgScore,
+  computeAxisEnds,
+  computeDataPath,
+  computeDataPoints,
+  computeGridCircles,
+  computeLabelPositions,
+  scoreColor,
+  type RadarScore,
+} from '../src/components/blueprint/radar-helpers';
+import type { L8SubScores, EvaluationResult } from '../src/api/blueprint';
+
+describe('RadarChart helpers (R7 纯函数单测)', () => {
+  const threeScores: RadarScore[] = [
+    { label: '原创度', value: 7.5 },
+    { label: '一致性', value: 9.0 },
+    { label: '美学', value: 6.0 },
+  ];
+
+  it('computeAvgScore 求平均分(7.5)', () => {
+    expect(computeAvgScore(threeScores)).toBeCloseTo(7.5, 5);
+  });
+
+  it('computeAvgScore 空数组 → 0', () => {
+    expect(computeAvgScore([])).toBe(0);
+  });
+
+  it('scoreColor: >=7 绿, 4-7 黄, <4 红', () => {
+    expect(scoreColor(8)).toBe('#3f7d3f');
+    expect(scoreColor(5)).toBe('#a87a2c');
+    expect(scoreColor(2)).toBe('#a83232');
+    expect(scoreColor(7)).toBe('#3f7d3f'); // 边界 = 7 = 绿
+    expect(scoreColor(4)).toBe('#a87a2c'); // 边界 = 4 = 黄
+  });
+
+  it('computeGridCircles: 3 圈(33%/67%/100% 半径)', () => {
+    const circles = computeGridCircles(240, 10);
+    expect(circles).toHaveLength(3);
+    expect(circles[0].label).toBe('3.3');
+    expect(circles[1].label).toBe('6.7');
+    expect(circles[2].label).toBe('10.0');
+  });
+
+  it('computeAxisEnds: 3 个轴端点(120° 间隔,12 点钟起)', () => {
+    const ends = computeAxisEnds(240, threeScores);
+    expect(ends).toHaveLength(3);
+    // 第一个轴应当指向上方 (12 点钟)
+    const first = ends[0];
+    expect(first.y).toBeLessThan(120); // y < cy (向上)
+  });
+
+  it('computeDataPoints: 归一化到 max(0~1 半径)', () => {
+    const points = computeDataPoints(240, 10, threeScores);
+    expect(points).toHaveLength(3);
+    expect(points[0].score.label).toBe('原创度');
+    // 7.5/10 = 0.75 半径
+    const first = points[0];
+    const cx = 120, cy = 120;
+    const dx = first.x - cx, dy = first.y - cy;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const expected = (120 * 0.65) * 0.75;
+    expect(r).toBeCloseTo(expected, 1);
+  });
+
+  it('computeDataPath: 闭合多边形', () => {
+    const points = computeDataPoints(240, 10, threeScores);
+    const path = computeDataPath(points);
+    expect(path).toMatch(/^M /);
+    expect(path).toMatch(/ L /);
+    expect(path).toMatch(/ Z$/);
+  });
+
+  it('computeDataPath: 空数组 → 空字符串', () => {
+    expect(computeDataPath([])).toBe('');
+  });
+
+  it('computeLabelPositions: 比轴端再外推 22px', () => {
+    const labels = computeLabelPositions(240, threeScores);
+    const axes = computeAxisEnds(240, threeScores);
+    expect(labels).toHaveLength(3);
+    for (let i = 0; i < 3; i += 1) {
+      const d = Math.sqrt(
+        (labels[i].x - axes[i].x) ** 2 + (labels[i].y - axes[i].y) ** 2,
+      );
+      expect(d).toBeCloseTo(22, 0);
+    }
+  });
+});
+
+describe('L8 types + EvaluationResult 形状 (R7)', () => {
+  it('L8SubScores 有 8 个 0~1 字段', () => {
+    const sub: L8SubScores = {
+      L1_complexity: 0.5,
+      L2_expressiveness: 0.5,
+      L3_distinctiveness: 0.5,
+      L4_skin_realism: 0.4,
+      L5_hair_coverage: 0.4,
+      L6_decoration_completeness: 0.3,
+      L7_prompt_quality: 0,
+      L8_contradiction_bonus: 0,
+    };
+    const keys = Object.keys(sub);
+    expect(keys).toHaveLength(8);
+    for (const k of keys) {
+      const v = (sub as any)[k];
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('EvaluationResult 含 3 主分 + 8 sub + 矛盾 + 时间戳', () => {
+    const r: EvaluationResult = {
+      id: 'fb_test_001',
+      scores: { originality: 6.5, consistency: 9.0, aesthetics: 7.0 },
+      evaluated_at: '2026-06-23T00:00:00.000Z',
+      contradictions: [
+        {
+          id: 'bald_long_sideburns',
+          layer: 'L5',
+          title: '光头 + 长鬓角',
+          description: '建议 sideburns ≤ 0.3',
+          severity: 'warning',
+        },
+      ],
+      sub_scores: {
+        L1_complexity: 0.5,
+        L2_expressiveness: 0.5,
+        L3_distinctiveness: 0.5,
+        L4_skin_realism: 0.4,
+        L5_hair_coverage: 0.4,
+        L6_decoration_completeness: 0.3,
+        L7_prompt_quality: 0,
+        L8_contradiction_bonus: 0.5,
+      },
+    };
+    expect(r.scores.originality).toBe(6.5);
+    expect(r.sub_scores?.L8_contradiction_bonus).toBe(0.5);
+    expect(r.contradictions).toHaveLength(1);
+    expect(r.contradictions[0].severity).toBe('warning');
   });
 });
