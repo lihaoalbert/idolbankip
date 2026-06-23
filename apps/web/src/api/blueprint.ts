@@ -60,6 +60,46 @@ export interface L2SoftTissue {
   nasolabialFold: number; // 0~1
 }
 
+// ===================== L3 五官定位 (12 项) =====================
+
+export type EyeShape = 'single' | 'inner' | 'double' | 'phoenix' | 'round' | 'narrow';
+export type NoseBridge = 'high' | 'medium' | 'low';
+
+export interface L3Features {
+  eyeDistance: number; // 0~1
+  eyeShape: EyeShape;
+  eyeApertureHeight: number; // 0~1
+  noseLength: number; // 0~1
+  noseWidth: number; // 0~1
+  noseBridge: NoseBridge;
+  lipWidth: number; // 0~1
+  lipThickness: number; // 0~1
+  earPosition: number; // 0~1
+  earSize: number; // 0~1
+  philtrumLength: number; // 0~1
+  chinProtrusion: number; // 0~1
+}
+
+// ===================== L5 毛发 (8 项) =====================
+
+export type HairStyle = 'straight_long' | 'straight_short' | 'wavy' | 'curly' | 'ponytail' | 'bob' | 'bald';
+export type HairColor = 'black' | 'brown' | 'blonde' | 'red' | 'silver' | 'gray' | 'highlight';
+export type Hairline = 'high' | 'medium' | 'low' | 'm_shape';
+export type BrowShape = 'straight' | 'arched' | 'upward' | 'downward' | 'thick' | 'thin';
+export type BrowColor = 'black' | 'brown' | 'gray' | 'same_as_hair';
+export type LashStyle = 'long_dense' | 'short_dense' | 'long_sparse' | 'short_sparse';
+
+export interface L5Hair {
+  hairStyle: HairStyle;
+  hairColor: HairColor;
+  hairline: Hairline;
+  browShape: BrowShape;
+  browColor: BrowColor;
+  browDensity: number; // 0~1
+  lashes: LashStyle;
+  sideburns: number; // 0~1
+}
+
 // ===================== L7 渲染 prompt (R6 详) =====================
 
 export interface L7Render {
@@ -87,6 +127,15 @@ export interface EvaluationResult {
   id: string;
   scores: EvaluationScores;
   evaluated_at: string;
+  contradictions: Contradiction[];
+}
+
+export interface Contradiction {
+  id: string;
+  layer: 'L3' | 'L5' | 'L1+L5';
+  title: string;
+  description: string;
+  severity: 'warning' | 'info';
 }
 
 // 字段元数据 — 供前端 Step 表单渲染 slider/select
@@ -157,6 +206,113 @@ export const L2_DEFAULTS: L2SoftTissue = {
   browRidge: 0.6,
   nasolabialFold: 0.1,
 };
+
+export const L3_DEFAULTS: L3Features = {
+  eyeDistance: 0.5,
+  eyeShape: 'double',
+  eyeApertureHeight: 0.6,
+  noseLength: 0.5,
+  noseWidth: 0.4,
+  noseBridge: 'medium',
+  lipWidth: 0.5,
+  lipThickness: 0.45,
+  earPosition: 0.5,
+  earSize: 0.4,
+  philtrumLength: 0.5,
+  chinProtrusion: 0.5,
+};
+
+export const L5_DEFAULTS: L5Hair = {
+  hairStyle: 'straight_long',
+  hairColor: 'black',
+  hairline: 'medium',
+  browShape: 'arched',
+  browColor: 'same_as_hair',
+  browDensity: 0.7,
+  lashes: 'long_dense',
+  sideburns: 0.2,
+};
+
+export const L3_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'eyeDistance', label: '眼距', min: 0, max: 1, step: 0.01, hint: '0=近,1=远' },
+  { key: 'eyeApertureHeight', label: '眼裂高度', min: 0, max: 1, step: 0.01 },
+  { key: 'noseLength', label: '鼻长', min: 0, max: 1, step: 0.01 },
+  { key: 'noseWidth', label: '鼻宽', min: 0, max: 1, step: 0.01 },
+  { key: 'lipWidth', label: '唇宽', min: 0, max: 1, step: 0.01 },
+  { key: 'lipThickness', label: '唇厚', min: 0, max: 1, step: 0.01, hint: '0=薄唇,1=厚唇' },
+  { key: 'earPosition', label: '耳位', min: 0, max: 1, step: 0.01 },
+  { key: 'earSize', label: '耳大小', min: 0, max: 1, step: 0.01 },
+  { key: 'philtrumLength', label: '人中长度', min: 0, max: 1, step: 0.01 },
+  { key: 'chinProtrusion', label: '下巴突出度', min: 0, max: 1, step: 0.01, hint: '0=后缩,1=前凸' },
+];
+
+export const L3_SELECT_FIELDS: SelectFieldDef<EyeShape | NoseBridge>[] = [
+  { key: 'eyeShape', label: '眼型', options: [
+    { value: 'single', label: '单眼皮' },
+    { value: 'inner', label: '内双' },
+    { value: 'double', label: '双眼皮' },
+    { value: 'phoenix', label: '丹凤眼' },
+    { value: 'round', label: '圆眼' },
+    { value: 'narrow', label: '细长眼' },
+  ]},
+  { key: 'noseBridge', label: '鼻梁', options: [
+    { value: 'high', label: '高' },
+    { value: 'medium', label: '中' },
+    { value: 'low', label: '低' },
+  ]},
+];
+
+export const L5_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'browDensity', label: '眉密度', min: 0, max: 1, step: 0.01, hint: '0=稀疏,1=浓密' },
+  { key: 'sideburns', label: '鬓角', min: 0, max: 1, step: 0.01 },
+];
+
+export const L5_SELECT_FIELDS: SelectFieldDef<HairStyle | HairColor | Hairline | BrowShape | BrowColor | LashStyle>[] = [
+  { key: 'hairStyle', label: '发型', options: [
+    { value: 'straight_long', label: '直长发' },
+    { value: 'straight_short', label: '直短发' },
+    { value: 'wavy', label: '大波浪' },
+    { value: 'curly', label: '卷发' },
+    { value: 'ponytail', label: '马尾' },
+    { value: 'bob', label: '齐肩短发' },
+    { value: 'bald', label: '光头' },
+  ]},
+  { key: 'hairColor', label: '发色', options: [
+    { value: 'black', label: '黑' },
+    { value: 'brown', label: '棕' },
+    { value: 'blonde', label: '金' },
+    { value: 'red', label: '红' },
+    { value: 'silver', label: '银' },
+    { value: 'gray', label: '灰' },
+    { value: 'highlight', label: '挑染' },
+  ]},
+  { key: 'hairline', label: '发际线', options: [
+    { value: 'high', label: '高' },
+    { value: 'medium', label: '中' },
+    { value: 'low', label: '低' },
+    { value: 'm_shape', label: 'M 型' },
+  ]},
+  { key: 'browShape', label: '眉形', options: [
+    { value: 'straight', label: '平直' },
+    { value: 'arched', label: '弓形' },
+    { value: 'upward', label: '上挑' },
+    { value: 'downward', label: '下垂' },
+    { value: 'thick', label: '粗浓' },
+    { value: 'thin', label: '细' },
+  ]},
+  { key: 'browColor', label: '眉色', options: [
+    { value: 'black', label: '黑' },
+    { value: 'brown', label: '棕' },
+    { value: 'gray', label: '灰' },
+    { value: 'same_as_hair', label: '与发色同' },
+  ]},
+  { key: 'lashes', label: '睫毛', options: [
+    { value: 'long_dense', label: '长密' },
+    { value: 'short_dense', label: '短密' },
+    { value: 'long_sparse', label: '长疏' },
+    { value: 'short_sparse', label: '短疏' },
+  ]},
+];
 
 export const blueprintApi = {
   create(body?: { title?: string; description?: string; tags?: string; ownerId?: string }) {

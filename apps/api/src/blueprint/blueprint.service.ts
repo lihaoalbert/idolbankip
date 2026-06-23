@@ -4,9 +4,15 @@ import { validate } from 'class-validator';
 import {
   L1SkeletonDto,
   L2SoftTissueDto,
+  L3FeaturesDto,
+  L5HairDto,
   L7RenderDto,
   L8EvaluationDto,
 } from './dto/blueprint.dto';
+import {
+  detectContradictions,
+  type Contradiction,
+} from './contradictions';
 
 export const BLUEPRINT_LAYERS = [
   'L1_skeleton',
@@ -22,13 +28,13 @@ export const BLUEPRINT_LAYERS = [
 export type LayerKey = (typeof BLUEPRINT_LAYERS)[number];
 
 // 按 step 路由到 DTO 类的映射
-// L3/L4/L5/L6 暂无 zod,放 null,controller 收到这些 step 时不做严格校验
+// L3/L5 R5b 起接入校验,L4/L6 留 R6
 const STEP_VALIDATORS: Record<number, new () => unknown> = {
   1: L1SkeletonDto as new () => unknown,
   2: L2SoftTissueDto as new () => unknown,
-  3: null as unknown as new () => unknown,
+  3: L3FeaturesDto as new () => unknown,
   4: null as unknown as new () => unknown,
-  5: null as unknown as new () => unknown,
+  5: L5HairDto as new () => unknown,
   6: null as unknown as new () => unknown,
   7: L7RenderDto as new () => unknown,
   8: L8EvaluationDto as new () => unknown,
@@ -127,7 +133,7 @@ export class BlueprintService {
   ): Promise<Record<string, unknown>> {
     const Validator = STEP_VALIDATORS[step];
     if (!Validator) {
-      // 该 step 暂无 zod (L3~L6),透传 — 等后续轮补
+      // 该 step 暂无 DTO (L4/L6 留 R6),透传
       return data;
     }
     const instance = plainToInstance(Validator as new () => any, data, {
@@ -162,13 +168,16 @@ export class BlueprintService {
     layer: LayerKey,
     step: number,
     input: UpdateLayerInput,
-  ): Promise<BlueprintEntity> {
+  ): Promise<BlueprintEntity & { contradictions: Contradiction[] }> {
     const entity = this.getById(id);
     const validated = await this.validateLayerData(step, input.data);
     entity.layers[layer] = validated;
     entity.updatedAt = new Date().toISOString();
     entity.version += 1;
-    return entity;
+    return {
+      ...entity,
+      contradictions: detectContradictions(entity.layers as any),
+    };
   }
 
   /**
@@ -177,7 +186,12 @@ export class BlueprintService {
    *
    * why deterministic hash:相同输入必须返相同分(RC-3 拍板 mock 公式前稳定可测)
    */
-  evaluate(id: string): { id: string; scores: EvaluationScores; evaluated_at: string } {
+  evaluate(id: string): {
+    id: string;
+    scores: EvaluationScores;
+    evaluated_at: string;
+    contradictions: Contradiction[];
+  } {
     const entity = this.getById(id);
     const fingerprint = JSON.stringify(entity.layers);
     const hash = simpleHash(fingerprint);
@@ -192,6 +206,7 @@ export class BlueprintService {
         aesthetics: round1(aesthetics),
       },
       evaluated_at: new Date().toISOString(),
+      contradictions: detectContradictions(entity.layers as any),
     };
   }
 }

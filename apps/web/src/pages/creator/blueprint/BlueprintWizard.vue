@@ -26,6 +26,7 @@ import { blueprintApi, type Blueprint } from '@/api/blueprint';
 import { useToast } from '@/composables/useToast';
 import StepperProgress from '@/components/blueprint/StepperProgress.vue';
 import BlueprintHead3D from '@/components/blueprint/BlueprintHead3D.vue';
+import ContradictionBanner from '@/components/blueprint/ContradictionBanner.vue';
 import { BlueprintKey } from './context';
 import Step1Skeleton from './steps/Step1Skeleton.vue';
 import Step2SoftTissue from './steps/Step2SoftTissue.vue';
@@ -189,6 +190,9 @@ onMounted(() => {
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <!-- 左:Step Form (60% 宽) -->
         <section class="lg:col-span-3">
+          <div v-if="blueprint && blueprint.layers" class="mb-4">
+            <ContradictionBanner :layers="blueprint.layers" />
+          </div>
           <div v-if="loading || creating" class="text-center text-sm text-ink/40 py-12">
             {{ creating ? '创建 Blueprint…' : '加载中…' }}
           </div>

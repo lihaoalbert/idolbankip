@@ -116,6 +116,180 @@ export class L2SoftTissueDto {
   nasolabialFold!: number;
 }
 
+// ===================== L3 五官定位 (12 项) =====================
+// 眼(3) + 鼻(3) + 唇(2) + 耳(2) + 人中 + 下巴
+// 数字字段 0~1 归一化,枚举字段强约束
+// R5b 起纳入校验
+
+export enum EyeShape {
+  SINGLE = 'single',       // 单眼皮
+  INNER = 'inner',         // 内双
+  DOUBLE = 'double',       // 双眼皮
+  PHOENIX = 'phoenix',     // 丹凤眼(眼尾上扬)
+  ROUND = 'round',         // 圆眼
+  NARROW = 'narrow',       // 细长眼
+}
+
+export enum NoseBridge {
+  HIGH = 'high',           // 高鼻梁(欧美风)
+  MEDIUM = 'medium',       // 中等
+  LOW = 'low',             // 低鼻梁
+}
+
+export class L3FeaturesDto {
+  // 眼距 (瞳距相对脸宽, 0=近, 1=远)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  eyeDistance!: number;
+
+  @IsEnum(EyeShape)
+  eyeShape!: EyeShape;
+
+  // 眼裂高度 (0=眯缝, 1=大眼)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  eyeApertureHeight!: number;
+
+  // 鼻长 (0=短鼻, 1=长鼻)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  noseLength!: number;
+
+  // 鼻宽 (鼻翼宽相对脸宽)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  noseWidth!: number;
+
+  @IsEnum(NoseBridge)
+  noseBridge!: NoseBridge;
+
+  // 唇宽 (嘴角间距相对脸宽)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  lipWidth!: number;
+
+  // 唇厚 (0=薄唇, 1=厚唇)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  lipThickness!: number;
+
+  // 耳位 (0=低位, 1=高位 — 影响视觉年龄)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  earPosition!: number;
+
+  // 耳大小 (相对脸宽)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  earSize!: number;
+
+  // 人中长度 (0=短, 1=长)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  philtrumLength!: number;
+
+  // 下巴突出度 (0=后缩, 1=前凸)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  chinProtrusion!: number;
+}
+
+// ===================== L5 毛发 (8 项) =====================
+// 发型(4 变种) + 发色(枚举) + 发际线 + 眉形 + 眉色 + 眉密度 + 睫毛 + 鬓角
+// 数值 0~1;枚举约束;L3+L5 一起做矛盾组合校验(R5b.2)
+
+export enum HairStyle {
+  STRAIGHT_LONG = 'straight_long',     // 直长发
+  STRAIGHT_SHORT = 'straight_short',   // 直短发
+  WAVY = 'wavy',                       // 大波浪
+  CURLY = 'curly',                     // 卷发
+  PONYTAIL = 'ponytail',               // 马尾
+  BOB = 'bob',                         // 齐肩短发
+  BALD = 'bald',                       // 光头
+}
+
+export enum HairColor {
+  BLACK = 'black',
+  BROWN = 'brown',
+  BLONDE = 'blonde',
+  RED = 'red',
+  SILVER = 'silver',
+  GRAY = 'gray',
+  HIGHLIGHT = 'highlight', // 挑染
+}
+
+export enum Hairline {
+  HIGH = 'high',     // 高发际线
+  MEDIUM = 'medium',
+  LOW = 'low',       // 低发际线
+  M_SHAPE = 'm_shape', // M 型发际线(地中海前兆,需矛盾校验)
+}
+
+export enum BrowShape {
+  STRAIGHT = 'straight',     // 平直一字眉
+  ARCHED = 'arched',         // 弓形
+  UPWARD = 'upward',         // 上挑
+  DOWNWARD = 'downward',     // 下垂(八眉)
+  THICK = 'thick',           // 粗浓
+  THIN = 'thin',             // 细眉
+}
+
+export enum BrowColor {
+  BLACK = 'black',
+  BROWN = 'brown',
+  GRAY = 'gray',
+  SAME_AS_HAIR = 'same_as_hair',
+}
+
+export enum LashStyle {
+  LONG_DENSE = 'long_dense',
+  SHORT_DENSE = 'short_dense',
+  LONG_SPARSE = 'long_sparse',
+  SHORT_SPARSE = 'short_sparse',
+}
+
+export class L5HairDto {
+  @IsEnum(HairStyle)
+  hairStyle!: HairStyle;
+
+  @IsEnum(HairColor)
+  hairColor!: HairColor;
+
+  @IsEnum(Hairline)
+  hairline!: Hairline;
+
+  @IsEnum(BrowShape)
+  browShape!: BrowShape;
+
+  @IsEnum(BrowColor)
+  browColor!: BrowColor;
+
+  // 眉密度 (0=稀疏, 1=浓密)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  browDensity!: number;
+
+  @IsEnum(LashStyle)
+  lashes!: LashStyle;
+
+  // 鬓角长度 (0=无鬓角, 1=长鬓角连络腮胡)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  sideburns!: number;
+}
+
 // ===================== L7 渲染 prompt 整合 (R6 实现) =====================
 // R4 stub: 仅占位, R6 会扩展中英 + MJ/SD/jimeng/doubao 多平台
 export class L7RenderDto {

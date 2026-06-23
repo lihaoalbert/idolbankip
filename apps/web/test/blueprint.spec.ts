@@ -8,11 +8,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   L1_DEFAULTS,
   L2_DEFAULTS,
+  L3_DEFAULTS,
+  L5_DEFAULTS,
   L1_SLIDER_FIELDS,
   L2_SLIDER_FIELDS,
+  L3_SLIDER_FIELDS,
+  L5_SLIDER_FIELDS,
   L1_SELECT_FIELDS,
+  L3_SELECT_FIELDS,
+  L5_SELECT_FIELDS,
   type L1Skeleton,
   type L2SoftTissue,
+  type L3Features,
+  type L5Hair,
   stepToLayer,
   BLUEPRINT_LAYERS,
 } from '../src/api/blueprint';
@@ -297,5 +305,168 @@ describe('A8: 端到端 form ↔ JSON 往返 (Phase B R4 关键验收)', () => {
     expect(bRaw).not.toBeNull();
     expect(JSON.parse(aRaw!).val).toBe('A2');
     expect(JSON.parse(bRaw!).val).toBe('B2');
+  });
+});
+
+// ============================================================
+// Phase B Round 5b — L3 五官 (12 项) + L5 毛发 (8 项) + 矛盾校验
+// ============================================================
+
+describe('L3 五官 (12 项)', () => {
+  it('有 10 个 slider + 2 个 select 字段', () => {
+    expect(L3_SLIDER_FIELDS).toHaveLength(10);
+    expect(L3_SELECT_FIELDS).toHaveLength(2);
+    const totalKeys = new Set([
+      ...L3_SLIDER_FIELDS.map((f) => f.key),
+      ...L3_SELECT_FIELDS.map((f) => f.key),
+    ]);
+    expect(totalKeys.size).toBe(12);
+  });
+
+  it('默认值都在合法范围 / 枚举内', () => {
+    for (const f of L3_SLIDER_FIELDS) {
+      const v = (L3_DEFAULTS as any)[f.key];
+      expect(v).toBeGreaterThanOrEqual(f.min);
+      expect(v).toBeLessThanOrEqual(f.max);
+    }
+    for (const f of L3_SELECT_FIELDS) {
+      const v = (L3_DEFAULTS as any)[f.key];
+      const valid = f.options.map((o) => o.value);
+      expect(valid).toContain(v);
+    }
+  });
+
+  it('form ↔ JSON 序列化无精度损失', () => {
+    const input: L3Features = {
+      eyeDistance: 0.42,
+      eyeShape: 'phoenix',
+      eyeApertureHeight: 0.78,
+      noseLength: 0.61,
+      noseWidth: 0.35,
+      noseBridge: 'high',
+      lipWidth: 0.55,
+      lipThickness: 0.62,
+      earPosition: 0.4,
+      earSize: 0.3,
+      philtrumLength: 0.55,
+      chinProtrusion: 0.7,
+    };
+    const deserialized = JSON.parse(JSON.stringify(input));
+    expect(deserialized).toEqual(input);
+  });
+});
+
+describe('L5 毛发 (8 项)', () => {
+  it('有 2 个 slider + 6 个 select 字段', () => {
+    expect(L5_SLIDER_FIELDS).toHaveLength(2);
+    expect(L5_SELECT_FIELDS).toHaveLength(6);
+    const totalKeys = new Set([
+      ...L5_SLIDER_FIELDS.map((f) => f.key),
+      ...L5_SELECT_FIELDS.map((f) => f.key),
+    ]);
+    expect(totalKeys.size).toBe(8);
+  });
+
+  it('默认值都在合法范围 / 枚举内', () => {
+    for (const f of L5_SLIDER_FIELDS) {
+      const v = (L5_DEFAULTS as any)[f.key];
+      expect(v).toBeGreaterThanOrEqual(f.min);
+      expect(v).toBeLessThanOrEqual(f.max);
+    }
+    for (const f of L5_SELECT_FIELDS) {
+      const v = (L5_DEFAULTS as any)[f.key];
+      const valid = f.options.map((o) => o.value);
+      expect(valid).toContain(v);
+    }
+  });
+
+  it('form ↔ JSON 序列化无精度损失', () => {
+    const input: L5Hair = {
+      hairStyle: 'wavy',
+      hairColor: 'blonde',
+      hairline: 'm_shape',
+      browShape: 'upward',
+      browColor: 'brown',
+      browDensity: 0.3,
+      lashes: 'long_sparse',
+      sideburns: 0.1,
+    };
+    expect(JSON.parse(JSON.stringify(input))).toEqual(input);
+  });
+});
+
+describe('detectContradictions (R5b B2 前端镜像)', () => {
+  it('空 layers → 无提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    expect(detectContradictions({})).toEqual([]);
+  });
+
+  it('bald + 长鬓角 → 警告', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L5_hair: { ...L5_DEFAULTS, hairStyle: 'bald', sideburns: 0.8 },
+    });
+    expect(result.map((c) => c.id)).toContain('bald_long_sideburns');
+  });
+
+  it('细眉 + 高密度 → 警告', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L5_hair: { ...L5_DEFAULTS, browShape: 'thin', browDensity: 0.8 },
+    });
+    expect(result.map((c) => c.id)).toContain('thin_brow_high_density');
+  });
+
+  it('金发 + 黑眉 → 提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L5_hair: { ...L5_DEFAULTS, hairColor: 'blonde', browColor: 'black' },
+    });
+    expect(result.map((c) => c.id)).toContain('blonde_black_brow');
+  });
+
+  it('极厚唇 + 极窄唇宽 → 警告', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L3_features: { ...L3_DEFAULTS, lipThickness: 0.95, lipWidth: 0.2 },
+    });
+    expect(result.map((c) => c.id)).toContain('thick_narrow_lips');
+  });
+
+  it('低鼻梁 + 宽鼻 → 提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L3_features: { ...L3_DEFAULTS, noseBridge: 'low', noseWidth: 0.8 },
+    });
+    expect(result.map((c) => c.id)).toContain('low_bridge_wide_nose');
+  });
+
+  it('M 型发际线 + 高眉弓 → 提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L2_softTissue: { ...L2_DEFAULTS, browRidge: 0.9 },
+      L5_hair: { ...L5_DEFAULTS, hairline: 'm_shape' },
+    });
+    expect(result.map((c) => c.id)).toContain('m_hairline_high_brow');
+  });
+
+  it('深眼窝 + 高颧骨 → 提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L1_skeleton: { ...L1_DEFAULTS, cheekboneProminence: 0.8 },
+      L2_softTissue: { ...L2_DEFAULTS, eyeSocketDepth: 0.8 },
+    });
+    expect(result.map((c) => c.id)).toContain('deep_socket_high_cheek');
+  });
+
+  it('默认 L1+L2+L3+L5 全默认 → 无提示', async () => {
+    const { detectContradictions } = await import('../src/api/contradictions');
+    const result = detectContradictions({
+      L1_skeleton: L1_DEFAULTS,
+      L2_softTissue: L2_DEFAULTS,
+      L3_features: L3_DEFAULTS,
+      L5_hair: L5_DEFAULTS,
+    });
+    expect(result).toEqual([]);
   });
 });

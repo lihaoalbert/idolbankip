@@ -459,7 +459,67 @@ describe('FaceBlueprint skeleton (e2e)', () => {
   });
 
   describe('L3~L6 passthrough (no zod yet)', () => {
-    it('accepts arbitrary data for L3 (no validator)', async () => {
+    it('accepts arbitrary data for L4 (no validator)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/4`)
+        .send({ data: { anyField: 'any value' } })
+        .expect(200);
+
+      expect(res.body.layers.L4_skin).toEqual({ anyField: 'any value' });
+    });
+
+    it('accepts arbitrary data for L6 (no validator)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/6`)
+        .send({ data: { anyField: 'any value' } })
+        .expect(200);
+
+      expect(res.body.layers.L6_decoration).toEqual({ anyField: 'any value' });
+    });
+  });
+
+  // ============================================================
+  // Phase B Round 5b — L3 五官 (12 项) + L5 毛发 (8 项) 校验
+  // ============================================================
+
+  const validL3 = {
+    eyeDistance: 0.5,
+    eyeShape: 'double',
+    eyeApertureHeight: 0.6,
+    noseLength: 0.5,
+    noseWidth: 0.4,
+    noseBridge: 'medium',
+    lipWidth: 0.5,
+    lipThickness: 0.45,
+    earPosition: 0.5,
+    earSize: 0.4,
+    philtrumLength: 0.5,
+    chinProtrusion: 0.5,
+  };
+
+  const validL5 = {
+    hairStyle: 'straight_long',
+    hairColor: 'black',
+    hairline: 'medium',
+    browShape: 'arched',
+    browColor: 'same_as_hair',
+    browDensity: 0.7,
+    lashes: 'long_dense',
+    sideburns: 0.2,
+  };
+
+  describe('PATCH L3 features (Phase B R5b B1)', () => {
+    it('accepts a complete valid L3 payload (200)', async () => {
       const created = await request(app.getHttpServer())
         .post('/blueprint')
         .send({})
@@ -467,10 +527,251 @@ describe('FaceBlueprint skeleton (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/blueprint/${created.body.id}/step/3`)
-        .send({ data: { anyField: 'any value' } })
+        .send({ data: validL3 })
         .expect(200);
 
-      expect(res.body.layers.L3_features).toEqual({ anyField: 'any value' });
+      expect(res.body.layers.L3_features).toEqual(validL3);
+      expect(res.body.version).toBe(2);
+    });
+
+    it('rejects L3 with missing fields (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const { eyeDistance: _omit, ...partial } = validL3;
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/3`)
+        .send({ data: partial })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+      expect(res.body.error.fields).toEqual(
+        expect.arrayContaining([expect.objectContaining({ field: 'eyeDistance' })]),
+      );
+    });
+
+    it('rejects L3 with invalid enum eyeShape (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/3`)
+        .send({ data: { ...validL3, eyeShape: 'square_eye' } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L3 with out-of-range lipThickness (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/3`)
+        .send({ data: { ...validL3, lipThickness: 1.5 } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('does not regress L1/L2 on L3 update', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/1`)
+        .send({ data: validL1 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/2`)
+        .send({ data: validL2 })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/3`)
+        .send({ data: validL3 })
+        .expect(200);
+
+      expect(res.body.layers.L1_skeleton).toMatchObject(validL1);
+      expect(res.body.layers.L2_softTissue).toEqual(validL2);
+      expect(res.body.layers.L3_features).toEqual(validL3);
+    });
+  });
+
+  describe('PATCH L5 hair (Phase B R5b B1)', () => {
+    it('accepts a complete valid L5 payload (200)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/5`)
+        .send({ data: validL5 })
+        .expect(200);
+
+      expect(res.body.layers.L5_hair).toEqual(validL5);
+    });
+
+    it('rejects L5 with invalid enum hairStyle (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/5`)
+        .send({ data: { ...validL5, hairStyle: 'dreadlocks' } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L5 with browDensity > 1 (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/5`)
+        .send({ data: { ...validL5, browDensity: 1.5 } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L5 with missing lashes (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const { lashes: _omit, ...partial } = validL5;
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/5`)
+        .send({ data: partial })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+  });
+
+  describe('Contradiction detection (Phase B R5b B2)', () => {
+    it('returns empty array when no contradictions', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/1`)
+        .send({ data: validL1 })
+        .expect(200);
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/2`)
+        .send({ data: validL2 })
+        .expect(200);
+
+      expect(res.body.contradictions).toEqual([]);
+    });
+
+    it('flags bald + long sideburns', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/5`)
+        .send({
+          data: { ...validL5, hairStyle: 'bald', sideburns: 0.8 },
+        })
+        .expect(200);
+
+      expect(res.body.contradictions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'bald_long_sideburns', severity: 'warning' }),
+        ]),
+      );
+    });
+
+    it('flags thin brow + high density', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/5`)
+        .send({
+          data: { ...validL5, browShape: 'thin', browDensity: 0.8 },
+        })
+        .expect(200);
+
+      expect(res.body.contradictions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'thin_brow_high_density' }),
+        ]),
+      );
+    });
+
+    it('flags blonde + black brow', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/5`)
+        .send({
+          data: { ...validL5, hairColor: 'blonde', browColor: 'black' },
+        })
+        .expect(200);
+
+      expect(res.body.contradictions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'blonde_black_brow' }),
+        ]),
+      );
+    });
+
+    it('evaluate response includes contradictions', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+      const id = created.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${id}/step/5`)
+        .send({
+          data: { ...validL5, hairStyle: 'bald', sideburns: 0.9 },
+        })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post(`/blueprint/${id}/evaluate`)
+        .expect(201);
+
+      expect(res.body.contradictions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'bald_long_sideburns' }),
+        ]),
+      );
     });
   });
 
