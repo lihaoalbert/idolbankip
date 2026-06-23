@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import {
+  L1SkeletonDto,
+  L2SoftTissueDto,
+  L7RenderDto,
+  L8EvaluationDto,
+} from './dto/blueprint.dto';
 
 export const BLUEPRINT_LAYERS = [
   'L1_skeleton',
@@ -12,6 +20,19 @@ export const BLUEPRINT_LAYERS = [
 ] as const;
 
 export type LayerKey = (typeof BLUEPRINT_LAYERS)[number];
+
+// 按 step 路由到 DTO 类的映射
+// L3/L4/L5/L6 暂无 zod,放 null,controller 收到这些 step 时不做严格校验
+const STEP_VALIDATORS: Record<number, new () => unknown> = {
+  1: L1SkeletonDto as new () => unknown,
+  2: L2SoftTissueDto as new () => unknown,
+  3: null as unknown as new () => unknown,
+  4: null as unknown as new () => unknown,
+  5: null as unknown as new () => unknown,
+  6: null as unknown as new () => unknown,
+  7: L7RenderDto as new () => unknown,
+  8: L8EvaluationDto as new () => unknown,
+};
 
 export interface BlueprintEntity {
   id: string;
@@ -52,7 +73,8 @@ function nextId() {
 
 /**
  * Stub 实现 — 内存 Map
- * Phase B Round 4 替换为 PrismaService + FaceBlueprint 模型
+ * Phase B Round 4 接入 L1/L2 class-validator 校验
+ * Phase B 后续轮换 PrismaService + FaceBlueprint 模型
  */
 @Injectable()
 export class BlueprintService {
@@ -95,9 +117,55 @@ export class BlueprintService {
     return entity;
   }
 
-  updateLayer(id: string, layer: LayerKey, input: UpdateLayerInput): BlueprintEntity {
+  /**
+   * 校验指定 step 的数据是否符合该层 zod schema
+   * 失败抛 BadRequestException,带 field errors
+   */
+  private async validateLayerData(
+    step: number,
+    data: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const Validator = STEP_VALIDATORS[step];
+    if (!Validator) {
+      // 该 step 暂无 zod (L3~L6),透传 — 等后续轮补
+      return data;
+    }
+    const instance = plainToInstance(Validator as new () => any, data, {
+      enableImplicitConversion: false,
+    });
+    const errors = await validate(instance as object, {
+      whitelist: true,
+      forbidNonWhitelisted: false,
+    });
+    if (errors.length > 0) {
+      const fieldErrors = errors.flatMap((e) =>
+        Object.values(e.constraints ?? {}).map((msg) => ({
+          field: e.property,
+          message: msg,
+        })),
+      );
+      throw new BadRequestException({
+        error: {
+          code: 'invalid_layer_data',
+          message: `Step ${step} 数据校验失败`,
+          fields: fieldErrors,
+          request_id: null,
+        },
+      });
+    }
+    // 重新序列化,丢弃装饰器未覆盖的额外字段 (whitelist 已经在 validate 里执行,但保留原顺序)
+    return JSON.parse(JSON.stringify(instance));
+  }
+
+  async updateLayer(
+    id: string,
+    layer: LayerKey,
+    step: number,
+    input: UpdateLayerInput,
+  ): Promise<BlueprintEntity> {
     const entity = this.getById(id);
-    entity.layers[layer] = input.data;
+    const validated = await this.validateLayerData(step, input.data);
+    entity.layers[layer] = validated;
     entity.updatedAt = new Date().toISOString();
     entity.version += 1;
     return entity;

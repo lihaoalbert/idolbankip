@@ -1,22 +1,32 @@
 <script setup lang="ts">
 /**
- * FaceBlueprint Wizard — 主容器
+ * FaceBlueprint Wizard — 主容器(Phase 1 R5a 改造)
  *
  * 路由:
- *   /creator/blueprint/new/step/:step?   → 进入 wizard(无 id 时自动 POST 创建)
- *   /creator/blueprint/:id/step/:step?   → 已有 blueprint,加载后跳 step
+ *   /creator/blueprint/new/step/:step? → 自动 POST 创建空 Blueprint + redirect
+ *   /creator/blueprint/:id/step/:step? → 加载已有 Blueprint
  *
- * Phase A Round 3 skeleton:
- *   - 8 个 Step 组件已挂载,仅展示层标题
- *   - Stepper 进度条 + 点击回访
- *   - 真实表单输入 / 数据持久化留 Round 4~7
- *   - 草稿 localStorage 留 Round 8
+ * 排版(R5a):左右分栏
+ *   ┌──────────────────────────────────┐
+ *   │ Stepper (横跨全宽)                │
+ *   ├─────────────────┬────────────────┤
+ *   │ Step Form (左)  │ 3D Head (右)   │
+ *   ├─────────────────┴────────────────┤
+ *   │ ← 上一步  第 N/8 步  下一步 →    │
+ *   └──────────────────────────────────┘
+ *
+ * 数据流:
+ *   BlueprintContext (provide) — blueprint ref + updateLayer()
+ *     ↑ inject by Step1~8 + BlueprintHead3D
+ *     ↑ 单一 fetch 来源,避免 Step + Wizard 重复 GET
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { blueprintApi, type Blueprint } from '@/api/blueprint';
 import { useToast } from '@/composables/useToast';
 import StepperProgress from '@/components/blueprint/StepperProgress.vue';
+import BlueprintHead3D from '@/components/blueprint/BlueprintHead3D.vue';
+import { BlueprintKey } from './context';
 import Step1Skeleton from './steps/Step1Skeleton.vue';
 import Step2SoftTissue from './steps/Step2SoftTissue.vue';
 import Step3Features from './steps/Step3Features.vue';
@@ -55,6 +65,7 @@ const STEP_COMPONENTS = [
 const blueprint = ref<Blueprint | null>(null);
 const loading = ref(false);
 const creating = ref(false);
+const error = ref<string | null>(null);
 
 const stepNum = computed(() => {
   const raw = Number(route.params.step ?? 1);
@@ -63,9 +74,9 @@ const stepNum = computed(() => {
 
 const blueprintId = computed(() => route.params.id as string | undefined);
 
+// Round 3 阶段:把当前步之前的都标为已完成,允许回访
+// R5b 起改成按 layers 数据真填充
 const completedSteps = computed(() => {
-  // Round 3 skeleton:把当前步之前的都标为已完成,允许回访
-  // Round 4 起改成按 layers 数据真填充
   const list: number[] = [];
   for (let n = 1; n < stepNum.value; n += 1) list.push(n);
   return list;
@@ -73,9 +84,39 @@ const completedSteps = computed(() => {
 
 const ActiveStepComponent = computed(() => STEP_COMPONENTS[stepNum.value - 1]);
 
-// 进入 /creator/blueprint/new/step/:step 时,自动创建一个空 blueprint 并重定向到 /:id/step/:step
+// ====================== BlueprintContext (provide) ======================
+
+async function refresh() {
+  if (!blueprintId.value) return;
+  loading.value = true;
+  try {
+    blueprint.value = await blueprintApi.get(blueprintId.value);
+    error.value = null;
+  } catch (err: any) {
+    error.value = err?.message ?? '加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function updateLayer(step: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, data: Record<string, unknown>) {
+  if (!blueprint.value) throw new Error('Blueprint not loaded');
+  const updated = await blueprintApi.updateLayer(blueprint.value.id, step, data);
+  blueprint.value = updated;
+}
+
+provide(BlueprintKey, {
+  blueprint,
+  loading,
+  error,
+  updateLayer,
+  refresh,
+});
+
+// ====================== 路由变化 ======================
+
 async function ensureBlueprint() {
-  if (blueprintId.value) return; // 已有 id,无需新建
+  if (blueprintId.value) return;
   if (creating.value) return;
   creating.value = true;
   try {
@@ -91,17 +132,6 @@ async function ensureBlueprint() {
   }
 }
 
-async function loadBlueprint(id: string) {
-  loading.value = true;
-  try {
-    blueprint.value = await blueprintApi.get(id);
-  } catch (err: any) {
-    toast.error('加载 Blueprint 失败: ' + (err?.message ?? '未知错误'));
-  } finally {
-    loading.value = false;
-  }
-}
-
 function onStepClick(n: number) {
   router.push({
     name: blueprintId.value ? 'blueprint-step' : 'blueprint-new',
@@ -114,7 +144,7 @@ watch(
   (params) => {
     const id = params.id as string | undefined;
     if (id) {
-      loadBlueprint(id);
+      refresh();
     } else {
       ensureBlueprint();
     }
@@ -130,7 +160,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-paper text-ink">
     <header class="border-b border-ink/10 bg-cream/80 px-6 py-4 backdrop-blur">
-      <div class="mx-auto flex max-w-5xl items-center justify-between gap-4">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div>
           <h1 class="font-display text-xl">Face Blueprint Wizard</h1>
           <p class="text-xs text-ink/50">8 层人脸分解 · Phase 1 (Beta)</p>
@@ -145,7 +175,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-6 py-6">
+    <main class="mx-auto max-w-7xl px-6 py-6">
       <div class="mb-6 rounded-md border border-ink/10 bg-cream/60 p-4">
         <StepperProgress
           :steps="STEPS"
@@ -155,21 +185,38 @@ onMounted(() => {
         />
       </div>
 
-      <div v-if="loading || creating" class="text-center text-sm text-ink/40 py-12">
-        {{ creating ? '创建 Blueprint…' : '加载中…' }}
-      </div>
+      <!-- 左右分栏 (R5a) — 左 form / 右 3D -->
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <!-- 左:Step Form (60% 宽) -->
+        <section class="lg:col-span-3">
+          <div v-if="loading || creating" class="text-center text-sm text-ink/40 py-12">
+            {{ creating ? '创建 Blueprint…' : '加载中…' }}
+          </div>
+          <component
+            v-else-if="blueprint && ActiveStepComponent"
+            :is="ActiveStepComponent"
+            :blueprint-id="blueprint.id"
+          />
+          <div
+            v-else-if="!loading && !creating"
+            class="text-center text-sm text-ink/40 py-12"
+          >
+            正在准备向导…
+          </div>
+        </section>
 
-      <component
-        v-else-if="blueprint && ActiveStepComponent"
-        :is="ActiveStepComponent"
-        :blueprint-id="blueprint.id"
-      />
-
-      <div
-        v-else-if="!loading && !creating"
-        class="text-center text-sm text-ink/40 py-12"
-      >
-        正在准备向导…
+        <!-- 右:3D Head Preview (40% 宽,sticky) -->
+        <aside class="lg:col-span-2">
+          <div class="lg:sticky lg:top-6">
+            <div class="mb-2 flex items-baseline justify-between">
+              <h3 class="font-display text-sm text-ink/70">3D 预览 · 实时</h3>
+              <span class="font-mono text-xs text-ink/40">L1+L2 驱动</span>
+            </div>
+            <div class="h-[480px] lg:h-[560px]">
+              <BlueprintHead3D />
+            </div>
+          </div>
+        </aside>
       </div>
 
       <div class="mt-6 flex items-center justify-between text-sm">

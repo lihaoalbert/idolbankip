@@ -1,7 +1,8 @@
 // FaceBlueprint API client — Phase 1 Layered Prompt Generator
 // 后端实现在 apps/api/src/blueprint/(stub,Phase B 换 Prisma)
 //
-// 为何不用 zod: stub 阶段形状随时会变,等 Phase B 落库后引入 zod schema 共享.
+// L1/L2/L7/L8 typed schemas 与后端 dto/blueprint.dto.ts 同步
+// L3~L6 暂无 zod,留 Record<string, unknown>
 
 import { apiClient } from './client';
 
@@ -32,6 +33,50 @@ export interface Blueprint {
   layers: Record<LayerKey, Record<string, unknown> | null>;
 }
 
+// ===================== L1 骨骼 (8 项) =====================
+
+export type CraniumShape = 'long' | 'medium' | 'round' | 'flat';
+export type JawAngle = 'sharp' | 'medium' | 'soft';
+
+export interface L1Skeleton {
+  craniumShape: CraniumShape;
+  faceIndex: number; // 1.0~1.6
+  cheekboneWidth: number; // 0~1
+  cheekboneProminence: number; // 0~1
+  jawWidth: number; // 0~1
+  jawAngle: JawAngle;
+  upperThirdRatio: number; // 0~1
+  midThirdRatio: number; // 0~1
+}
+
+// ===================== L2 软组织 (6 项) =====================
+
+export interface L2SoftTissue {
+  subcutaneousFat: number; // 0~1
+  masseter: number; // 0~1
+  buccalFat: number; // 0~1
+  eyeSocketDepth: number; // 0~1
+  browRidge: number; // 0~1
+  nasolabialFold: number; // 0~1
+}
+
+// ===================== L7 渲染 prompt (R6 详) =====================
+
+export interface L7Render {
+  promptZh?: string;
+  promptEn?: string;
+  platforms?: string[];
+}
+
+// ===================== L8 评估 (R7 详) =====================
+
+export interface L8Evaluation {
+  originality?: number;
+  consistency?: number;
+  aesthetics?: number;
+  evaluatedAt?: string;
+}
+
 export interface EvaluationScores {
   originality: number;
   consistency: number;
@@ -43,6 +88,75 @@ export interface EvaluationResult {
   scores: EvaluationScores;
   evaluated_at: string;
 }
+
+// 字段元数据 — 供前端 Step 表单渲染 slider/select
+export interface SliderFieldDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  hint?: string;
+}
+
+export interface SelectFieldDef<T extends string> {
+  key: string;
+  label: string;
+  options: { value: T; label: string }[];
+}
+
+export const L1_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'faceIndex', label: '脸型指数 (脸长/脸宽)', min: 1.0, max: 1.6, step: 0.01, hint: '1.0=圆脸,1.4+=长脸' },
+  { key: 'cheekboneWidth', label: '颧骨宽 (相对头宽)', min: 0, max: 1, step: 0.01 },
+  { key: 'cheekboneProminence', label: '颧骨突出度', min: 0, max: 1, step: 0.01 },
+  { key: 'jawWidth', label: '下颌宽 (相对头宽)', min: 0, max: 1, step: 0.01 },
+  { key: 'upperThirdRatio', label: '上停比例 (额高)', min: 0, max: 1, step: 0.01 },
+  { key: 'midThirdRatio', label: '中停比例 (眉心到鼻底)', min: 0, max: 1, step: 0.01 },
+];
+
+export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle>[] = [
+  { key: 'craniumShape', label: '颅型', options: [
+    { value: 'long', label: '长颅' },
+    { value: 'medium', label: '中颅' },
+    { value: 'round', label: '圆颅' },
+    { value: 'flat', label: '扁颅' },
+  ]},
+  { key: 'jawAngle', label: '下颌角', options: [
+    { value: 'sharp', label: '锐角' },
+    { value: 'medium', label: '中等' },
+    { value: 'soft', label: '钝角' },
+  ]},
+];
+
+export const L2_SLIDER_FIELDS: SliderFieldDef[] = [
+  { key: 'subcutaneousFat', label: '皮下脂肪', min: 0, max: 1, step: 0.01, hint: '0=瘦削,1=饱满' },
+  { key: 'masseter', label: '咬肌', min: 0, max: 1, step: 0.01 },
+  { key: 'buccalFat', label: '颊脂垫 (苹果肌)', min: 0, max: 1, step: 0.01 },
+  { key: 'eyeSocketDepth', label: '眼窝深度', min: 0, max: 1, step: 0.01 },
+  { key: 'browRidge', label: '眉弓突出度', min: 0, max: 1, step: 0.01 },
+  { key: 'nasolabialFold', label: '法令纹深度', min: 0, max: 1, step: 0.01 },
+];
+
+// 默认值 — 创作者首次进入有占位,而不是空白
+export const L1_DEFAULTS: L1Skeleton = {
+  craniumShape: 'medium',
+  faceIndex: 1.35,
+  cheekboneWidth: 0.55,
+  cheekboneProminence: 0.4,
+  jawWidth: 0.5,
+  jawAngle: 'medium',
+  upperThirdRatio: 0.33,
+  midThirdRatio: 0.34,
+};
+
+export const L2_DEFAULTS: L2SoftTissue = {
+  subcutaneousFat: 0.45,
+  masseter: 0.5,
+  buccalFat: 0.55,
+  eyeSocketDepth: 0.3,
+  browRidge: 0.6,
+  nasolabialFold: 0.1,
+};
 
 export const blueprintApi = {
   create(body?: { title?: string; description?: string; tags?: string; ownerId?: string }) {

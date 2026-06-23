@@ -112,13 +112,22 @@ describe('FaceBlueprint skeleton (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/blueprint/${id}/step/1`)
         .send({
-          data: { headWidth: 0.6, headDepth: 0.55, jawWidth: 0.5 },
+          data: {
+            craniumShape: 'medium',
+            faceIndex: 1.35,
+            cheekboneWidth: 0.6,
+            cheekboneProminence: 0.55,
+            jawWidth: 0.5,
+            jawAngle: 'medium',
+            upperThirdRatio: 0.33,
+            midThirdRatio: 0.34,
+          },
         })
         .expect(200);
 
-      expect(res.body.layers.L1_skeleton).toEqual({
-        headWidth: 0.6,
-        headDepth: 0.55,
+      expect(res.body.layers.L1_skeleton).toMatchObject({
+        craniumShape: 'medium',
+        faceIndex: 1.35,
         jawWidth: 0.5,
       });
       // 其他层必须还是 null
@@ -140,10 +149,16 @@ describe('FaceBlueprint skeleton (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/blueprint/${id}/step/8`)
-        .send({ data: { originality: 9.2 } })
+        .send({
+          data: {
+            originality: 9.2,
+            consistency: 8.5,
+            aesthetics: 8.0,
+          },
+        })
         .expect(200);
 
-      expect(res.body.layers.L8_evaluation).toEqual({ originality: 9.2 });
+      expect(res.body.layers.L8_evaluation).toMatchObject({ originality: 9.2 });
     });
 
     it('rejects step=0 with 400', async () => {
@@ -220,10 +235,20 @@ describe('FaceBlueprint skeleton (e2e)', () => {
         .post('/blueprint')
         .send({ ownerId: 'u1' })
         .expect(201);
-      // 填同样的 L1 让 hash 一致
+      // 填同样的完整 L1 让 hash 一致
+      const sameL1 = {
+        craniumShape: 'medium',
+        faceIndex: 1.35,
+        cheekboneWidth: 0.7,
+        cheekboneProminence: 0.4,
+        jawWidth: 0.5,
+        jawAngle: 'medium',
+        upperThirdRatio: 0.33,
+        midThirdRatio: 0.34,
+      };
       await request(app.getHttpServer())
         .patch(`/blueprint/${a.body.id}/step/1`)
-        .send({ data: { headWidth: 0.7 } })
+        .send({ data: sameL1 })
         .expect(200);
 
       const b = await request(app.getHttpServer())
@@ -232,7 +257,7 @@ describe('FaceBlueprint skeleton (e2e)', () => {
         .expect(201);
       await request(app.getHttpServer())
         .patch(`/blueprint/${b.body.id}/step/1`)
-        .send({ data: { headWidth: 0.7 } })
+        .send({ data: sameL1 })
         .expect(200);
 
       const evalA = await request(app.getHttpServer())
@@ -249,6 +274,237 @@ describe('FaceBlueprint skeleton (e2e)', () => {
       await request(app.getHttpServer())
         .post('/blueprint/fb_does_not_exist/evaluate')
         .expect(404);
+    });
+  });
+
+  // ============================================================
+  // Phase B Round 4 — L1 骨骼 (8 项) + L2 软组织 (6 项) 校验
+  // ============================================================
+
+  const validL1 = {
+    craniumShape: 'medium',
+    faceIndex: 1.35,
+    cheekboneWidth: 0.55,
+    cheekboneProminence: 0.4,
+    jawWidth: 0.5,
+    jawAngle: 'medium',
+    upperThirdRatio: 0.33,
+    midThirdRatio: 0.34,
+  };
+
+  const validL2 = {
+    subcutaneousFat: 0.45,
+    masseter: 0.5,
+    buccalFat: 0.55,
+    eyeSocketDepth: 0.3,
+    browRidge: 0.6,
+    nasolabialFold: 0.1,
+  };
+
+  describe('PATCH L1 skeleton (Phase B R4 B1)', () => {
+    it('accepts a complete valid L1 payload (200)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send({ data: validL1 })
+        .expect(200);
+
+      expect(res.body.layers.L1_skeleton).toMatchObject(validL1);
+      // version 自增
+      expect(res.body.version).toBe(2);
+    });
+
+    it('round-trips through JSON without precision loss', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      // 序列化往返 — 模拟前端 form data → JSON.stringify → 网络 → JSON.parse → zod
+      const serialized = JSON.stringify({ data: validL1 });
+      const reparsed = JSON.parse(serialized);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send(reparsed)
+        .expect(200);
+
+      expect(res.body.layers.L1_skeleton).toEqual(validL1);
+    });
+
+    it('rejects L1 with missing fields (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const { craniumShape: _omit, ...partial } = validL1;
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send({ data: partial })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+      expect(res.body.error.fields).toEqual(
+        expect.arrayContaining([expect.objectContaining({ field: 'craniumShape' })]),
+      );
+    });
+
+    it('rejects L1 with out-of-range faceIndex (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send({ data: { ...validL1, faceIndex: 2.5 } }) // > 1.6
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+      expect(res.body.error.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'faceIndex' }),
+        ]),
+      );
+    });
+
+    it('rejects L1 with invalid enum value (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send({ data: { ...validL1, craniumShape: 'squid' } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('does not regress other layers on L1 update', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      // 先填完整 L2
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/2`)
+        .send({ data: validL2 })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/1`)
+        .send({ data: validL1 })
+        .expect(200);
+
+      // L2 还在
+      expect(res.body.layers.L2_softTissue).toEqual(validL2);
+      // L1 写好
+      expect(res.body.layers.L1_skeleton).toMatchObject(validL1);
+      // 其他 6 层还是 null
+      for (const k of ['L3_features', 'L4_skin', 'L5_hair', 'L6_decoration', 'L7_render', 'L8_evaluation']) {
+        expect(res.body.layers[k]).toBeNull();
+      }
+    });
+  });
+
+  describe('PATCH L2 soft tissue (Phase B R4 B1)', () => {
+    it('accepts a complete valid L2 payload (200)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/2`)
+        .send({ data: validL2 })
+        .expect(200);
+
+      expect(res.body.layers.L2_softTissue).toEqual(validL2);
+    });
+
+    it('rejects L2 with negative number (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/2`)
+        .send({ data: { ...validL2, subcutaneousFat: -0.1 } })
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
+    });
+
+    it('rejects L2 with all-zero defaults (whitelist rejects)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      // 缺 6 个字段
+      await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/2`)
+        .send({ data: {} })
+        .expect(400);
+    });
+  });
+
+  describe('L3~L6 passthrough (no zod yet)', () => {
+    it('accepts arbitrary data for L3 (no validator)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/3`)
+        .send({ data: { anyField: 'any value' } })
+        .expect(200);
+
+      expect(res.body.layers.L3_features).toEqual({ anyField: 'any value' });
+    });
+  });
+
+  describe('L7 render (R6 placeholder) + L8 evaluation (R7 placeholder)', () => {
+    it('accepts L7 with promptZh string (200)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/7`)
+        .send({ data: { promptZh: '青衣少女', promptEn: 'a girl in cyan', platforms: ['mj', 'sd'] } })
+        .expect(200);
+
+      expect(res.body.layers.L7_render).toMatchObject({
+        promptZh: '青衣少女',
+        promptEn: 'a girl in cyan',
+        platforms: ['mj', 'sd'],
+      });
+    });
+
+    it('rejects L8 with out-of-range score (400)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/blueprint')
+        .send({})
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/blueprint/${created.body.id}/step/8`)
+        .send({ data: { originality: 15 } }) // > 10
+        .expect(400);
+
+      expect(res.body.error.code).toBe('invalid_layer_data');
     });
   });
 });

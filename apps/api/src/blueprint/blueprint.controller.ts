@@ -59,7 +59,7 @@ export class BlueprintController {
         },
       });
     }
-    return this.service.updateLayer(id, layerKey, { data: body.data });
+    return this.service.updateLayer(id, layerKey, step, { data: body.data });
   }
 
   @Post(':id/evaluate')
