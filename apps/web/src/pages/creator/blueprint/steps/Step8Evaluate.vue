@@ -16,7 +16,8 @@ import {
   type Contradiction,
 } from '@/api/blueprint';
 import { useToast } from '@/composables/useToast';
-import RadarChart, { type RadarScore } from '@/components/blueprint/RadarChart.vue';
+import RadarChart from '@/components/blueprint/RadarChart.vue';
+import type { RadarScore } from '@/components/blueprint/radar-helpers';
 import { BlueprintKey } from '../context';
 
 const props = defineProps<{ blueprintId: string }>();
