@@ -5,6 +5,9 @@
 > **目录**
 > - 用户偏好与跨会话记忆 → `~/.claude/projects/-Users-app-ibi-ren/memory/`
 > - 项目级约定、部署状态、已知坑 → [`AGENTS.md`](AGENTS.md)(506 行,接手 AI 必读)
+> - 工程方法论(7 护栏 + 3-Phase Loop Engineering) → [`docs/loop-engineering.md`](docs/loop-engineering.md)
+> - 架构总览 → [`docs/architecture.md`](docs/architecture.md)
+> - 部署手册 → [`docs/deploy.md`](docs/deploy.md)
 > - 凭据指针(ECS IP / SSH key / 域名 / bucket 名)→ memory `reference-ecs-deploy-paths`
 
 ---
