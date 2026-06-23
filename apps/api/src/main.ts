@@ -14,8 +14,11 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // 全局前缀
+  // why exclude v1/(.*): 数字人陪伴 App(mock/ni-api)的端点 namespace 是 /v1/...,
+  //                    跟 ibi.ren 自己的 /api/v1/... 是不同 namespace,不该被叠前缀.
+  //                    真实接入时 /v1 也照样保留作为 App 端的契约路径.
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health'],
+    exclude: ['health', 'v1/(.*)'],
   });
 
   // CORS

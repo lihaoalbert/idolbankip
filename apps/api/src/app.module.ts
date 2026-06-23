@@ -25,6 +25,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AgentModule } from './agent/agent.module';
 import { AiModule } from './ai/ai.module';
 import { HonorModule } from './honor/honor.module';
+import { NiApiModule } from './mock/ni-api/ni-api.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -59,6 +60,7 @@ import { configValidationSchema } from './config/config.validation';
     AgentModule,
     AiModule,
     HonorModule,
+    NiApiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
