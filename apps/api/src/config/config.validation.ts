@@ -42,4 +42,9 @@ export const configValidationSchema = Joi.object({
   // 种子
   SEED_ADMIN_EMAIL: Joi.string().email().default('admin@ibi.ren'),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).default('ChangeMe!2026'),
+
+  // 功能开关 — Blueprint Wizard (Phase 1 Layered Prompt Generator)
+  // false 时所有 /api/v1/blueprint/* 返 404,前端路由 redirect 到 /creator
+  // 默认 ON — 2026-06-24 Phase C 上线时启用
+  BLUEPRINT_WIZARD_ENABLED: Joi.boolean().default(true),
 });

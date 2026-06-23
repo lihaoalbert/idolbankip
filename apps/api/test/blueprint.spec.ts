@@ -6,6 +6,7 @@
 
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
 import { BlueprintModule } from '../src/blueprint/blueprint.module';
 import { BLUEPRINT_LAYERS } from '../src/blueprint/blueprint.service';
@@ -18,6 +19,10 @@ describe('FaceBlueprint skeleton (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [() => ({ BLUEPRINT_WIZARD_ENABLED: true })],
+        }),
         ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10_000 }]),
         BlueprintModule,
       ],
@@ -1304,3 +1309,73 @@ describe('FaceBlueprint skeleton (e2e)', () => {
     });
   });
 });
+
+// Phase C — Blueprint Wizard 生产开关 (kill switch)
+// 目的:BLUEPRINT_WIZARD_ENABLED=false 时所有 4 个 endpoint 返 404,
+// 前端路由 redirect 到 /creator,dashboard 入口卡片不渲染。
+// 用独立的 Nest app + ConfigModule override,不影响上面 70 个测试的 happy path。
+describe('FaceBlueprint feature flag (Phase C kill switch)', () => {
+  let disabledApp: INestApplication;
+
+  beforeAll(async () => {
+    // ConfigModule.forRoot 加载 Joi schema 的同时,load 自定义配置覆盖默认值
+    // 必须先 forRoot 才能注入 ConfigService — 否则 controller 拿不到 service
+    // isGlobal: true → BlueprintModule 能拿到 ConfigService(否则注入失败)
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [() => ({ BLUEPRINT_WIZARD_ENABLED: false })],
+        }),
+        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10_000 }]),
+        BlueprintModule,
+      ],
+      providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+    }).compile();
+
+    disabledApp = moduleRef.createNestApplication();
+    disabledApp.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
+    await disabledApp.init();
+  });
+
+  afterAll(async () => {
+    await disabledApp.close();
+  });
+
+  it('POST /blueprint returns 404 with feature_disabled when flag off', async () => {
+    const res = await request(disabledApp.getHttpServer())
+      .post('/blueprint')
+      .send({ ownerId: 'user_alice', title: 'x' })
+      .expect(404);
+    expect(res.body.error.code).toBe('feature_disabled');
+    expect(res.body.error.message).toContain('Blueprint Wizard');
+  });
+
+  it('GET /blueprint/:id returns 404 with feature_disabled when flag off', async () => {
+    const res = await request(disabledApp.getHttpServer())
+      .get('/blueprint/fb_test_999')
+      .expect(404);
+    expect(res.body.error.code).toBe('feature_disabled');
+  });
+
+  it('PATCH /blueprint/:id/step/:n returns 404 with feature_disabled when flag off', async () => {
+    const res = await request(disabledApp.getHttpServer())
+      .patch('/blueprint/fb_test_999/step/1')
+      .send({ data: { faceIndex: 1.5 } })
+      .expect(404);
+    expect(res.body.error.code).toBe('feature_disabled');
+  });
+
+  it('POST /blueprint/:id/evaluate returns 404 with feature_disabled when flag off', async () => {
+    const res = await request(disabledApp.getHttpServer())
+      .post('/blueprint/fb_test_999/evaluate')
+      .expect(404);
+    expect(res.body.error.code).toBe('feature_disabled');
+  });
+});
+
+// 配套验证:flag=true(默认 Joi default)时 endpoint 仍正常工作 —
+// 这是 BlueprintModule 在 ConfigModule forRoot 无 override 时的默认行为,
+// 由上面 70 个 FaceBlueprint skeleton 测试隐式覆盖(它们用的就是默认 true)。

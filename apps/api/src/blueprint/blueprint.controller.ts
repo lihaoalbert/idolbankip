@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
   Post,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   BlueprintService,
   BLUEPRINT_LAYERS,
@@ -22,10 +24,28 @@ import {
 // 这避免 Round 2 stub 还要造 JWT,等 Phase B 接 Prisma 时一起换 JwtAuthGuard
 @Controller('blueprint')
 export class BlueprintController {
-  constructor(private readonly service: BlueprintService) {}
+  constructor(
+    private readonly service: BlueprintService,
+    private readonly config: ConfigService,
+  ) {}
+
+  // Phase C kill switch — 关 Blueprint 时所有 endpoint 返 404
+  // 用 404 而不是 503,语义上"endpoint 不存在",前端路由可以 redirect 不报错
+  private checkEnabled() {
+    if (!this.config.get<boolean>('BLUEPRINT_WIZARD_ENABLED')) {
+      throw new NotFoundException({
+        error: {
+          code: 'feature_disabled',
+          message: 'Blueprint Wizard 当前未启用',
+          request_id: null,
+        },
+      });
+    }
+  }
 
   @Post()
   create(@Body() body: CreateBlueprintDto & { ownerId?: string }) {
+    this.checkEnabled();
     const ownerId = body.ownerId ?? 'stub-user-blueprint';
     return this.service.create({
       ownerId,
@@ -37,6 +57,7 @@ export class BlueprintController {
 
   @Get(':id')
   getById(@Param('id') id: string) {
+    this.checkEnabled();
     return this.service.getById(id);
   }
 
@@ -49,6 +70,7 @@ export class BlueprintController {
     @Param('step', ParseIntPipe) step: number,
     @Body() body: UpdateLayerDto,
   ) {
+    this.checkEnabled();
     const layerKey = stepToLayer(step);
     if (!layerKey) {
       throw new BadRequestException({
@@ -64,6 +86,7 @@ export class BlueprintController {
 
   @Post(':id/evaluate')
   evaluate(@Param('id') id: string) {
+    this.checkEnabled();
     return this.service.evaluate(id);
   }
 }
