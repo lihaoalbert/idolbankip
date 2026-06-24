@@ -70,14 +70,15 @@ function handleClick(num: number) {
           :aria-current="step.num === current ? 'step' : undefined"
           :disabled="!isClickable(step.num)"
           :class="[
-            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition',
+            'flex shrink-0 items-center justify-center rounded-full border-2 font-semibold transition',
+            // 当前步加大 (h-11 w-11) + 强阴影,跟其他 9x9 明显区分
             step.num === current
-              ? 'border-stamp-red bg-stamp-red text-cream shadow-sm'
+              ? 'h-11 w-11 text-base border-stamp-red bg-stamp-red text-cream shadow-md ring-2 ring-stamp-red/20 ring-offset-2 ring-offset-cream'
               : completedSet.has(step.num)
-              ? 'border-ink/40 bg-ink/10 text-ink hover:border-stamp-red hover:bg-stamp-red/10 cursor-pointer'
+              ? 'h-9 w-9 text-sm border-ink/40 bg-ink/10 text-ink hover:border-stamp-red hover:bg-stamp-red/10 cursor-pointer'
               : isClickable(step.num)
-              ? 'border-dashed border-stamp-red/50 bg-cream text-stamp-red hover:bg-stamp-red hover:text-cream cursor-pointer'
-              : 'border-ink/15 bg-cream text-ink/30 cursor-not-allowed',
+              ? 'h-9 w-9 text-sm border-dashed border-stamp-red/50 bg-cream text-stamp-red hover:bg-stamp-red hover:text-cream cursor-pointer'
+              : 'h-9 w-9 text-sm border-ink/15 bg-cream text-ink/30 cursor-not-allowed',
           ]"
           :title="!isClickable(step.num) ? '先完成上一步才能解锁' : undefined"
           @click="handleClick(step.num)"
@@ -88,7 +89,7 @@ function handleClick(num: number) {
           :class="[
             'mt-2 text-center text-xs leading-tight max-w-[5rem]',
             step.num === current
-              ? 'text-stamp-red font-medium'
+              ? 'text-stamp-red font-semibold'
               : completedSet.has(step.num)
               ? 'text-ink/70'
               : isClickable(step.num)

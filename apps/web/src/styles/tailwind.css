@@ -7,33 +7,196 @@
    tailwind.config.js 的 colors 全部映射到这些 var
    ============================================================ */
 :root {
-  --color-cream: #F8F5F0;
-  --color-ink: #0F0F0F;
-  --color-gold: #C8A36B;
-  --color-line: #E5E0D6;
-  --color-danger: #D14343;
-  --color-success: #3F9F65;
-  --color-surface: #FFFFFF;
-  --color-surface-2: #FAF8F3;
-  --shadow-soft: 0 4px 12px rgba(15,15,15,0.06);
-  --shadow-glow: 0 0 0 4px rgba(200,163,107,0.18);
-  --scrollbar-thumb: #C8A36B;
-  --scrollbar-track: #F8F5F0;
-  --autofill-bg: #FFFFFF;
+  --color-cream: #F6F2EA;
+  --color-ink: #0E0E0F;
+  --color-gold: #B6925A;
+  --color-line: #DAD3C4;
+  --color-danger: #C2433C;
+  --color-success: #3D8B5F;
+  --color-surface: #FDFBF6;
+  --color-surface-2: #F0EBE0;
+  /* Phase C Beta 加:stamp-red 印章红 — 选中态 / 当前步 / 立即保存按钮等关键强调色。
+     之前用了但没定义,所有 bg-stamp-red / text-stamp-red / border-stamp-red 都是无效 class。 */
+  --color-stamp-red: #B83A2C;
+  --shadow-soft: 0 6px 24px rgba(14, 14, 15, 0.05);
+  --shadow-glow: 0 0 0 4px rgba(182, 146, 90, 0.18);
+  --shadow-archive: 0 24px 60px -28px rgba(14, 14, 15, 0.28), 0 2px 8px rgba(14, 14, 15, 0.04);
+  --scrollbar-thumb: #B6925A;
+  --scrollbar-track: #F6F2EA;
+  --autofill-bg: #FDFBF6;
+  --paper-grain: url("data:image/svg+xml;utf8,<svg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.32 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.42'/></svg>");
 }
 
 .dark {
-  --color-cream: #0E0E10;
-  --color-ink: #F2F0EA;
-  --color-gold: #D9B47A;
-  --color-line: #2A2A2E;
+  --color-cream: #0B0B0D;
+  --color-ink: #F2EEE5;
+  --color-gold: #D2A864;
+  --color-line: #232326;
   --color-danger: #E87171;
-  --color-success: #4FBE7C;
-  --color-surface: #1A1A1D;
-  --color-surface-2: #222226;
-  --shadow-soft: 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 0 4px rgba(217,180,122,0.25);
-  --scrollbar-thumb: #3A3A3F;
-  --scrollbar-track: #18181B;
-  --autofill-bg: #1A1A1D;
+  --color-success: #5BB87C;
+  --color-surface: #131316;
+  --color-surface-2: #1B1B20;
+  --color-stamp-red: #E87171;
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 4px rgba(210, 168, 100, 0.25);
+  --shadow-archive: 0 24px 60px -28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #3A3A40;
+  --scrollbar-track: #131316;
+  --autofill-bg: #131316;
+}
+
+/* ============================================================
+   全局: 美术馆纸纹覆盖
+   所有正文容器加 paper-grain 即可获得画廊质感
+   ============================================================ */
+.paper-grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-size: 240px 240px;
+  opacity: 0.04;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+.dark .paper-grain::before {
+  opacity: 0.06;
+  mix-blend-mode: screen;
+}
+
+/* ============================================================
+   Display font 工具类
+   ============================================================ */
+.font-display-italic {
+  font-family: '"Cormorant Garamond"', '"Noto Serif SC"', serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ============================================================
+   Catalog 排版工具: 大型档案编号
+   ============================================================ */
+.catalog-no {
+  font-family: '"JetBrains Mono"', '"Inter Tight"', monospace;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   编号 swash: 古典首字母装饰 (Cormorant swash)
+   ============================================================ */
+.swash::first-letter {
+  font-family: '"Cormorant Garamond"', serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ============================================================
+   Hairline 工具: 0.5px 极细线
+   ============================================================ */
+.hairline {
+  border-width: 0.5px;
+}
+
+.hairline-t { border-top-width: 0.5px; }
+.hairline-b { border-bottom-width: 0.5px; }
+.hairline-l { border-left-width: 0.5px; }
+.hairline-r { border-right-width: 0.5px; }
+
+/* ============================================================
+   Index tab: 美术馆图录的索引条
+   ============================================================ */
+.archive-tab {
+  position: relative;
+  padding: 0.5rem 0;
+  font-family: '"JetBrains Mono"', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.archive-tab::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 18px;
+  height: 1px;
+  background: currentColor;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.archive-tab:hover { opacity: 0.85; }
+.archive-tab:hover::before { transform: translateY(-50%) scaleX(1); }
+.archive-tab.is-active { opacity: 1; }
+.archive-tab.is-active::before { transform: translateY(-50%) scaleX(1); width: 36px; background: var(--color-gold); }
+
+/* ============================================================
+   Plate 卡片: 美术馆作品卡片 (列表 / 详情用)
+   ============================================================ */
+.plate {
+  position: relative;
+  background: var(--color-surface);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.plate:hover {
+  transform: translateY(-4px);
+}
+.plate-frame {
+  position: relative;
+  overflow: hidden;
+  border: 0.5px solid var(--color-line);
+}
+.plate-frame img {
+  transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.6s ease;
+}
+.plate:hover .plate-frame img {
+  transform: scale(1.04);
+  filter: contrast(1.04) saturate(1.05);
+}
+
+/* ============================================================
+   Stamp / 印记: 档案袋上的橡皮章效果
+   ============================================================ */
+.stamp {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1.5px solid currentColor;
+  font-family: '"JetBrains Mono"', monospace;
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+  opacity: 0.85;
+}
+
+/* ============================================================
+   Cropmark: 印刷裁切标记
+   ============================================================ */
+.cropmark {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--color-ink);
+  opacity: 0.35;
+}
+.cropmark-tl { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }
+.cropmark-tr { top: 4px; right: 4px; border-top: 1px solid; border-right: 1px solid; }
+.cropmark-bl { bottom: 4px; left: 4px; border-bottom: 1px solid; border-left: 1px solid; }
+.cropmark-br { bottom: 4px; right: 4px; border-bottom: 1px solid; border-right: 1px solid; }
+
+/* ============================================================
+   Marquee / Ticker: 顶部滚动条
+   ============================================================ */
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker 40s linear infinite;
 }

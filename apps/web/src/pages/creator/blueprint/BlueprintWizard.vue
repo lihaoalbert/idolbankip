@@ -302,24 +302,27 @@ onMounted(() => {
         </aside>
       </div>
 
-      <div class="mt-6 flex items-center justify-between text-sm">
-        <button
-          type="button"
-          class="rounded border border-ink/20 bg-cream px-4 py-2 disabled:opacity-30"
-          :disabled="stepNum <= 1"
-          @click="onStepClick(stepNum - 1)"
-        >
-          ← 上一步
-        </button>
-        <span class="text-ink/40">第 {{ stepNum }} / 8 步</span>
-        <button
-          type="button"
-          class="rounded border border-stamp-red bg-stamp-red px-4 py-2 text-cream disabled:opacity-30"
-          :disabled="stepNum >= 8"
-          @click="onStepClick(stepNum + 1)"
-        >
-          下一步 →
-        </button>
+      <!-- 底部导航:sticky 到视口底部,长表单滚动时仍能看到下一步 (Beta 反馈 #3-2) -->
+      <div class="sticky bottom-4 z-10 mt-8 rounded-md border border-ink/15 bg-cream/95 px-4 py-3 shadow-archive backdrop-blur">
+        <div class="flex items-center justify-between gap-4 text-sm">
+          <button
+            type="button"
+            class="rounded border border-ink/20 bg-cream px-4 py-2 disabled:opacity-30 hover:border-ink/40"
+            :disabled="stepNum <= 1"
+            @click="onStepClick(stepNum - 1)"
+          >
+            ← 上一步
+          </button>
+          <span class="font-mono text-xs text-ink/50">第 {{ stepNum }} / 8 步</span>
+          <button
+            type="button"
+            class="rounded bg-stamp-red px-6 py-2.5 text-base font-semibold text-cream shadow-sm transition hover:bg-stamp-red/90 disabled:opacity-30"
+            :disabled="stepNum >= 8"
+            @click="onStepClick(stepNum + 1)"
+          >
+            下一步 →
+          </button>
+        </div>
       </div>
     </main>
   </div>
