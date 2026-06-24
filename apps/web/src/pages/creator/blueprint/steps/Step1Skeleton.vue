@@ -10,7 +10,7 @@
  *
  * 数据来源:BlueprintContext (BlueprintWizard provide,本组件 inject)
  * 改 form → context.updateLayer(1, data) → 后端 PATCH + context ref 自动更新
- *   → BlueprintHead3D watch context.blueprint → mesh 实时 rebuild
+ *   → 文字摘要面板 watch context.blueprint → 实时更新 L1 摘要
  */
 import { computed, inject, ref, watch } from 'vue';
 import {

@@ -1,4 +1,4 @@
-// Blueprint context — BlueprintWizard provides, Step1~8 + BlueprintHead3D inject
+// Blueprint context — BlueprintWizard provides, Step1~8 inject
 //
 // 单一来源原则:
 // - blueprint ref 由 BlueprintWizard 拥有,只 fetch 一次

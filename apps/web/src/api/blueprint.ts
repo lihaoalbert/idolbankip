@@ -200,12 +200,12 @@ export interface SelectFieldDef<T extends string> {
 }
 
 export const L1_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'faceIndex', label: '脸型指数 (脸长/脸宽)', min: 1.0, max: 1.6, step: 0.01, hint: '1.0=圆脸,1.4+=长脸' },
-  { key: 'cheekboneWidth', label: '颧骨宽 (相对头宽)', min: 0, max: 1, step: 0.01 },
-  { key: 'cheekboneProminence', label: '颧骨突出度', min: 0, max: 1, step: 0.01 },
-  { key: 'jawWidth', label: '下颌宽 (相对头宽)', min: 0, max: 1, step: 0.01 },
-  { key: 'upperThirdRatio', label: '上停比例 (额高)', min: 0, max: 1, step: 0.01 },
-  { key: 'midThirdRatio', label: '中停比例 (眉心到鼻底)', min: 0, max: 1, step: 0.01 },
+  { key: 'faceIndex', label: '脸型指数 (脸长/脸宽)', min: 1.0, max: 1.6, step: 0.01, hint: '1.0=圆脸,1.2=标准椭圆,1.4+=长脸' },
+  { key: 'cheekboneWidth', label: '颧骨宽 (相对头宽)', min: 0, max: 1, step: 0.01, hint: '0.4~0.5=窄,0.6~0.7=标准,0.8+=宽颧' },
+  { key: 'cheekboneProminence', label: '颧骨突出度', min: 0, max: 1, step: 0.01, hint: '0=平颧,0.5=标准,1=高颧骨' },
+  { key: 'jawWidth', label: '下颌宽 (相对头宽)', min: 0, max: 1, step: 0.01, hint: '0.3~0.4=尖下巴,0.5=标准,0.7+=方下颌' },
+  { key: 'upperThirdRatio', label: '上停比例 (额高)', min: 0, max: 1, step: 0.01, hint: '三停之和=1,理想值~0.33' },
+  { key: 'midThirdRatio', label: '中停比例 (眉心到鼻底)', min: 0, max: 1, step: 0.01, hint: '三停之和=1,理想值~0.33' },
 ];
 
 export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle>[] = [
@@ -223,12 +223,12 @@ export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle>[] = [
 ];
 
 export const L2_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'subcutaneousFat', label: '皮下脂肪', min: 0, max: 1, step: 0.01, hint: '0=瘦削,1=饱满' },
-  { key: 'masseter', label: '咬肌', min: 0, max: 1, step: 0.01 },
-  { key: 'buccalFat', label: '颊脂垫 (苹果肌)', min: 0, max: 1, step: 0.01 },
-  { key: 'eyeSocketDepth', label: '眼窝深度', min: 0, max: 1, step: 0.01 },
-  { key: 'browRidge', label: '眉弓突出度', min: 0, max: 1, step: 0.01 },
-  { key: 'nasolabialFold', label: '法令纹深度', min: 0, max: 1, step: 0.01 },
+  { key: 'subcutaneousFat', label: '皮下脂肪', min: 0, max: 1, step: 0.01, hint: '0=瘦削,0.5=标准,1=饱满' },
+  { key: 'masseter', label: '咬肌', min: 0, max: 1, step: 0.01, hint: '0=无咬肌(瓜子脸),1=咬肌发达(国字脸)' },
+  { key: 'buccalFat', label: '颊脂垫 (苹果肌)', min: 0, max: 1, step: 0.01, hint: '0=凹陷,0.6=饱满苹果肌,1=过度饱满' },
+  { key: 'eyeSocketDepth', label: '眼窝深度', min: 0, max: 1, step: 0.01, hint: '0=平眼窝(亚洲常见),1=深眼窝(欧美常见)' },
+  { key: 'browRidge', label: '眉弓突出度', min: 0, max: 1, step: 0.01, hint: '0=平眉弓,0.5=标准,1=高眉弓(欧美感)' },
+  { key: 'nasolabialFold', label: '法令纹深度', min: 0, max: 1, step: 0.01, hint: '0=无,0.3=微显,0.6+=明显 (适合成熟/熟女)' },
 ];
 
 // 默认值 — 创作者首次进入有占位,而不是空白
@@ -301,16 +301,16 @@ export const L7_DEFAULTS: L7Render = {
 };
 
 export const L3_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'eyeDistance', label: '眼距', min: 0, max: 1, step: 0.01, hint: '0=近,1=远' },
-  { key: 'eyeApertureHeight', label: '眼裂高度', min: 0, max: 1, step: 0.01 },
-  { key: 'noseLength', label: '鼻长', min: 0, max: 1, step: 0.01 },
-  { key: 'noseWidth', label: '鼻宽', min: 0, max: 1, step: 0.01 },
-  { key: 'lipWidth', label: '唇宽', min: 0, max: 1, step: 0.01 },
-  { key: 'lipThickness', label: '唇厚', min: 0, max: 1, step: 0.01, hint: '0=薄唇,1=厚唇' },
-  { key: 'earPosition', label: '耳位', min: 0, max: 1, step: 0.01 },
-  { key: 'earSize', label: '耳大小', min: 0, max: 1, step: 0.01 },
-  { key: 'philtrumLength', label: '人中长度', min: 0, max: 1, step: 0.01 },
-  { key: 'chinProtrusion', label: '下巴突出度', min: 0, max: 1, step: 0.01, hint: '0=后缩,1=前凸' },
+  { key: 'eyeDistance', label: '眼距', min: 0, max: 1, step: 0.01, hint: '0=近(聚眼),0.5=标准一眼距,1=远(宽眼距)' },
+  { key: 'eyeApertureHeight', label: '眼裂高度', min: 0, max: 1, step: 0.01, hint: '0=细长眼(丹凤),0.5=标准,1=大圆眼' },
+  { key: 'noseLength', label: '鼻长', min: 0, max: 1, step: 0.01, hint: '0=短鼻(少女感),0.5=标准,1=长鼻(成熟感)' },
+  { key: 'noseWidth', label: '鼻宽', min: 0, max: 1, step: 0.01, hint: '0=窄鼻(精致),0.4=标准,0.7+=宽鼻(圆润)' },
+  { key: 'lipWidth', label: '唇宽', min: 0, max: 1, step: 0.01, hint: '0=薄窄,0.5=标准,0.8+=宽唇' },
+  { key: 'lipThickness', label: '唇厚', min: 0, max: 1, step: 0.01, hint: '0=薄唇(冷淡感),0.5=标准,1=厚唇(丰唇)' },
+  { key: 'earPosition', label: '耳位', min: 0, max: 1, step: 0.01, hint: '0=低位耳,0.5=标准(与眉齐),1=高位耳' },
+  { key: 'earSize', label: '耳大小', min: 0, max: 1, step: 0.01, hint: '0=小耳,0.4=标准,0.7+=大耳(精灵感)' },
+  { key: 'philtrumLength', label: '人中长度', min: 0, max: 1, step: 0.01, hint: '0=短人中(幼态),0.5=标准,1=长人中(成熟)' },
+  { key: 'chinProtrusion', label: '下巴突出度', min: 0, max: 1, step: 0.01, hint: '0=后缩,0.5=标准,1=前凸(国字/女王)' },
 ];
 
 export const L3_SELECT_FIELDS: SelectFieldDef<EyeShape | NoseBridge>[] = [
@@ -330,8 +330,8 @@ export const L3_SELECT_FIELDS: SelectFieldDef<EyeShape | NoseBridge>[] = [
 ];
 
 export const L5_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'browDensity', label: '眉密度', min: 0, max: 1, step: 0.01, hint: '0=稀疏,1=浓密' },
-  { key: 'sideburns', label: '鬓角', min: 0, max: 1, step: 0.01 },
+  { key: 'browDensity', label: '眉密度', min: 0, max: 1, step: 0.01, hint: '0=稀疏(韩式),0.5=标准,1=浓密(欧美)' },
+  { key: 'sideburns', label: '鬓角', min: 0, max: 1, step: 0.01, hint: '0=无鬓角,0.3=短鬓角,0.7+=长鬓角(注意与光头矛盾)' },
 ];
 
 export const L5_SELECT_FIELDS: SelectFieldDef<HairStyle | HairColor | Hairline | BrowShape | BrowColor | LashStyle>[] = [
@@ -382,10 +382,10 @@ export const L5_SELECT_FIELDS: SelectFieldDef<HairStyle | HairColor | Hairline |
 ];
 
 export const L4_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'freckles', label: '雀斑', min: 0, max: 1, step: 0.01, hint: '0=无,1=满脸' },
-  { key: 'moles', label: '痣', min: 0, max: 1, step: 0.01 },
-  { key: 'wrinkles', label: '皱纹/细纹', min: 0, max: 1, step: 0.01 },
-  { key: 'pores', label: '毛孔', min: 0, max: 1, step: 0.01 },
+  { key: 'freckles', label: '雀斑', min: 0, max: 1, step: 0.01, hint: '0=无,0.2=隐约(欧美风),0.5+=明显(精灵/可爱)' },
+  { key: 'moles', label: '痣', min: 0, max: 1, step: 0.01, hint: '0=无,0.1=1~2颗点缀,0.3+=多痣' },
+  { key: 'wrinkles', label: '皱纹/细纹', min: 0, max: 1, step: 0.01, hint: '0=无(少女),0.2=微细纹,0.6+=明显(成熟)' },
+  { key: 'pores', label: '毛孔', min: 0, max: 1, step: 0.01, hint: '0=无毛孔(瓷肌),0.3=细腻,0.7+=粗大' },
 ];
 
 export const L4_SELECT_FIELDS: SelectFieldDef<SkinTone | SkinTexture>[] = [
@@ -408,9 +408,9 @@ export const L4_SELECT_FIELDS: SelectFieldDef<SkinTone | SkinTexture>[] = [
 ];
 
 export const L6_SLIDER_FIELDS: SliderFieldDef[] = [
-  { key: 'blush', label: '腮红', min: 0, max: 1, step: 0.01, hint: '0=无,1=重' },
-  { key: 'eyeshadow', label: '眼影', min: 0, max: 1, step: 0.01 },
-  { key: 'facePaint', label: '面部彩绘', min: 0, max: 1, step: 0.01, hint: '戏曲/Cos 风格' },
+  { key: 'blush', label: '腮红', min: 0, max: 1, step: 0.01, hint: '0=无,0.3=微红(自然),0.7+=明显(元气)' },
+  { key: 'eyeshadow', label: '眼影', min: 0, max: 1, step: 0.01, hint: '0=无,0.3=裸色(日常),0.7+=烟熏(派对)' },
+  { key: 'facePaint', label: '面部彩绘', min: 0, max: 1, step: 0.01, hint: '0=无,0.5=戏曲/Cos 风格,1=浓重(角色向)' },
 ];
 
 export const L6_SELECT_FIELDS: SelectFieldDef<MakeupLevel | LipColor | Accessory>[] = [

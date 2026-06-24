@@ -768,3 +768,65 @@ describe('L8 types + EvaluationResult 形状 (R7)', () => {
     expect(r.contradictions[0].severity).toBe('warning');
   });
 });
+
+// Phase C Beta 反馈回归:completedSteps 按 layers 数据真填充判完成
+// (不是按当前 step 之前的全部标完成 — 那个旧逻辑会导致 step 2 永远 disabled)
+describe('Wizard completedSteps 计算(Phase C Beta 修)', () => {
+  it('空 Blueprint:0 个 step 标完成', () => {
+    const layers: Record<string, unknown> = {
+      L1_skeleton: null,
+      L2_softTissue: null,
+      L3_features: null,
+      L4_skin: null,
+      L5_hair: null,
+      L6_decoration: null,
+      L7_render: null,
+      L8_evaluation: null,
+    };
+    const completed: number[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
+        completed.push(i + 1);
+      }
+    }
+    expect(completed).toEqual([]);
+  });
+
+  it('只填 L1:step 1 标完成,step 2-7 未完成', () => {
+    const layers: Record<string, unknown> = {
+      L1_skeleton: { faceIndex: 1.4 },
+      L2_softTissue: null,
+      L3_features: null,
+      L4_skin: null,
+      L5_hair: null,
+      L6_decoration: null,
+      L7_render: null,
+    };
+    const completed: number[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
+        completed.push(i + 1);
+      }
+    }
+    expect(completed).toEqual([1]);
+  });
+
+  it('填 L1+L2+L7:step 1,2,7 完成', () => {
+    const layers: Record<string, unknown> = {
+      L1_skeleton: { faceIndex: 1.4 },
+      L2_softTissue: { subcutaneousFat: 0.5 },
+      L3_features: null,
+      L4_skin: null,
+      L5_hair: null,
+      L6_decoration: null,
+      L7_render: { promptZh: '脸', promptEn: 'face' },
+    };
+    const completed: number[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
+        completed.push(i + 1);
+      }
+    }
+    expect(completed).toEqual([1, 2, 7]);
+  });
+});
