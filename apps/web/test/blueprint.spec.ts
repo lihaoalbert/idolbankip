@@ -771,62 +771,65 @@ describe('L8 types + EvaluationResult 形状 (R7)', () => {
 
 // Phase C Beta 反馈回归:completedSteps 按 layers 数据真填充判完成
 // (不是按当前 step 之前的全部标完成 — 那个旧逻辑会导致 step 2 永远 disabled)
-describe('Wizard completedSteps 计算(Phase C Beta 修)', () => {
-  it('空 Blueprint:0 个 step 标完成', () => {
-    const layers: Record<string, unknown> = {
-      L1_skeleton: null,
-      L2_softTissue: null,
-      L3_features: null,
-      L4_skin: null,
-      L5_hair: null,
-      L6_decoration: null,
-      L7_render: null,
-      L8_evaluation: null,
-    };
-    const completed: number[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
-        completed.push(i + 1);
-      }
+//
+// StepperProgress 进一步加了"顺序解锁"规则:step N 可点 ⇔ step N-1 已完成
+// (用户的心理模型 — 填完 step 1 就想点 step 2)
+describe('Wizard step unlock(Phase C Beta 第二轮修)', () => {
+  const LAYER_KEYS = ['L1_skeleton', 'L2_softTissue', 'L3_features', 'L4_skin', 'L5_hair', 'L6_decoration', 'L7_render'] as const;
+
+  function completedSteps(layers: Record<string, unknown>): number[] {
+    const list: number[] = [];
+    for (let i = 0; i < LAYER_KEYS.length; i += 1) {
+      if (layers[LAYER_KEYS[i]] !== null) list.push(i + 1);
     }
-    expect(completed).toEqual([]);
+    return list;
+  }
+
+  function isClickable(num: number, current: number, completedSet: Set<number>): boolean {
+    if (num === current) return true;
+    if (completedSet.has(num)) return true;
+    if (num > 1 && completedSet.has(num - 1)) return true;
+    return false;
+  }
+
+  it('空 Blueprint:只有当前步可点', () => {
+    const layers = Object.fromEntries(LAYER_KEYS.map((k) => [k, null]));
+    const completed = completedSteps(layers);
+    const set = new Set(completed);
+    expect(set.size).toBe(0);
+    // 用户在 step 1
+    expect(isClickable(1, 1, set)).toBe(true);
+    expect(isClickable(2, 1, set)).toBe(false);  // 没填 step 1,不能跳
+    expect(isClickable(3, 1, set)).toBe(false);
   });
 
-  it('只填 L1:step 1 标完成,step 2-7 未完成', () => {
-    const layers: Record<string, unknown> = {
-      L1_skeleton: { faceIndex: 1.4 },
-      L2_softTissue: null,
-      L3_features: null,
-      L4_skin: null,
-      L5_hair: null,
-      L6_decoration: null,
-      L7_render: null,
-    };
-    const completed: number[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
-        completed.push(i + 1);
-      }
-    }
-    expect(completed).toEqual([1]);
+  it('只填 L1,用户在 step 1:step 1 + step 2 可点(顺序解锁)', () => {
+    const layers: Record<string, unknown> = Object.fromEntries(LAYER_KEYS.map((k) => [k, null]));
+    layers.L1_skeleton = { faceIndex: 1.4 };
+    const completed = completedSteps(layers);
+    const set = new Set(completed);
+    expect(set).toEqual(new Set([1]));
+    // step 2 应该可点 — 因为 step 1 已完成(顺序解锁)
+    expect(isClickable(1, 1, set)).toBe(true);
+    expect(isClickable(2, 1, set)).toBe(true);
+    expect(isClickable(3, 1, set)).toBe(false);  // step 2 没填,不能跳
   });
 
-  it('填 L1+L2+L7:step 1,2,7 完成', () => {
-    const layers: Record<string, unknown> = {
-      L1_skeleton: { faceIndex: 1.4 },
-      L2_softTissue: { subcutaneousFat: 0.5 },
-      L3_features: null,
-      L4_skin: null,
-      L5_hair: null,
-      L6_decoration: null,
-      L7_render: { promptZh: '脸', promptEn: 'face' },
-    };
-    const completed: number[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      if (layers[`L${i + 1}_${['skeleton', 'softTissue', 'features', 'skin', 'hair', 'decoration', 'render'][i]}`] !== null) {
-        completed.push(i + 1);
-      }
-    }
-    expect(completed).toEqual([1, 2, 7]);
+  it('填 L1+L2+L7,用户在 step 4:step 1,2,4,7 可点', () => {
+    const layers: Record<string, unknown> = Object.fromEntries(LAYER_KEYS.map((k) => [k, null]));
+    layers.L1_skeleton = { faceIndex: 1.4 };
+    layers.L2_softTissue = { subcutaneousFat: 0.5 };
+    layers.L7_render = { promptZh: '脸' };
+    const completed = completedSteps(layers);
+    const set = new Set(completed);
+    expect(set).toEqual(new Set([1, 2, 7]));
+    // step 3 应该可点 — step 2 完成 → 顺序解锁
+    expect(isClickable(3, 4, set)).toBe(true);
+    // step 4 是当前
+    expect(isClickable(4, 4, set)).toBe(true);
+    // step 5 没填 → 不该可点
+    expect(isClickable(5, 4, set)).toBe(false);
+    // step 7 已完成 → 可点(回访)
+    expect(isClickable(7, 4, set)).toBe(true);
   });
 });
