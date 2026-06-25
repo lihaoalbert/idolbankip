@@ -33,12 +33,15 @@ export interface Blueprint {
   layers: Record<LayerKey, Record<string, unknown> | null>;
 }
 
-// ===================== L1 骨骼 (8 项) =====================
+// ===================== L1 骨骼 (8 项 + gender) =====================
 
 export type CraniumShape = 'long' | 'medium' | 'round' | 'flat';
 export type JawAngle = 'sharp' | 'medium' | 'soft';
+// Phase C Beta 加 (Q3 拍板):SchematicFace 需要性别驱动轮廓差异(下颌/眉弓/喉结)
+export type Gender = 'male' | 'female';
 
 export interface L1Skeleton {
+  gender?: Gender; // 可选,旧数据无值时 fallback 到 female
   craniumShape: CraniumShape;
   faceIndex: number; // 1.0~1.6
   cheekboneWidth: number; // 0~1
@@ -208,7 +211,7 @@ export const L1_SLIDER_FIELDS: SliderFieldDef[] = [
   { key: 'midThirdRatio', label: '中停比例 (眉心到鼻底)', min: 0, max: 1, step: 0.01, hint: '三停之和=1,理想值~0.33' },
 ];
 
-export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle>[] = [
+export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle | Gender>[] = [
   { key: 'craniumShape', label: '颅型', options: [
     { value: 'long', label: '长颅' },
     { value: 'medium', label: '中颅' },
@@ -219,6 +222,11 @@ export const L1_SELECT_FIELDS: SelectFieldDef<CraniumShape | JawAngle>[] = [
     { value: 'sharp', label: '锐角' },
     { value: 'medium', label: '中等' },
     { value: 'soft', label: '钝角' },
+  ]},
+  // Phase C Beta 加 (Q3):性别决定 SchematicFace 整体轮廓
+  { key: 'gender', label: '性别', options: [
+    { value: 'female', label: '女性' },
+    { value: 'male', label: '男性' },
   ]},
 ];
 
@@ -233,6 +241,7 @@ export const L2_SLIDER_FIELDS: SliderFieldDef[] = [
 
 // 默认值 — 创作者首次进入有占位,而不是空白
 export const L1_DEFAULTS: L1Skeleton = {
+  gender: 'female',
   craniumShape: 'medium',
   faceIndex: 1.35,
   cheekboneWidth: 0.55,
@@ -463,3 +472,219 @@ export function stepToLayer(step: number): LayerKey | null {
   if (step < 1 || step > BLUEPRINT_LAYERS.length) return null;
   return BLUEPRINT_LAYERS[step - 1];
 }
+
+// ===================== 5 个快速预设 (Q4 拍板) =====================
+// 给创作者一个起点,而不是空白。点击任一按钮 → 批量覆盖 L1-L6 默认值。
+// 所有 46 字段必须填齐,前端不做 fallback。
+
+export interface PresetDef {
+  id: string;
+  label: string;
+  description: string;
+  layers: {
+    L1_skeleton: L1Skeleton;
+    L2_softTissue: L2SoftTissue;
+    L3_features: L3Features;
+    L4_skin: L4Skin;
+    L5_hair: L5Hair;
+    L6_decoration: L6Decoration;
+  };
+}
+
+export const PRESETS: PresetDef[] = [
+  {
+    id: 'asian_female',
+    label: '亚洲女性',
+    description: '25 岁左右,自然白皙,双眼皮,中长发',
+    layers: {
+      L1_skeleton: {
+        gender: 'female',
+        craniumShape: 'medium', faceIndex: 1.30,
+        cheekboneWidth: 0.50, cheekboneProminence: 0.35,
+        jawWidth: 0.40, jawAngle: 'soft',
+        upperThirdRatio: 0.33, midThirdRatio: 0.34,
+      },
+      L2_softTissue: {
+        subcutaneousFat: 0.50, masseter: 0.30, buccalFat: 0.55,
+        eyeSocketDepth: 0.25, browRidge: 0.50, nasolabialFold: 0.05,
+      },
+      L3_features: {
+        eyeDistance: 0.55, eyeShape: 'double', eyeApertureHeight: 0.60,
+        noseLength: 0.40, noseWidth: 0.35, noseBridge: 'low',
+        lipWidth: 0.50, lipThickness: 0.50,
+        earPosition: 0.50, earSize: 0.40,
+        philtrumLength: 0.40, chinProtrusion: 0.40,
+      },
+      L4_skin: {
+        skinTone: 'light', skinTexture: 'smooth',
+        freckles: 0.0, moles: 0.05, wrinkles: 0.0, pores: 0.10,
+      },
+      L5_hair: {
+        hairStyle: 'straight_long', hairColor: 'black', hairline: 'medium',
+        browShape: 'arched', browColor: 'same_as_hair', browDensity: 0.60,
+        lashes: 'long_dense', sideburns: 0.0,
+      },
+      L6_decoration: {
+        makeup: 'natural', lipColor: 'natural',
+        blush: 0.20, eyeshadow: 0.10,
+        accessory: 'none', facePaint: 0.0,
+      },
+    },
+  },
+  {
+    id: 'european_male',
+    label: '欧洲男性',
+    description: '30 岁左右,深邃眼窝,方下颌,短棕发',
+    layers: {
+      L1_skeleton: {
+        gender: 'male',
+        craniumShape: 'medium', faceIndex: 1.30,
+        cheekboneWidth: 0.65, cheekboneProminence: 0.55,
+        jawWidth: 0.70, jawAngle: 'sharp',
+        upperThirdRatio: 0.32, midThirdRatio: 0.35,
+      },
+      L2_softTissue: {
+        subcutaneousFat: 0.30, masseter: 0.70, buccalFat: 0.35,
+        eyeSocketDepth: 0.75, browRidge: 0.80, nasolabialFold: 0.20,
+      },
+      L3_features: {
+        eyeDistance: 0.50, eyeShape: 'double', eyeApertureHeight: 0.55,
+        noseLength: 0.65, noseWidth: 0.45, noseBridge: 'high',
+        lipWidth: 0.45, lipThickness: 0.50,
+        earPosition: 0.55, earSize: 0.50,
+        philtrumLength: 0.55, chinProtrusion: 0.60,
+      },
+      L4_skin: {
+        skinTone: 'light', skinTexture: 'normal',
+        freckles: 0.20, moles: 0.05, wrinkles: 0.10, pores: 0.30,
+      },
+      L5_hair: {
+        hairStyle: 'straight_short', hairColor: 'brown', hairline: 'medium',
+        browShape: 'straight', browColor: 'same_as_hair', browDensity: 0.80,
+        lashes: 'short_dense', sideburns: 0.40,
+      },
+      L6_decoration: {
+        makeup: 'none', lipColor: 'natural',
+        blush: 0.0, eyeshadow: 0.0,
+        accessory: 'none', facePaint: 0.0,
+      },
+    },
+  },
+  {
+    id: 'androgynous_youth',
+    label: '中性少年',
+    description: '18 岁左右,清秀稚气,大眼齐耳短发',
+    layers: {
+      L1_skeleton: {
+        gender: 'female',
+        craniumShape: 'round', faceIndex: 1.10,
+        cheekboneWidth: 0.45, cheekboneProminence: 0.30,
+        jawWidth: 0.35, jawAngle: 'soft',
+        upperThirdRatio: 0.35, midThirdRatio: 0.32,
+      },
+      L2_softTissue: {
+        subcutaneousFat: 0.40, masseter: 0.25, buccalFat: 0.60,
+        eyeSocketDepth: 0.20, browRidge: 0.40, nasolabialFold: 0.0,
+      },
+      L3_features: {
+        eyeDistance: 0.60, eyeShape: 'round', eyeApertureHeight: 0.75,
+        noseLength: 0.35, noseWidth: 0.30, noseBridge: 'low',
+        lipWidth: 0.45, lipThickness: 0.55,
+        earPosition: 0.50, earSize: 0.40,
+        philtrumLength: 0.35, chinProtrusion: 0.35,
+      },
+      L4_skin: {
+        skinTone: 'fair', skinTexture: 'smooth',
+        freckles: 0.0, moles: 0.0, wrinkles: 0.0, pores: 0.05,
+      },
+      L5_hair: {
+        hairStyle: 'bob', hairColor: 'black', hairline: 'low',
+        browShape: 'straight', browColor: 'same_as_hair', browDensity: 0.50,
+        lashes: 'long_dense', sideburns: 0.0,
+      },
+      L6_decoration: {
+        makeup: 'none', lipColor: 'natural',
+        blush: 0.05, eyeshadow: 0.0,
+        accessory: 'none', facePaint: 0.0,
+      },
+    },
+  },
+  {
+    id: 'african_female',
+    label: '非洲女性',
+    description: '25 岁左右,深棕肤色,丰满厚唇,自然卷发',
+    layers: {
+      L1_skeleton: {
+        gender: 'female',
+        craniumShape: 'long', faceIndex: 1.35,
+        cheekboneWidth: 0.70, cheekboneProminence: 0.50,
+        jawWidth: 0.55, jawAngle: 'medium',
+        upperThirdRatio: 0.34, midThirdRatio: 0.36,
+      },
+      L2_softTissue: {
+        subcutaneousFat: 0.40, masseter: 0.50, buccalFat: 0.50,
+        eyeSocketDepth: 0.45, browRidge: 0.55, nasolabialFold: 0.10,
+      },
+      L3_features: {
+        eyeDistance: 0.50, eyeShape: 'round', eyeApertureHeight: 0.70,
+        noseLength: 0.60, noseWidth: 0.65, noseBridge: 'medium',
+        lipWidth: 0.65, lipThickness: 0.75,
+        earPosition: 0.50, earSize: 0.45,
+        philtrumLength: 0.50, chinProtrusion: 0.45,
+      },
+      L4_skin: {
+        skinTone: 'dark', skinTexture: 'normal',
+        freckles: 0.0, moles: 0.10, wrinkles: 0.05, pores: 0.30,
+      },
+      L5_hair: {
+        hairStyle: 'curly', hairColor: 'black', hairline: 'medium',
+        browShape: 'arched', browColor: 'same_as_hair', browDensity: 0.75,
+        lashes: 'long_dense', sideburns: 0.0,
+      },
+      L6_decoration: {
+        makeup: 'natural', lipColor: 'red',
+        blush: 0.30, eyeshadow: 0.20,
+        accessory: 'earrings', facePaint: 0.0,
+      },
+    },
+  },
+  {
+    id: 'latino_male',
+    label: '拉丁男性',
+    description: '30 岁左右,古铜肤色,浓郁五官,波浪卷黑发',
+    layers: {
+      L1_skeleton: {
+        gender: 'male',
+        craniumShape: 'medium', faceIndex: 1.30,
+        cheekboneWidth: 0.60, cheekboneProminence: 0.50,
+        jawWidth: 0.60, jawAngle: 'medium',
+        upperThirdRatio: 0.33, midThirdRatio: 0.34,
+      },
+      L2_softTissue: {
+        subcutaneousFat: 0.40, masseter: 0.60, buccalFat: 0.45,
+        eyeSocketDepth: 0.55, browRidge: 0.70, nasolabialFold: 0.15,
+      },
+      L3_features: {
+        eyeDistance: 0.50, eyeShape: 'double', eyeApertureHeight: 0.60,
+        noseLength: 0.60, noseWidth: 0.50, noseBridge: 'high',
+        lipWidth: 0.50, lipThickness: 0.65,
+        earPosition: 0.50, earSize: 0.45,
+        philtrumLength: 0.50, chinProtrusion: 0.50,
+      },
+      L4_skin: {
+        skinTone: 'tan', skinTexture: 'normal',
+        freckles: 0.0, moles: 0.10, wrinkles: 0.05, pores: 0.25,
+      },
+      L5_hair: {
+        hairStyle: 'wavy', hairColor: 'black', hairline: 'medium',
+        browShape: 'arched', browColor: 'same_as_hair', browDensity: 0.80,
+        lashes: 'long_dense', sideburns: 0.30,
+      },
+      L6_decoration: {
+        makeup: 'none', lipColor: 'natural',
+        blush: 0.0, eyeshadow: 0.0,
+        accessory: 'none', facePaint: 0.0,
+      },
+    },
+  },
+];

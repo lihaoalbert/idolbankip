@@ -34,16 +34,17 @@ import {
   BLUEPRINT_LAYERS,
 } from '../src/api/blueprint';
 
-describe('L1 骨骼 (8 项)', () => {
-  it('有 6 个 slider 字段 + 2 个 select 字段', () => {
+describe('L1 骨骼 (9 项: 8 字段 + gender)', () => {
+  it('有 6 个 slider 字段 + 3 个 select 字段(cranium + jawAngle + gender)', () => {
     expect(L1_SLIDER_FIELDS).toHaveLength(6);
-    expect(L1_SELECT_FIELDS).toHaveLength(2);
-    // 总 8 字段
+    expect(L1_SELECT_FIELDS).toHaveLength(3);
+    // 总 9 字段 (Phase C Beta Q3 加 gender)
     const totalKeys = new Set([
       ...L1_SLIDER_FIELDS.map((f) => f.key),
       ...L1_SELECT_FIELDS.map((f) => f.key),
     ]);
-    expect(totalKeys.size).toBe(8);
+    expect(totalKeys.size).toBe(9);
+    expect(L1_DEFAULTS).toHaveProperty('gender');
     expect(L1_DEFAULTS).toHaveProperty('craniumShape');
     expect(L1_DEFAULTS).toHaveProperty('faceIndex');
     expect(L1_DEFAULTS).toHaveProperty('cheekboneWidth');
@@ -98,6 +99,7 @@ describe('L1 骨骼 (8 项)', () => {
         'cheekboneWidth',
         'craniumShape',
         'faceIndex',
+        'gender',
         'jawAngle',
         'jawWidth',
         'midThirdRatio',
@@ -831,5 +833,156 @@ describe('Wizard step unlock(Phase C Beta 第二轮修)', () => {
     expect(isClickable(5, 4, set)).toBe(false);
     // step 7 已完成 → 可点(回访)
     expect(isClickable(7, 4, set)).toBe(true);
+  });
+});
+
+// ===================== Phase 2 Blueprint 2.0 Track A =====================
+// SchematicFace + 5 预设 + L1 gender — 见 docs/blueprint-schematic-face.md
+import { PRESETS } from '../src/api/blueprint';
+import { computeGeom } from '../src/components/blueprint/schematicGeom';
+
+describe('Blueprint 2.0 · L1 gender 字段', () => {
+  it('L1_DEFAULTS 默认女性', () => {
+    expect(L1_DEFAULTS.gender).toBe('female');
+  });
+
+  it('L1_SELECT_FIELDS 含性别', () => {
+    const genderField = L1_SELECT_FIELDS.find((f) => f.key === 'gender');
+    expect(genderField).toBeDefined();
+    const opts = genderField?.options.map((o) => o.value) ?? [];
+    expect(opts).toContain('female');
+    expect(opts).toContain('male');
+  });
+
+  it('L1_SELECT_FIELDS 字段总数 = 3(cranium + jawAngle + gender)', () => {
+    expect(L1_SELECT_FIELDS).toHaveLength(3);
+  });
+});
+
+describe('Blueprint 2.0 · PRESETS 5 个快速预设 (Q4)', () => {
+  it('总数 = 5', () => {
+    expect(PRESETS).toHaveLength(5);
+  });
+
+  it('每个预设都有 id / label / description / 6 层', () => {
+    for (const p of PRESETS) {
+      expect(p.id).toBeTruthy();
+      expect(p.label).toBeTruthy();
+      expect(p.description).toBeTruthy();
+      expect(p.layers).toHaveProperty('L1_skeleton');
+      expect(p.layers).toHaveProperty('L2_softTissue');
+      expect(p.layers).toHaveProperty('L3_features');
+      expect(p.layers).toHaveProperty('L4_skin');
+      expect(p.layers).toHaveProperty('L5_hair');
+      expect(p.layers).toHaveProperty('L6_decoration');
+    }
+  });
+
+  it('每个预设的 L1~L6 字段数 = 9+6+12+6+8+6 = 45(原 spec 46 含 gender,Q3 后变 45+gender=46)', () => {
+    // L1 = 9(gender + cranium + faceIndex + cheekboneWidth + cheekboneProminence + jawWidth + jawAngle + upper + mid)
+    // L2 = 6, L3 = 12, L4 = 6, L5 = 8, L6 = 6
+    const expectedCount: Record<string, number> = {
+      L1_skeleton: 9,
+      L2_softTissue: 6,
+      L3_features: 12,
+      L4_skin: 6,
+      L5_hair: 8,
+      L6_decoration: 6,
+    };
+    for (const p of PRESETS) {
+      for (const [layerKey, count] of Object.entries(expectedCount)) {
+        const layer = (p.layers as any)[layerKey];
+        expect(Object.keys(layer).length, `${p.id}/${layerKey}`).toBe(count);
+      }
+    }
+  });
+
+  it('5 个预设 id 唯一', () => {
+    const ids = PRESETS.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('欧洲男性 / 拉丁男性预设 gender=male', () => {
+    const males = PRESETS.filter((p) => p.layers.L1_skeleton.gender === 'male');
+    expect(males.map((p) => p.id).sort()).toEqual(['european_male', 'latino_male']);
+  });
+
+  it('亚洲 / 中性少年 / 非洲女性预设 gender=female', () => {
+    const females = PRESETS.filter((p) => p.layers.L1_skeleton.gender === 'female');
+    expect(females.map((p) => p.id).sort()).toEqual(['african_female', 'androgynous_youth', 'asian_female']);
+  });
+
+  it('数值字段都在 [0,1] 或 [1.0, 1.6] 范围内(faceIndex)', () => {
+    for (const p of PRESETS) {
+      const l1 = p.layers.L1_skeleton;
+      expect(l1.faceIndex).toBeGreaterThanOrEqual(1.0);
+      expect(l1.faceIndex).toBeLessThanOrEqual(1.6);
+      for (const k of ['cheekboneWidth', 'cheekboneProminence', 'jawWidth', 'upperThirdRatio', 'midThirdRatio'] as const) {
+        expect(l1[k], `${p.id}/${k}`).toBeGreaterThanOrEqual(0);
+        expect(l1[k], `${p.id}/${k}`).toBeLessThanOrEqual(1);
+      }
+      for (const k of ['subcutaneousFat', 'masseter', 'buccalFat', 'eyeSocketDepth', 'browRidge', 'nasolabialFold'] as const) {
+        const v = (p.layers.L2_softTissue as any)[k];
+        expect(v, `${p.id}/${k}`).toBeGreaterThanOrEqual(0);
+        expect(v, `${p.id}/${k}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});
+
+describe('Blueprint 2.0 · SchematicFace computeGeom', () => {
+  it('默认脸:女性 / 标准椭圆脸', () => {
+    const l1: L1Skeleton = { ...L1_DEFAULTS };
+    const l3: L3Features = { ...L3_DEFAULTS };
+    const g = computeGeom(l1, l3);
+    expect(g.isMale).toBe(false);
+    expect(g.fw).toBe(240);
+    expect(g.fh).toBe(240 * 1.35); // faceIndex default
+    expect(g.cx).toBe(300);
+    expect(g.cy).toBe(420);
+    // 三停:上 0.33 + 中 0.34 + 下 0.33 (默认)
+    expect(g.browY).toBeCloseTo(420 - (240 * 1.35) / 2 + (240 * 1.35) * 0.33, 1);
+  });
+
+  it('gender=male 时 jawX 比 female 大 8%(扣 cx 后比)', () => {
+    const l1Female: L1Skeleton = { ...L1_DEFAULTS, gender: 'female' };
+    const l1Male: L1Skeleton = { ...L1_DEFAULTS, gender: 'male' };
+    const l3: L3Features = { ...L3_DEFAULTS };
+    const gf = computeGeom(l1Female, l3);
+    const gm = computeGeom(l1Male, l3);
+    expect(gm.isMale).toBe(true);
+    // male 用 1.08,female 用 0.95;扣 cx 后比 = 1.08/0.95 ≈ 1.137
+    // 注:不扣 cx 比 = (cx + 87.48) / (cx + 76.95) ≈ 1.0279,差很多
+    const maleHalf = gm.jawX - gm.cx;
+    const femaleHalf = gf.jawX - gf.cx;
+    expect(maleHalf / femaleHalf).toBeCloseTo(1.08 / 0.95, 3);
+  });
+
+  it('chinProtrusion 来自 L3,影响 chinX', () => {
+    const l1: L1Skeleton = { ...L1_DEFAULTS };
+    const l3Flat: L3Features = { ...L3_DEFAULTS, chinProtrusion: 0 };
+    const l3Forward: L3Features = { ...L3_DEFAULTS, chinProtrusion: 1 };
+    const g1 = computeGeom(l1, l3Flat);
+    const g2 = computeGeom(l1, l3Forward);
+    expect(g2.chinX - g1.chinX).toBeCloseTo(12, 5); // 0.0→1.0 chinX 加 12
+  });
+
+  it('craniumShape=long 让 topY 上移 15', () => {
+    const l1: L1Skeleton = { ...L1_DEFAULTS, craniumShape: 'long' };
+    const l3: L3Features = { ...L3_DEFAULTS };
+    const g = computeGeom(l1, l3);
+    // 长颅:face top 向上调 -15
+    const baseTopY = 420 - (240 * l1.faceIndex) / 2;
+    expect(g.topY - baseTopY).toBe(-15);
+  });
+
+  it('faceIndex 越大 face 越高', () => {
+    const l1Short: L1Skeleton = { ...L1_DEFAULTS, faceIndex: 1.0 };
+    const l1Long: L1Skeleton = { ...L1_DEFAULTS, faceIndex: 1.6 };
+    const l3: L3Features = { ...L3_DEFAULTS };
+    const gs = computeGeom(l1Short, l3);
+    const gl = computeGeom(l1Long, l3);
+    expect(gl.fh).toBeGreaterThan(gs.fh);
+    expect(gl.chinY).toBeGreaterThan(gs.chinY); // 长脸下巴更靠下
   });
 });

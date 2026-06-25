@@ -30,7 +30,18 @@ export enum JawAngle {
   SOFT = 'soft',     // 钝角
 }
 
+// Phase C Beta 加 (Q3):SchematicFace 性别驱动轮廓(下颌/眉弓/喉结)
+export enum Gender {
+  FEMALE = 'female',
+  MALE = 'male',
+}
+
 export class L1SkeletonDto {
+  // 旧数据无 gender,设 optional 兼容;前端 L1_DEFAULTS 默认 female
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
+
   @IsEnum(CraniumShape)
   craniumShape!: CraniumShape;
 
