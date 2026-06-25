@@ -510,3 +510,16 @@ export class UpdateLayerDto {
   @IsObject()
   data!: Record<string, unknown>;
 }
+
+// ===================== Track B: 参考图反向拆解 =====================
+// POST /blueprint/from-image 接收的 body
+// imageBase64 接受 data:image/jpeg;base64,... 或裸 base64(去掉前缀)
+export class CreateBlueprintFromImageDto {
+  @IsString()
+  imageBase64!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string;
+}

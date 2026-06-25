@@ -17,6 +17,7 @@ import {
 } from './blueprint.service';
 import {
   CreateBlueprintDto,
+  CreateBlueprintFromImageDto,
   UpdateLayerDto,
 } from './dto/blueprint.dto';
 
@@ -52,6 +53,22 @@ export class BlueprintController {
       title: body.title,
       description: body.description,
       tags: body.tags,
+    });
+  }
+
+  // Track B:参考图反向拆解。一次性创建 + 反推 46 字段 + 写入
+  // 失败语义:422(反推字段不合法)/400(图片过大)/503(API key 缺失)
+  // 路由放 @Post() 之前,避免被 :id 匹配走错
+  @Post('from-image')
+  async createFromImage(
+    @Body() body: CreateBlueprintFromImageDto & { ownerId?: string },
+  ) {
+    this.checkEnabled();
+    const ownerId = body.ownerId ?? 'stub-user-blueprint';
+    return await this.service.createFromImage({
+      ownerId,
+      imageBase64: body.imageBase64,
+      title: body.title,
     });
   }
 

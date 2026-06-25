@@ -33,6 +33,7 @@ export class DashScopeProvider {
   private readonly apiKey: string;
   private readonly endpoint: string;
   private readonly defaultModel: string;
+  private readonly vlModel: string;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get<string>('DASHSCOPE_API_KEY', '');
@@ -40,10 +41,11 @@ export class DashScopeProvider {
     // 用户的 DASHSCOPE_HOST 是 Bailian 专用端 (只跑文本), 这里硬编码公网端
     this.endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
     this.defaultModel = config.get<string>('DASHSCOPE_MODEL', 'wan2.7-image-pro');
+    this.vlModel = config.get<string>('DASHSCOPE_VL_MODEL', 'qwen-vl-plus');
     if (!this.isConfigured()) {
-      this.logger.warn('DASHSCOPE_API_KEY 未配置, AI 图生成会 503');
+      this.logger.warn('DASHSCOPE_API_KEY 未配置, AI 图生成 + 视觉反推会 503');
     } else {
-      this.logger.log(`DashScope configured: endpoint=${this.endpoint} model=${this.defaultModel}`);
+      this.logger.log(`DashScope configured: endpoint=${this.endpoint} genModel=${this.defaultModel} vlModel=${this.vlModel}`);
     }
   }
 
@@ -122,5 +124,62 @@ export class DashScopeProvider {
     const mime = imgRes.headers.get('content-type') || 'image/png';
     this.logger.log(`imageGen buffer: size=${buffer.length}B mime=${mime}`);
     return { buffer, mime };
+  }
+
+  /**
+   * Track B: 调 Qwen-VL 视觉模型做参考图反推(同步, 不需要轮询)
+   * 走同 multimodal-generation endpoint, 但 model 切到 qwen-vl-plus/max
+   * 响应: text(JSON 字符串, 由调用方负责解析)
+   *
+   * @param imageUrl 公网可访问的图片 URL (OSS private 需先签名)
+   * @param prompt   反推指令(系统 prompt + 用户 prompt 一起传)
+   * @param model    覆盖默认 VL 模型(qwen-vl-plus / qwen-vl-max)
+   */
+  async qwenVLAnalyze(opts: {
+    imageUrl: string;
+    prompt: string;
+    model?: string;
+  }): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new ServiceUnavailableException('Qwen-VL 未配置 (DASHSCOPE_API_KEY 缺失)');
+    }
+    const model = opts.model || this.vlModel;
+    try {
+      const res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          input: {
+            messages: [
+              { role: 'system', content: [{ text: '你是人脸特征提取专家,严格按 schema 返回 JSON。' }] },
+              { role: 'user', content: [{ image: opts.imageUrl }, { text: opts.prompt }] },
+            ],
+          },
+          parameters: { result_format: 'message' },
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.error(`Qwen-VL HTTP ${res.status}: ${errText.slice(0, 500)}`);
+        const isModelMissing = res.status === 400 && /model.*not.*found|InvalidModel/i.test(errText);
+        const msg = isModelMissing
+          ? `Qwen-VL 模型 ${model} 不存在或未开通, 请检查 DASHSCOPE_VL_MODEL 配置`
+          : `Qwen-VL 调用失败 (HTTP ${res.status})`;
+        throw new ServiceUnavailableException(msg);
+      }
+      const json: any = await res.json();
+      // 多模态 message 响应: output.choices[0].message.content[0].text
+      const text = json?.output?.choices?.[0]?.message?.content?.[0]?.text ?? '';
+      this.logger.log(`qwenVLAnalyze done: model=${model} textLen=${text.length}`);
+      return text;
+    } catch (e: any) {
+      if (e instanceof ServiceUnavailableException) throw e;
+      this.logger.error(`Qwen-VL 网络错误: ${e?.message || e}`);
+      throw new ServiceUnavailableException('Qwen-VL 服务暂不可用');
+    }
   }
 }

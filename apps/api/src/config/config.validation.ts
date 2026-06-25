@@ -39,6 +39,13 @@ export const configValidationSchema = Joi.object({
   MINIMAX_BASE_URL: Joi.string().uri().default('https://api.minimaxi.com'),
   MINIMAX_MODEL: Joi.string().default('claude-sonnet-4-6'),
 
+  // DashScope (阿里云百炼) — image gen + vision
+  // 之前 imageGen 静默读 env 无 Joi 校验(隐藏坑),Track B 补上
+  DASHSCOPE_API_KEY: Joi.string().allow('').default(''),
+  DASHSCOPE_MODEL: Joi.string().default('wan2.7-image-pro'),
+  // Track B 新增:Qwen-VL 视觉模型(参考图反推 L1-L6 用)
+  DASHSCOPE_VL_MODEL: Joi.string().default('qwen-vl-plus'),
+
   // 种子
   SEED_ADMIN_EMAIL: Joi.string().email().default('admin@ibi.ren'),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).default('ChangeMe!2026'),

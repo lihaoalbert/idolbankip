@@ -15,6 +15,9 @@ module.exports = {
       '<rootDir>/../../packages/shared-contracts/src',
     '^@ibi-ren/shared-contracts/(.*)$':
       '<rootDir>/../../packages/shared-contracts/src/$1',
+    // ali-oss 是 ESM only,Jest 默认 CJS transform 解析不动;
+    // 在测试里我们用 mock UploadService 绕过,这里 stub 掉即可
+    '^ali-oss$': '<rootDir>/test/__mocks__/ali-oss.ts',
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
 };

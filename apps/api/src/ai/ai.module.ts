@@ -14,6 +14,6 @@ import { HonorModule } from '../honor/honor.module';
   imports: [ConfigModule, PrismaModule, UploadModule, HonorModule],
   providers: [AiService, DashScopeProvider],
   controllers: [AiController],
-  exports: [AiService],
+  exports: [AiService, DashScopeProvider],
 })
 export class AiModule {}
