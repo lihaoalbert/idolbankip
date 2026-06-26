@@ -34,6 +34,18 @@ const routes: RouteRecordRaw[] = [
     name: 'cert-queue',
     component: () => import('@/pages/CertQueuePage.vue'),
   },
+  // #30.6.26 著作权代申请队列 + 详情
+  {
+    path: '/copyright-reg/queue',
+    name: 'copyright-queue',
+    component: () => import('@/pages/CopyrightQueuePage.vue'),
+  },
+  {
+    path: '/copyright-reg/:ipId',
+    name: 'copyright-detail-admin',
+    component: () => import('@/pages/CopyrightDetailAdminPage.vue'),
+    props: true,
+  },
   {
     path: '/tasks',
     name: 'tasks',

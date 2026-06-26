@@ -48,6 +48,12 @@ const ICONS: Record<string, string> = {
   IP_REGISTERED: '★',
   CERT_APPROVED: '✓',
   CERT_REJECTED: '✗',
+  // #30.6.26 著作权代申请 5 种状态
+  COPYRIGHT_REG_DRAFT: '✎',
+  COPYRIGHT_REG_SUBMITTED: '↗',
+  COPYRIGHT_REG_ACCEPTED: '✓',
+  COPYRIGHT_REG_CERTIFIED: '★',
+  COPYRIGHT_REG_REJECTED: '✗',
 };
 
 const ICON_COLOR: Record<string, string> = {
@@ -58,6 +64,12 @@ const ICON_COLOR: Record<string, string> = {
   IP_REGISTERED: 'text-gold',
   CERT_APPROVED: 'text-success',
   CERT_REJECTED: 'text-danger',
+  // #30.6.26
+  COPYRIGHT_REG_DRAFT: 'text-ink/60',
+  COPYRIGHT_REG_SUBMITTED: 'text-info',
+  COPYRIGHT_REG_ACCEPTED: 'text-info',
+  COPYRIGHT_REG_CERTIFIED: 'text-gold',
+  COPYRIGHT_REG_REJECTED: 'text-danger',
 };
 
 onMounted(() => {

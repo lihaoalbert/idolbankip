@@ -2,9 +2,7 @@
 import { onMounted, computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotificationsStore } from '@/stores/notifications';
-import { useAuthStore } from '@/stores/auth';
 
-const auth = useAuthStore();
 const notifs = useNotificationsStore();
 const router = useRouter();
 
@@ -40,107 +38,172 @@ function fullDate(iso: string): string {
   return d.toLocaleString('zh-CN', { hour12: false });
 }
 
-const ICON_LABEL: Record<string, string> = {
-  KYC_APPROVED: 'KYC 通过',
-  KYC_REJECTED: 'KYC 拒绝',
-  IP_PUBLIC: '资产上架',
-  IP_REJECTED: '审核未通过',
-  IP_REGISTERED: '版权登记',
-  CERT_APPROVED: '证书通过',
-  CERT_REJECTED: '证书拒绝',
-};
-
-const ICON_COLOR: Record<string, string> = {
-  KYC_APPROVED: 'bg-success/15 text-success border-success/30',
-  KYC_REJECTED: 'bg-danger/15 text-danger border-danger/30',
-  IP_PUBLIC: 'bg-info/15 text-info border-info/30',
-  IP_REJECTED: 'bg-danger/15 text-danger border-danger/30',
-  IP_REGISTERED: 'bg-gold/15 text-gold border-gold/30',
-  CERT_APPROVED: 'bg-success/15 text-success border-success/30',
-  CERT_REJECTED: 'bg-danger/15 text-danger border-danger/30',
+const TYPE_META: Record<string, { label: string; roman: string; variant: 'success' | 'danger' | 'gold' | 'info' | 'neutral' }> = {
+  KYC_APPROVED: { label: 'KYC 通过', roman: 'I', variant: 'success' },
+  KYC_REJECTED: { label: 'KYC 拒绝', roman: '×', variant: 'danger' },
+  IP_PUBLIC: { label: '资产上架', roman: 'II', variant: 'info' },
+  IP_REJECTED: { label: '审核未通过', roman: '×', variant: 'danger' },
+  IP_REGISTERED: { label: '版权登记', roman: 'III', variant: 'gold' },
+  CERT_APPROVED: { label: '证书通过', roman: 'IV', variant: 'success' },
+  CERT_REJECTED: { label: '证书拒绝', roman: '×', variant: 'danger' },
+  // #30.6.26 著作权代申请 5 种状态
+  COPYRIGHT_REG_DRAFT: { label: '著作权草稿', roman: 'V', variant: 'neutral' },
+  COPYRIGHT_REG_SUBMITTED: { label: '著作权已提交', roman: 'V', variant: 'info' },
+  COPYRIGHT_REG_ACCEPTED: { label: '著作权受理', roman: 'V', variant: 'info' },
+  COPYRIGHT_REG_CERTIFIED: { label: '著作权登记成功', roman: 'V', variant: 'gold' },
+  COPYRIGHT_REG_REJECTED: { label: '著作权驳回', roman: '×', variant: 'danger' },
 };
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto px-6 py-10">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-display">通知中心</h1>
-        <p class="text-sm text-ink/60 mt-1">KYC、版权登记、资产审核的状态变更都会在这里通知你。</p>
+  <div class="bg-cream paper-grain min-h-screen">
+
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · DISPATCH BOOK</div>
+        <div class="catalog-no text-ink/40">VOL. I — NOTIFICATIONS</div>
+        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
-      <button
-        v-if="hasUnread"
-        @click="notifs.markAllRead()"
-        class="px-3 py-1.5 text-xs rounded-full border border-line text-gold hover:border-gold transition"
-      >
-        全部标记为已读
-      </button>
-    </div>
+    </header>
 
-    <div class="flex items-center gap-2 mb-4 text-sm">
+    <main class="max-w-3xl mx-auto px-6 lg:px-10 py-10 md:py-14">
+      <!-- 返回 (入口在 navbar 小铃铛,哪页都可能,走 browser history) -->
       <button
-        @click="filter = 'all'"
-        :class="[
-          'px-3 py-1 rounded-full transition',
-          filter === 'all' ? 'bg-ink text-cream' : 'text-ink/60 hover:text-ink',
-        ]"
+        @click="router.back()"
+        class="catalog-no text-ink/50 hover:text-gold transition inline-flex items-center gap-2 mb-6"
       >
-        全部 ({{ notifs.items.length }})
+        <span>←</span><span>RETURN</span>
       </button>
-      <button
-        @click="filter = 'unread'"
-        :class="[
-          'px-3 py-1 rounded-full transition',
-          filter === 'unread' ? 'bg-ink text-cream' : 'text-ink/60 hover:text-ink',
-        ]"
-      >
-        未读 ({{ notifs.unreadCount }})
-      </button>
-    </div>
 
-    <div v-if="notifs.loading && notifs.items.length === 0" class="py-16 text-center text-ink/40">
-      加载中...
-    </div>
-    <div v-else-if="displayed.length === 0" class="py-16 text-center">
-      <div class="text-5xl mb-3">📭</div>
-      <p class="text-ink/60 text-sm">
-        {{ filter === 'unread' ? '没有未读通知' : '暂无通知' }}
-      </p>
-    </div>
+      <!-- 章节头 -->
+      <div class="grid grid-cols-12 gap-4 mb-8">
+        <div class="col-span-3 catalog-no text-ink/50">№ 040</div>
+        <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER XL — DISPATCH</div>
+        <div class="col-span-3 col-start-9 catalog-no text-ink/50">{{ notifs.unreadCount }} UNREAD</div>
+        <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">{{ notifs.items.length }} TOTAL</div>
+      </div>
 
-    <ul v-else class="space-y-2">
-      <li
-        v-for="n in displayed"
-        :key="n.id"
-        @click="handleClick(n.id, n.link)"
-        :class="[
-          'p-4 border rounded-xl cursor-pointer transition',
-          !n.readAt
-            ? 'bg-gold/5 border-gold/30 hover:border-gold'
-            : 'border-line bg-cream/30 hover:border-ink/30',
-        ]"
-      >
-        <div class="flex items-start gap-3">
-          <span
-            :class="[
-              'shrink-0 w-10 h-10 rounded-full border flex items-center justify-center text-xs font-medium',
-              ICON_COLOR[n.type] || 'border-line text-ink/40',
-            ]"
-          >
-            {{ ICON_LABEL[n.type] || '通知' }}
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
-              <span :class="['text-sm', !n.readAt ? 'font-medium' : 'text-ink/80']">{{ n.title }}</span>
-              <span v-if="!n.readAt" class="w-1.5 h-1.5 rounded-full bg-gold"></span>
-            </div>
-            <p class="text-sm text-ink/70 mt-1 break-words">{{ n.body }}</p>
-            <p class="text-xs text-ink/40 mt-1.5" :title="fullDate(n.createdAt)">
-              {{ timeAgo(n.createdAt) }}
-            </p>
-          </div>
+      <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
+        <div>
+          <h1 class="font-display text-5xl md:text-7xl text-ink leading-[0.95]">
+            通知<span class="font-display-italic text-gold">中</span>心
+          </h1>
+          <p class="mt-3 text-sm text-ink/60 max-w-md leading-relaxed">
+            KYC · 版权登记 · 资产审核的状态变更都在此处归档 ·
+            点击任意条目直接跳转至详情。
+          </p>
         </div>
-      </li>
-    </ul>
+        <button
+          v-if="hasUnread"
+          @click="notifs.markAllRead()"
+          class="inline-flex items-center gap-3 px-5 py-3 bg-ink text-cream hover:bg-gold transition catalog-no text-xs group"
+        >
+          <span class="text-cream/70 group-hover:text-ink/70 text-[10px]">MARK ALL READ</span>
+          <span>全部标记为已读</span>
+        </button>
+      </div>
+
+      <!-- Tabs · 像档案版次 -->
+      <div class="flex items-stretch border-0.5 border-ink mb-8">
+        <button
+          @click="filter = 'all'"
+          :class="[
+            'flex-1 px-5 py-3 catalog-no transition border-r-0.5 border-ink',
+            filter === 'all' ? 'bg-ink text-cream' : 'text-ink/60 hover:bg-ink hover:text-cream'
+          ]"
+        >
+          ALL · 全部 ({{ notifs.items.length }})
+        </button>
+        <button
+          @click="filter = 'unread'"
+          :class="[
+            'flex-1 px-5 py-3 catalog-no transition',
+            filter === 'unread' ? 'bg-ink text-cream' : 'text-ink/60 hover:bg-ink hover:text-cream'
+          ]"
+        >
+          UNREAD · 未读 ({{ notifs.unreadCount }})
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="notifs.loading && notifs.items.length === 0" class="py-24 text-center bg-surface border-0.5 border-line">
+        <div class="catalog-no text-ink/40 mb-2">— LOADING —</div>
+        <div class="font-display text-lg text-ink/60">加载中…</div>
+      </div>
+
+      <!-- Empty -->
+      <div v-else-if="displayed.length === 0" class="py-24 text-center bg-surface border-0.5 border-line">
+        <div class="catalog-no text-ink/40 mb-3">— NO ENTRIES —</div>
+        <div class="font-display-italic text-2xl text-ink/60 mb-2">
+          {{ filter === 'unread' ? '没有未读通知' : '暂无通知' }}
+        </div>
+        <div class="catalog-no text-xs text-ink/40">DISPATCH BOOK IS EMPTY</div>
+      </div>
+
+      <!-- 通知列表 -->
+      <ul v-else class="space-y-3">
+        <li
+          v-for="(n, idx) in displayed"
+          :key="n.id"
+          @click="handleClick(n.id, n.link)"
+          :class="[
+            'p-5 md:p-6 border-0.5 cursor-pointer transition relative group',
+            !n.readAt
+              ? 'bg-gold/5 border-gold/40 hover:border-gold hover:shadow-soft'
+              : 'border-line bg-surface hover:border-ink'
+          ]"
+        >
+          <!-- 编号 -->
+          <div class="absolute top-3 right-4 catalog-no text-ink/30 group-hover:text-ink/60 transition">
+            {{ String(idx + 1).padStart(3, '0') }}
+          </div>
+
+          <div class="flex items-start gap-4">
+            <!-- 类型印记 -->
+            <div
+              :class="[
+                'shrink-0 w-14 h-14 flex flex-col items-center justify-center border-0.5 font-display transition',
+                !n.readAt
+                  ? (TYPE_META[n.type]?.variant === 'success' ? 'bg-success/10 border-success/40 text-success' :
+                     TYPE_META[n.type]?.variant === 'danger' ? 'bg-danger/10 border-danger/40 text-danger' :
+                     TYPE_META[n.type]?.variant === 'gold' ? 'bg-gold/15 border-gold/40 text-ink' :
+                     TYPE_META[n.type]?.variant === 'info' ? 'bg-blue-100/40 border-blue-200 text-blue-700' :
+                     'bg-ink/5 border-line text-ink/50')
+                  : 'bg-cream border-line text-ink/40'
+              ]"
+            >
+              <span class="text-lg leading-none">{{ TYPE_META[n.type]?.roman || '?' }}</span>
+              <span class="catalog-no text-[9px] mt-0.5 opacity-80">{{ TYPE_META[n.type]?.label || '通知' }}</span>
+            </div>
+
+            <!-- 内容 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span :class="['font-display text-base', !n.readAt ? 'text-ink' : 'text-ink/70']">
+                  {{ n.title }}
+                </span>
+                <span v-if="!n.readAt" class="w-1.5 h-1.5 rounded-full bg-gold shrink-0" />
+              </div>
+              <p class="text-sm text-ink/70 mt-2 leading-relaxed break-words">{{ n.body }}</p>
+              <p class="catalog-no text-xs text-ink/40 mt-3" :title="fullDate(n.createdAt)">
+                <span :class="!n.readAt ? 'text-gold' : ''">{{ timeAgo(n.createdAt) }}</span>
+                <span class="mx-2">·</span>
+                <span>{{ fullDate(n.createdAt) }}</span>
+              </p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </main>
+
+    <!-- 底部 colophon -->
+    <footer class="hairline-t border-line mt-12">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+        <span>CAT. NOTIF-040</span>
+        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>© 2026 IBI.REN</span>
+      </div>
+    </footer>
   </div>
 </template>
