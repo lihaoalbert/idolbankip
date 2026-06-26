@@ -396,6 +396,16 @@ model CopyrightRegistration {
   lastContactAt  DateTime?  // 上次联系代办/版权局的时间
   nextFollowupAt DateTime?  // 下次跟进日期 (代办员设置)
 
+  // ===== #30.6.26 代申请著作权功能新增 =====
+  // 创作者申请时刻的代办费快照 (后续调价不影响历史单)
+  creatorAgentFeeFen      Int?
+  creatorAgentRequestedAt DateTime? // 创作者首次进入 DRAFT 时间
+  // PDF 申请包缓存
+  pdfFileKey      String?   // OSS private bucket key
+  pdfMaterialHash String?   // sha256(排序后 IpFile.id + updatedAt),素材变则失效
+  // admin reject 原因 (放 body 里,创作者直接能看到,不留暗门)
+  rejectionReason String?   @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -404,6 +414,21 @@ model CopyrightRegistration {
   @@index([registrationRegion])
   @@index([registrationType])
   @@index([submittedAt])
+}
+
+// ===== #30.6.26 代办费配置 (国家固定 / 地方按省份) =====
+model CopyrightFeeConfig {
+  id            String           @id @default(cuid())
+  level         RegistrationType // NATIONAL / PROVINCIAL
+  region        String?          // 省名,NATIONAL 时 NULL
+  feeFen        Int              // 单位:分
+  effectiveFrom DateTime         @default(now())
+  effectiveTo   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([level, region])
+  @@index([level, effectiveFrom])
 }
 
 // ===================== 版权证书 =====================

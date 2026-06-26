@@ -8,8 +8,16 @@ export type NotificationType =
   | 'IP_REJECTED'
   | 'IP_PUBLIC'
   | 'IP_REGISTERED'
+  // #30.6.22 公示中 admin 回退补料 (PUBLIC_INTENT → PENDING_REVIEW)
+  | 'IP_DEMOTED'
   | 'CERT_APPROVED'
-  | 'CERT_REJECTED';
+  | 'CERT_REJECTED'
+  // #30.6.26 著作权代申请 — 创作者接收的状态变更通知
+  | 'COPYRIGHT_REG_DRAFT'
+  | 'COPYRIGHT_REG_SUBMITTED'
+  | 'COPYRIGHT_REG_ACCEPTED'
+  | 'COPYRIGHT_REG_CERTIFIED'
+  | 'COPYRIGHT_REG_REJECTED';
 
 export interface CreateNotificationParams {
   userId: string;
