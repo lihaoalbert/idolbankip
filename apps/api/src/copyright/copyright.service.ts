@@ -16,6 +16,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { CopyrightFeeResolver } from './copyright-fee.resolver';
+import { CopyrightPdfBuilder } from './copyright-pdf.builder';
+import { UploadService } from '../upload/upload.service';
 import { DraftRegistrationDto } from './dto/draft-registration.dto';
 
 /**
@@ -41,6 +43,8 @@ export class CopyrightService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly feeResolver: CopyrightFeeResolver,
+    private readonly pdfBuilder: CopyrightPdfBuilder,
+    private readonly upload: UploadService,
   ) {}
 
   // ============================================================
@@ -450,7 +454,7 @@ export class CopyrightService {
   }
 
   // ============================================================
-  //  PDF 下载 — Commit 2 实现,这里先 stub,前端 Commit 1 不挂按钮
+  //  PDF 下载 — material hash 缓存,素材变才重生成
   // ============================================================
 
   async downloadPdf(ipId: string, userId: string): Promise<{ url: string; cached: boolean }> {
@@ -461,6 +465,45 @@ export class CopyrightService {
     if (!ip) throw new NotFoundException('IP 不存在');
     if (ip.creatorId !== userId) throw new ForbiddenException('无权操作此 IP');
     if (!ip.faceCloseupFile) throw new BadRequestException('IP 还没有面部特写,无法生成 PDF');
-    throw new BadRequestException('PDF 生成功能开发中 (Commit 2)');
+
+    const reg = ip.registration;
+    const currentHash = await this.pdfBuilder.computeMaterialHash(ipId);
+
+    // 缓存命中: hash 一致且已有 key
+    if (reg?.pdfFileKey && reg.pdfMaterialHash === currentHash) {
+      const url = await this.upload.signDownloadUrl(reg.pdfFileKey, 'private', `${ip.code}-著作权申请包.pdf`);
+      return { url, cached: true };
+    }
+
+    // 缓存失效,重生成
+    this.logger.log(`PDF 重生成 ipId=${ipId} hash=${currentHash.slice(0, 12)}…`);
+    const buf = await this.pdfBuilder.generatePdf(ipId);
+    const ossKey = `ips/${ip.code}/copyright-pdf/${Date.now()}.pdf`;
+    await this.upload.uploadPrivate(ossKey, buf);
+    await this.prisma.copyrightRegistration.upsert({
+      where: { ipId },
+      update: { pdfFileKey: ossKey, pdfMaterialHash: currentHash },
+      create: {
+        ipId,
+        ownerName: 'PDF-PREVIEW',
+        ownerType: 'INDIVIDUAL',
+        registrationRegion: '',
+        registrationType: 'NATIONAL',
+        workflowStage: 'DRAFT',
+        pdfFileKey: ossKey,
+        pdfMaterialHash: currentHash,
+        creatorAgentRequestedAt: new Date(),
+      },
+    });
+    await this.audit.log({
+      actorId: userId,
+      action: 'COPYRIGHT_PDF_GENERATED',
+      targetType: 'IpAsset',
+      targetId: ipId,
+      payload: { sizeBytes: buf.length, materialHash: currentHash.slice(0, 16) },
+    });
+
+    const url = await this.upload.signDownloadUrl(ossKey, 'private', `${ip.code}-著作权申请包.pdf`);
+    return { url, cached: false };
   }
 }

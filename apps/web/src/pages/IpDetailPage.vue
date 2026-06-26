@@ -288,6 +288,27 @@ async function withdrawCopyright() {
   }
 }
 
+const downloadingPdf = ref(false);
+async function downloadCopyrightPdf() {
+  if (!ip.value) return;
+  downloadingPdf.value = true;
+  try {
+    const { data } = await apiClient.get(`/ips/${ip.value.id}/copyright-reg/pdf`);
+    // 浏览器打开签名 URL 直接下载
+    const a = document.createElement('a');
+    a.href = data.url;
+    a.download = `${ip.value.code}-著作权申请包.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success(data.cached ? '已下载(命中缓存)' : 'PDF 已生成');
+  } catch (e: any) {
+    copyrightError.value = e?.response?.data?.message || 'PDF 生成失败';
+  } finally {
+    downloadingPdf.value = false;
+  }
+}
+
 const copyrightStageLabel = computed(() => {
   const stage = copyrightReg.value?.workflowStage;
   return {
@@ -621,8 +642,20 @@ onMounted(async () => {
                 平台代为向版权局递交作品登记申请,登记证书载明著作权人为创作者本人。包含完整 PDF 申请包(人脸特写 + 三视图 + 表情矩阵 + 立绘图)。
               </p>
             </div>
-            <div v-if="copyrightReg" :class="['px-3 py-1 border text-xs font-mono tracking-wider shrink-0', copyrightStageColor]">
-              {{ copyrightStageLabel }}
+            <div class="flex flex-col gap-2 items-end shrink-0">
+              <div v-if="copyrightReg" :class="['px-3 py-1 border text-xs font-mono tracking-wider', copyrightStageColor]">
+                {{ copyrightStageLabel }}
+              </div>
+              <!-- #30.6.26 任何状态下都能下载 PDF -->
+              <button
+                type="button"
+                class="px-3 py-1.5 border border-ink/40 text-xs font-mono text-ink hover:border-gold hover:text-gold transition disabled:opacity-50"
+                :disabled="downloadingPdf"
+                @click="downloadCopyrightPdf"
+                title="下载 PDF 著作权申请包(4 页)"
+              >
+                {{ downloadingPdf ? '生成中…' : '📄 下载 PDF 申请包' }}
+              </button>
             </div>
           </div>
 
