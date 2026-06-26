@@ -321,7 +321,8 @@ restart_ecs() {
 
 smoke_ecs() {
   echo "==== [4/4] 三端 smoke ===="
-  bash "$SCRIPT_DIR/smoke.sh" ecs
+  # Track B Round 1 收尾:smoke 改走 prod 域名(nginx 443),不再打 8080/8081
+  bash "$SCRIPT_DIR/smoke.sh" prod
 }
 
 rollback_ecs() {
@@ -335,7 +336,7 @@ rollback_ecs() {
   echo "  → 恢复自 $LATEST_BACKUP"
   ssh_run "cd / && tar xzf $LATEST_BACKUP -C /"
   ssh_run "systemctl restart $ECS_API_SERVICE && nginx -s reload"
-  bash "$SCRIPT_DIR/smoke.sh" ecs
+  bash "$SCRIPT_DIR/smoke.sh" prod
 }
 
 make_backup() {
