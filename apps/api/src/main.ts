@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
@@ -12,6 +13,12 @@ async function bootstrap() {
   });
 
   const config = app.get(ConfigService);
+
+  // Body parser 上限提到 8MB — Track B POST /blueprint/from-image 接收 base64 图片
+  // 后端 5MB 限制 × base64 1.33 倍 = 6.7MB,留 8MB 余量
+  // Express 默认 100KB,Track B 上线后必须扩
+  app.use(bodyParser.json({ limit: '8mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '8mb' }));
 
   // 全局前缀
   // why exclude v1/(.*): 数字人陪伴 App(mock/ni-api)的端点 namespace 是 /v1/...,

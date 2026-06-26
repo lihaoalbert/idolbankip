@@ -17,8 +17,7 @@ import {
 } from './contradictions';
 import { buildPrompts } from './prompt-builder';
 import { evaluate as runEvaluation, type EvaluationResult } from './evaluator/mock-evaluator';
-import { DashScopeProvider } from '../ai/dashscope.provider';
-import { UploadService } from '../upload/upload.service';
+import { AiService } from '../ai/ai.service';
 
 export const BLUEPRINT_LAYERS = [
   'L1_skeleton',
@@ -93,8 +92,7 @@ export class BlueprintService {
   private readonly store = new Map<string, BlueprintEntity>();
 
   constructor(
-    private readonly dashscope: DashScopeProvider,
-    private readonly upload: UploadService,
+    private readonly ai: AiService,
   ) {}
 
   create(input: CreateBlueprintInput): BlueprintEntity {
@@ -248,8 +246,13 @@ export class BlueprintService {
   /**
    * Track B:从一张参考图创建 Blueprint 并自动反推 L1-L6 46 字段
    *
-   * 链路:base64 → OSS 存(便于 Vision 引用 URL)→ Qwen-VL 反推 → 严格 schema 校验
-   *      → 逐层 PATCH 写入 + 标记 _inferred:true → 返回全量
+   * 链路:base64 → Buffer → MiniMax M3 (Anthropic 协议) inline base64 反推
+   *      → 严格 schema 校验 → 逐层 PATCH 写入 + 标记 _inferred:true → 返回全量
+   *
+   * Stage A.5 改造(2026-06-26):放弃 Qwen-VL(精度 6/46 = 13%)改用 MiniMax M3:
+   * - 复用现有 AiService client + model(同 recognizeFace 链路)
+   * - inline base64(Anthropic SDK 接受),不需要 OSS 中转
+   * - 之前 30 行 OSS 私有桶上传 + 10min 签名 URL 逻辑全部删掉
    *
    * 失败语义:
    * - 图片过大 / 格式错 → BadRequestException 400
@@ -261,7 +264,9 @@ export class BlueprintService {
     imageBase64: string;
     title?: string;
   }): Promise<BlueprintEntity & { inferredFields: number }> {
-    // 1. 解码 base64
+    // 1. 解码 base64 → Buffer + 推断 mime
+    const dataUriMatch = input.imageBase64.match(/^data:image\/(\w+);base64,/);
+    const mimeFromUri = dataUriMatch?.[1]?.toLowerCase();
     const stripped = input.imageBase64.replace(/^data:image\/\w+;base64,/, '').trim();
     if (!stripped) {
       throw new BadRequestException({
@@ -279,45 +284,29 @@ export class BlueprintService {
         error: { code: 'image_too_large', message: '图片不能超过 5MB', request_id: null },
       });
     }
+    // mime 推断: data URI header > 默认 jpeg
+    const mime: 'image/jpeg' | 'image/png' | 'image/webp' =
+      mimeFromUri === 'png' ? 'image/png' :
+      mimeFromUri === 'webp' ? 'image/webp' :
+      'image/jpeg';
 
-    // 2. 存 OSS private(便于 Vision API 引用 URL,不是内联 base64)
-    const blueprintId = nextId();
-    const ossKey = `blueprint/${blueprintId}/ref.jpg`;
-    let signedUrl: string;
-    try {
-      await this.upload.uploadPrivate(ossKey, buffer);
-      signedUrl = await this.upload.getSignedUrl(ossKey, 600); // 10 分钟过期
-    } catch (e: any) {
-      this.trackBLogger.error(`OSS 存图失败: ${e?.message ?? e}`);
-      throw new BadRequestException({
-        error: { code: 'oss_upload_failed', message: '图片上传失败', request_id: null },
-      });
-    }
-
-    // 3. 调 Qwen-VL 反推
-    const promptText = VL_PROMPT_TEMPLATE;
+    // 2. 调 MiniMax M3 反推(Anthropic 协议,inline base64)
     let rawText: string;
     try {
-      rawText = await this.dashscope.qwenVLAnalyze({ imageUrl: signedUrl, prompt: promptText });
+      rawText = await this.ai.analyzeBlueprintFace(buffer, mime);
     } catch (e: any) {
-      // 透传 ServiceUnavailableException(500/503),但包成更友好的 422 给上层
-      this.trackBLogger.error(`Qwen-VL 失败: ${e?.message ?? e}`);
-      throw new UnprocessableEntityException({
-        error: {
-          code: 'vision_inference_failed',
-          message: `视觉反推失败: ${e?.message ?? '未知错误'}`,
-          request_id: null,
-        },
-      });
+      this.trackBLogger.error(`MiniMax Vision 失败: ${e?.message ?? e}`);
+      // AiService 内部已 throw ServiceUnavailableException(503),这里透传
+      throw e;
     }
 
-    // 4. 解析 JSON(严格)
+    // 3. 解析 JSON(严格)
     const inferred = await this.parseAndValidateInferred(rawText);
 
-    // 5. 先创建空 Blueprint
+    // 4. 先创建空 Blueprint
     const entity = this.create({ ownerId: input.ownerId, title: input.title });
 
-    // 6. 逐层 PATCH 写入(每层加 _inferred:true 让前端标注"AI 推断")
+    // 5. 逐层 PATCH 写入(每层加 _inferred:true 让前端标注"AI 推断")
     let inferredCount = 0;
     for (const step of [1, 2, 3, 4, 5, 6] as const) {
       const layerKey = stepToLayerKey(step);
@@ -402,72 +391,3 @@ function stepToLayerKey(step: number): Exclude<LayerKey, 'L7_render' | 'L8_evalu
   }
   return BLUEPRINT_LAYERS[step - 1] as Exclude<LayerKey, 'L7_render' | 'L8_evaluation'>;
 }
-
-// ===================== Qwen-VL 反推 prompt 模板 =====================
-// 见 docs/blueprint-vl-prompt.md(轮 3 末补完整文档)
-// 当前 inline 版本:只覆盖 L1-L6 6 层,字段名严格对齐前后端 DTO
-const VL_PROMPT_TEMPLATE = `你是一名人脸特征提取专家。请从这张人脸图中提取 L1-L6 6 层共 46 个字段,严格按 JSON schema 返回。
-
-## 严格规则
-1. 只返回 JSON,不要任何解释/前后缀 markdown
-2. 数值字段在范围内;枚举字段必须用 schema 给的选项
-3. 不确定的字段填中位值(性别默认 female,数值默认 0.5)
-
-## Schema
-
-L1_skeleton (9 字段):
-- gender: "male" | "female"
-- craniumShape: "long" | "medium" | "round" | "flat"
-- faceIndex: 1.0~1.6 脸长/脸宽
-- cheekboneWidth: 0~1 颧骨相对头宽
-- cheekboneProminence: 0~1
-- jawWidth: 0~1
-- jawAngle: "sharp" | "medium" | "soft"
-- upperThirdRatio: 0~1 额高(三停之和=1)
-- midThirdRatio: 0~1 眉心到鼻底
-
-L2_softTissue (6 字段,0~1):
-subcutaneousFat / masseter / buccalFat / eyeSocketDepth / browRidge / nasolabialFold
-
-L3_features (12 字段):
-- eyeDistance: 0~1
-- eyeShape: "single" | "inner" | "double" | "phoenix" | "round" | "narrow"
-- eyeApertureHeight: 0~1
-- noseLength: 0~1
-- noseWidth: 0~1
-- noseBridge: "high" | "medium" | "low"
-- lipWidth: 0~1
-- lipThickness: 0~1
-- earPosition: 0~1
-- earSize: 0~1
-- philtrumLength: 0~1
-- chinProtrusion: 0~1
-
-L4_skin (6 字段):
-- skinTone: "fair" | "light" | "medium" | "olive" | "tan" | "brown" | "dark"
-- skinTexture: "smooth" | "normal" | "rough" | "matte" | "oily"
-- freckles: 0~1
-- moles: 0~1
-- wrinkles: 0~1
-- pores: 0~1
-
-L5_hair (8 字段):
-- hairStyle: "straight_long" | "straight_short" | "wavy" | "curly" | "ponytail" | "bob" | "bald"
-- hairColor: "black" | "brown" | "blonde" | "red" | "silver" | "gray" | "highlight"
-- hairline: "high" | "medium" | "low" | "m_shape"
-- browShape: "straight" | "arched" | "upward" | "downward" | "thick" | "thin"
-- browColor: "black" | "brown" | "gray" | "same_as_hair"
-- browDensity: 0~1
-- lashes: "long_dense" | "short_dense" | "long_sparse" | "short_sparse"
-- sideburns: 0~1
-
-L6_decoration (6 字段):
-- makeup: "none" | "natural" | "light" | "heavy" | "costume"
-- lipColor: "natural" | "red" | "pink" | "orange" | "nude" | "dark"
-- blush: 0~1
-- eyeshadow: 0~1
-- accessory: "none" | "earrings" | "necklace" | "headband" | "mask" | "glasses"
-- facePaint: 0~1
-
-## 返回示例
-{"L1_skeleton":{...},"L2_softTissue":{...},"L3_features":{...},"L4_skin":{...},"L5_hair":{...},"L6_decoration":{...}}`;

@@ -1,19 +1,19 @@
 // Track B E2E:POST /blueprint/from-image 参考图反向拆解
 // 覆盖 Goal Contract B1~B6(3 个 test):
-//   1. 成功路径 — 调 Qwen-VL → 解析 JSON → 6 层写入 + _inferred 标记
+//   1. 成功路径 — 调 MiniMax M3 → 解析 JSON → 6 层写入 + _inferred 标记
 //   2. JSON 解析失败 — Vision 返回非 JSON → 422
 //   3. 缺关键字段 — Vision 返回 JSON 但少一层 → 422
 //
-// 设计:DashScopeProvider + UploadService 用 mock 注入(避免真实 API 调用)
-//       BlueprintModule 整体拉起,只 override 这两个 provider
+// 设计:AiService 用 mock 注入(避免真实 API 调用 + 真实图片上传)
+//       BlueprintModule 整体拉起,只 override AiService provider
+//       (Stage A.5 改造:用 AiService 替代之前的 DashScopeProvider + UploadService)
 
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
 import { BlueprintModule } from '../src/blueprint/blueprint.module';
-import { DashScopeProvider } from '../src/ai/dashscope.provider';
-import { UploadService } from '../src/upload/upload.service';
+import { AiService } from '../src/ai/ai.service';
 
 // 1x1 透明 PNG base64(~70 字节)用于测试,够 service 解码过大小校验
 const TINY_PNG_BASE64 =
@@ -85,15 +85,11 @@ function buildApp(
   visionReturn: string,
   visionShouldThrow: Error | null = null,
 ): Promise<INestApplication> {
-  const dashscopeMock: Partial<DashScopeProvider> = {
-    qwenVLAnalyze: jest.fn(async () => {
+  const aiMock: Partial<AiService> = {
+    analyzeBlueprintFace: jest.fn(async () => {
       if (visionShouldThrow) throw visionShouldThrow;
       return visionReturn;
     }),
-  };
-  const uploadMock: Partial<UploadService> = {
-    uploadPrivate: jest.fn(async () => 'https://oss.example.com/blueprint/x/ref.jpg'),
-    getSignedUrl: jest.fn(async () => 'https://oss.example.com/blueprint/x/ref.jpg?Signature=xxx'),
   };
 
   const builder: TestingModuleBuilder = Test.createTestingModule({
@@ -105,10 +101,8 @@ function buildApp(
       BlueprintModule,
     ],
   })
-    .overrideProvider(DashScopeProvider)
-    .useValue(dashscopeMock)
-    .overrideProvider(UploadService)
-    .useValue(uploadMock);
+    .overrideProvider(AiService)
+    .useValue(aiMock);
 
   return builder.compile().then(async (moduleRef) => {
     const app = moduleRef.createNestApplication();
