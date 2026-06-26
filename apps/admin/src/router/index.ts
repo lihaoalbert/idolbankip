@@ -46,6 +46,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/CopyrightDetailAdminPage.vue'),
     props: true,
   },
+  // #30.6.26 LLM Provider Config — admin 后台可改 API key / model
+  {
+    path: '/settings/llm',
+    name: 'llm-config',
+    component: () => import('@/pages/LlmConfigPage.vue'),
+  },
   {
     path: '/tasks',
     name: 'tasks',

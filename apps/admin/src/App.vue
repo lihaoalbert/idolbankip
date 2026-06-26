@@ -19,6 +19,7 @@ onMounted(() => auth.bootstrap());
           <RouterLink to="/tasks" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">任务中心</RouterLink>
           <RouterLink to="/orders" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">订单</RouterLink>
           <RouterLink to="/users" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">用户</RouterLink>
+          <RouterLink to="/settings/llm" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">系统设置</RouterLink>
         </nav>
         <div class="flex-1"></div>
         <span class="text-xs text-cream/60">{{ auth.user?.email }}</span>
