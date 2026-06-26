@@ -14,6 +14,8 @@ import {
 } from '@/api/blueprint';
 import { useToast } from '@/composables/useToast';
 import { useBlueprintDraft } from '@/composables/useBlueprintDraft';
+import { useStepInferred } from '@/composables/useStepInferred';
+import InferredChip from '@/components/blueprint/InferredChip.vue';
 import { BlueprintKey } from '../context';
 
 const props = defineProps<{ blueprintId: string }>();
@@ -95,6 +97,9 @@ function onFieldChange() {
 function formatPct(v: number): string {
   return `${Math.round(v * 100)}%`;
 }
+
+// Track B Round 3 — 本层是否由 AI 从参考图反推
+const isLayerInferred = useStepInferred(blueprintCtx, 'L5_hair');
 </script>
 
 <template>
@@ -137,12 +142,24 @@ function formatPct(v: number): string {
           丢弃草稿,改用服务器版本
         </button>
       </div>
+      <!-- Track B Round 3:本层由 AI 反推 → 提示用户核对。任一字段被编辑后,_inferred 标记会被后端清掉,banner 自动消失。 -->
+      <div
+        v-if="isLayerInferred"
+        class="mt-2 flex items-center gap-2 rounded border border-ink/20 bg-ink/5 px-3 py-1.5 text-xs text-ink/70"
+        data-testid="layer-inferred-banner"
+      >
+        <span class="font-display text-sm font-semibold text-ink/80">AI 反推</span>
+        <span>本层 8 项由 AI 从参考图反推(角标标记);请逐项核对,首次编辑任一字段后,角标自动消失。</span>
+      </div>
     </header>
 
     <!-- 枚举字段(6 个 select) -->
     <section class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
       <div v-for="f in L5_SELECT_FIELDS" :key="f.key">
-        <label class="mb-1 block text-sm font-medium text-ink">{{ f.label }}</label>
+        <label class="mb-1 block text-sm font-medium text-ink">
+          {{ f.label }}
+          <InferredChip v-if="isLayerInferred" />
+        </label>
         <div class="flex flex-wrap gap-2">
           <button
             v-for="opt in f.options"
@@ -164,7 +181,10 @@ function formatPct(v: number): string {
     <section class="space-y-4">
       <div v-for="f in L5_SLIDER_FIELDS" :key="f.key">
         <div class="mb-1 flex items-baseline justify-between">
-          <label class="text-sm font-medium text-ink">{{ f.label }}</label>
+          <label class="text-sm font-medium text-ink">
+            {{ f.label }}
+            <InferredChip v-if="isLayerInferred" />
+          </label>
           <span class="font-mono text-sm text-stamp-red">
             {{ formatPct((form as any)[f.key] ?? 0) }}
           </span>
