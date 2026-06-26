@@ -19,6 +19,7 @@ import { AssetType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import { DashScopeProvider } from './dashscope.provider';
+import { LlmConfigService } from '../llm-config/llm-config.service';
 import {
   ipWizardFields,
   adminTaskFields,
@@ -172,8 +173,15 @@ L6_decoration (修饰,6 字段):
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: Anthropic | null;
-  private readonly model: string;
+  /**
+   * Anthropic client 按 configId 缓存. 切换 active 后:
+   *   - 旧 configId 对应的 client 实例还在这里, 旧请求 in-flight 仍用它 (不会被打断)
+   *   - 新请求解析的 configId 不同, 走新 client (新建)
+   *   - 配置被删除时不会清缓存 (无害: GC 会收)
+   *
+   * 容量: 配置数量按个位数算, Map 永远 < 10 项, 无需 LRU.
+   */
+  private clientCache = new Map<string, Anthropic>();
 
   constructor(
     private readonly config: ConfigService,
@@ -181,23 +189,32 @@ export class AiService {
     private readonly upload: UploadService,
     private readonly dashscope: DashScopeProvider,
     private readonly honor: HonorService,
-  ) {
-    const apiKey = this.config.get<string>('MINIMAX_API_KEY', '');
-    const baseURL = this.config.get<string>('MINIMAX_BASE_URL', 'https://api.minimaxi.com');
-    this.model = this.config.get<string>('MINIMAX_MODEL', 'claude-sonnet-4-6');
-    if (!apiKey || apiKey === 'sk-api-PLACEHOLDER') {
-      this.logger.warn('MINIMAX_API_KEY 未配置或为占位符, AI 端点会 503');
-      this.client = null;
-    } else {
-      this.client = new Anthropic({ apiKey, baseURL });
+    private readonly llmConfig: LlmConfigService,
+  ) {}
+
+  /**
+   * 取当前 active 的 Anthropic client + model. 内部缓存 client per configId.
+   * 找不到 active 且 env 没 fallback → throw ServiceUnavailableException (前端 503)
+   */
+  private async getClient(): Promise<{ client: Anthropic; model: string; configId: string }> {
+    const cfg = await this.llmConfig.getActive();
+    let client = this.clientCache.get(cfg.configId);
+    if (!client) {
+      client = new Anthropic({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl });
+      this.clientCache.set(cfg.configId, client);
+      this.logger.log(
+        `LLM client built: source=${cfg.source} configId=${cfg.configId} ` +
+        `provider=${cfg.provider} model=${cfg.model} displayName=${cfg.displayName}`,
+      );
     }
+    return { client, model: cfg.model, configId: cfg.configId };
   }
 
   /**
    * 创作者侧: 面部特写图 → IP 元数据
    */
   async recognizeFace(creatorId: string, fileId: string): Promise<Prisma.JsonObject> {
-    if (!this.client) throw new ServiceUnavailableException('AI 服务未配置');
+    const { client, model } = await this.getClient();
     const file = await this.prisma.ipFile.findUnique({ where: { id: fileId } });
     if (!file) throw new NotFoundException('文件不存在');
     const ip = await this.prisma.ipAsset.findUnique({ where: { id: file.ipId }, select: { creatorId: true } });
@@ -211,8 +228,8 @@ export class AiService {
       | 'image/jpeg' | 'image/webp' | 'image/png';
     let text = '';
     try {
-      const resp = await this.client.messages.create({
-        model: this.model,
+      const resp = await client.messages.create({
+        model,
         max_tokens: 2048,
         system: RECOGNIZE_SYSTEM_PROMPT,
         messages: [{
@@ -225,7 +242,7 @@ export class AiService {
       });
       text = (resp.content[0] as any).text ?? '';
     } catch (e: any) {
-      this.logger.error(`MiniMax API 失败: ${e?.message || e}`);
+      this.logger.error(`LLM API 失败: ${e?.message || e}`);
       throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
     }
     const parsed = this.parseJson(text);
@@ -250,7 +267,7 @@ export class AiService {
   /**
    * Track B: Blueprint 参考图反推 — 从一张人脸图反推 L1-L6 6 层 46 字段
    *
-   * 复用现有 Anthropic client + this.model(同 recognizeFace)。
+   * 复用当前 active 的 Anthropic client (同 recognizeFace 的来源, 通过 getClient 拿)。
    * 区别:接收 buffer+mime(由 controller 端 base64 解码得到),不读 OSS,不走 prisma。
    *
    * 失败语义:
@@ -260,9 +277,9 @@ export class AiService {
    * @returns 原始 JSON 字符串(由 BlueprintService 解析 + 严格 schema 校验)
    */
   async analyzeBlueprintFace(buffer: Buffer, mime: 'image/jpeg' | 'image/png' | 'image/webp'): Promise<string> {
-    if (!this.client) throw new ServiceUnavailableException('AI 服务未配置 (MINIMAX_API_KEY 缺失)');
-    const resp = await this.client.messages.create({
-      model: this.model,
+    const { client, model } = await this.getClient();
+    const resp = await client.messages.create({
+      model,
       max_tokens: 4096, // 46 字段 × 描述,留余量
       system: BLUEPRINT_FACE_SYSTEM_PROMPT,
       messages: [{
@@ -274,7 +291,7 @@ export class AiService {
       }],
     });
     const text = (resp.content[0] as any).text ?? '';
-    this.logger.log(`analyzeBlueprintFace: model=${this.model} textLen=${text.length}`);
+    this.logger.log(`analyzeBlueprintFace: model=${model} textLen=${text.length}`);
     return text;
   }
 
@@ -282,11 +299,11 @@ export class AiService {
    * admin 侧: 任务描述 → 任务 spec
    */
   async suggestTask(adminId: string, description: string): Promise<Prisma.JsonObject> {
-    if (!this.client) throw new ServiceUnavailableException('AI 服务未配置');
+    const { client, model } = await this.getClient();
     let text = '';
     try {
-      const resp = await this.client.messages.create({
-        model: this.model,
+      const resp = await client.messages.create({
+        model,
         max_tokens: 1024,
         system: SUGGEST_SYSTEM_PROMPT,
         messages: [{
@@ -296,7 +313,7 @@ export class AiService {
       });
       text = (resp.content[0] as any).text ?? '';
     } catch (e: any) {
-      this.logger.error(`MiniMax API 失败: ${e?.message || e}`);
+      this.logger.error(`LLM API 失败: ${e?.message || e}`);
       throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
     }
     const parsed = this.parseJson(text);
@@ -429,7 +446,7 @@ export class AiService {
    * 复用现有 MiniMax client (recognizeFace 同款)
    */
   async generateRecipe(creatorId: string, ipId: string): Promise<{ fileId: string; assetType: AssetType; ossKey: string }> {
-    if (!this.client) throw new ServiceUnavailableException('AI 服务未配置 (MINIMAX_API_KEY)');
+    const { client, model } = await this.getClient();
     const ip = await this.prisma.ipAsset.findUnique({ where: { id: ipId } });
     if (!ip) throw new NotFoundException('IP 不存在');
     if (ip.creatorId !== creatorId) throw new ForbiddenException('无权操作此 IP');
@@ -461,15 +478,15 @@ ${ip.description}
     const t0 = Date.now();
     let text = '';
     try {
-      const resp = await this.client.messages.create({
-        model: this.model,
+      const resp = await client.messages.create({
+        model,
         max_tokens: 4096,
         system: RECIPE_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMsg }],
       });
       text = (resp.content[0] as any).text ?? '';
     } catch (e: any) {
-      this.logger.error(`MiniMax recipe gen 失败: ${e?.message || e}`);
+      this.logger.error(`LLM recipe gen 失败: ${e?.message || e}`);
       throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
     }
     const ms = Date.now() - t0;

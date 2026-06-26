@@ -28,6 +28,7 @@ import { HonorModule } from './honor/honor.module';
 import { NiApiModule } from './mock/ni-api/ni-api.module';
 import { BlueprintModule } from './blueprint/blueprint.module';
 import { CopyrightModule } from './copyright/copyright.module';
+import { LlmConfigModule } from './llm-config/llm-config.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -65,6 +66,7 @@ import { configValidationSchema } from './config/config.validation';
     NiApiModule,
     BlueprintModule,
     CopyrightModule,
+    LlmConfigModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

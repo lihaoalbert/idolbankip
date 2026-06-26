@@ -7,6 +7,7 @@
 #   bash scripts/seed-deploy.sh gen-images        # 生成占位图
 #   bash scripts/seed-deploy.sh upload-thumbs     # 缩略图上传 OSS
 #   bash scripts/seed-deploy.sh honor             # 荣誉系统规则 (HonorRule/HonorLevel/HonorBadge)
+#   bash scripts/seed-deploy.sh llm-config        # LLM provider 配置 (env MINIMAX_* → DB 加密入库)
 #   bash scripts/seed-deploy.sh import-feishu-dry # 飞书多维表格 → IpAsset 导入 (dry-run)
 #   bash scripts/seed-deploy.sh import-feishu     # 飞书多维表格 → IpAsset 导入 (实写, 双重确认)
 #   bash scripts/seed-deploy.sh db-push           # prisma db push (schema 同步到生产 DB)
@@ -124,6 +125,12 @@ case "$CMD" in
   honor)
     warn_idempotent "seed-honor: 荣誉系统规则 (HonorRule 23 + HonorLevel 24 + HonorBadge 35)"
     run_ecs_seed "pnpm exec tsx ../../scripts/seed-honor.ts"
+    ;;
+  llm-config)
+    # #30.6.26 LLM 配置种子 — 把 ECS /opt/ibiren/.env 里的 MINIMAX_* 加密后入库.
+    # 跑前要求: ECS /opt/ibiren/.env 含 LLM_KEY_ENCRYPTION_KEY (deploy.sh 已同步) + MINIMAX_API_KEY 真值.
+    warn_idempotent "seed-llm-config: 把 env MINIMAX_* 加密入库 (1 行 active)"
+    run_ecs_seed "pnpm exec tsx ../../scripts/seed-llm-config.ts"
     ;;
   import-feishu-dry)
     # 本机拉飞书数据 (lark-cli 需要 user token, 在本机 ~/.lark-cli/),

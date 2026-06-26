@@ -431,6 +431,31 @@ model CopyrightFeeConfig {
   @@index([level, effectiveFrom])
 }
 
+// ===== #30.6.26 LLM Provider 配置 (admin 后台可改, 取代 .env MINIMAX_*) =====
+// apiKey 用 AES-256-GCM 加密, 主密钥从 env LLM_KEY_ENCRYPTION_KEY 读 (32 字节 base64).
+// 单 active 策略: @@unique([activeAt]) 配合 activeAt=null=inactive, MySQL 允许多 NULL,
+// 所以切换时 set 旧记录 activeAt=null, 新记录 activeAt=now() 即可 (1 步 SQL 或事务保证).
+model LlmProviderConfig {
+  id              String   @id @default(cuid())
+  provider        String   // 'minimax' | 'anthropic' | 'openai' | 'dashscope' | 'custom'
+  displayName     String   // "MiniMax 生产" / "Anthropic 备用"
+  baseUrl         String
+  model           String
+  apiKeyEncrypted String   @db.Text
+  apiKeyIv        String   // hex, 12 bytes
+  apiKeyTag       String   // hex, 16 bytes (GCM auth tag)
+  apiKeyLast4     String   // 明文末 4 位, 列表/UI 显示用, 无需解密
+  isActive        Boolean  @default(false)
+  activeAt        DateTime?  // 唯一索引; null=inactive, 非 null=active (单 active 原子切换)
+  note            String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?  // userId of last modifier
+
+  @@unique([activeAt])  // MySQL: only one non-null activeAt → 严格单 active
+  @@index([provider])
+}
+
 // ===================== 版权证书 =====================
 
 enum CertApplyMethod {
