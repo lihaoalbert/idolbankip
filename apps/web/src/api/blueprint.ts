@@ -452,6 +452,16 @@ export const blueprintApi = {
   create(body?: { title?: string; description?: string; tags?: string; ownerId?: string }) {
     return apiClient.post<Blueprint>('/blueprint', body ?? {}).then((r) => r.data);
   },
+  // Track B:参考图反向拆解。一次性创建 + 反推 L1-L6 + 写入 + 返回全量
+  // 后端返回 Blueprint & { inferredFields: number } — inferredFields 标记 AI 反推了多少层
+  fromImage(imageBase64: string, title?: string) {
+    return apiClient
+      .post<Blueprint & { inferredFields?: number }>('/blueprint/from-image', {
+        imageBase64,
+        title,
+      })
+      .then((r) => r.data);
+  },
   get(id: string) {
     return apiClient.get<Blueprint>(`/blueprint/${id}`).then((r) => r.data);
   },

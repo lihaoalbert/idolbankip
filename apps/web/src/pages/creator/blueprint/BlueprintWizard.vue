@@ -15,6 +15,9 @@
  *   │ ← 上一步  第 N/8 步  下一步 →    │
  *   └──────────────────────────────────┘
  *
+ * Track B (2026-06-26):顶栏加"上传参考图"按钮 → 调 POST /blueprint/from-image
+ *   → 一次性创建 + 反推 L1-L6 46 字段 → 跳 step 1 让用户微调
+ *
  * 数据流:
  *   BlueprintContext (provide) — blueprint ref + updateLayer()
  *     ↑ inject by Step1~8
@@ -141,6 +144,101 @@ async function applyPreset(presetId: string) {
   }
 }
 
+// ====================== Track B: 上传参考图 ======================
+// Track B(2026-06-26):创作者在 Wizard 顶栏点"上传参考图" → 选图 →
+//   客户端 Canvas 缩放到 ≤1024px → 转 base64 → POST /blueprint/from-image
+//   → 后端调 MiniMax M3 反推 L1-L6 → 写库 → 返回新 Blueprint → 跳 step 1
+//
+// 设计选择:每次上传都创建新 Blueprint(不覆盖当前) — 创作者"换张图重试"成本最低
+//   但要先 confirm 提示会丢当前内容
+//
+// 反推完成会把每层标 _inferred:true(后端),Round 3 Step1~6 form 上加 chip 标注
+
+const fileInput = ref<HTMLInputElement | null>(null);
+const uploadingImage = ref(false);
+
+const MAX_IMAGE_DIM = 1024; // Canvas resize 上限,平衡精度和 base64 体积
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+function pickReferenceImage() {
+  fileInput.value?.click();
+}
+
+async function onReferenceImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  // 重置 input.value,允许同一张图再次选择
+  if (fileInput.value) fileInput.value.value = '';
+  if (!file) return;
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    toast.error(`不支持的图片格式: ${file.type || '未知'},请用 jpg/png/webp`);
+    return;
+  }
+  // 客户端先预检大小(后端 5MB 是硬限),给友好提示
+  if (file.size > 5 * 1024 * 1024) {
+    toast.error(`图片过大: ${(file.size / 1024 / 1024).toFixed(1)}MB,上限 5MB`);
+    return;
+  }
+  // 二次确认:上传会创建新 Blueprint,当前编辑内容(若已有)会丢
+  if (blueprint.value && blueprintId.value) {
+    if (!confirm('上传参考图会创建新的 Blueprint 并从图反推 L1-L6 46 字段,当前编辑内容会丢失,继续?')) {
+      return;
+    }
+  }
+  uploadingImage.value = true;
+  try {
+    const dataUri = await fileToResizedBase64(file, MAX_IMAGE_DIM);
+    // API 接受 data:image/jpeg;base64,...(也接受纯 base64,后端兼容)
+    const created = await blueprintApi.fromImage(dataUri, blueprint.value?.title ?? undefined);
+    // 跳到新 blueprint 的 step 1,刷新整个 context
+    router.replace({ name: 'blueprint-step', params: { id: created.id, step: '1' } });
+    toast.success(
+      `已反推 ${created.inferredFields ?? 6} 层,约 46 字段。请在第 1 步微调(AI 推断字段会有角标)。`,
+      6000,
+    );
+  } catch (err: any) {
+    const detail = err?.response?.data?.error?.message ?? err?.message ?? '未知错误';
+    toast.error('反推失败: ' + detail);
+  } finally {
+    uploadingImage.value = false;
+  }
+}
+
+/**
+ * 客户端把图片缩放到 ≤MAX_IMAGE_DIM,转 base64 data URI。
+ * 长边限制:1024px 够 Vision API 看清结构,base64 体积也控制在 ~1MB 以内。
+ * 保留 data URI header(后端用它推断 mime type)。
+ */
+async function fileToResizedBase64(file: File, maxDim: number): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('图片解码失败'));
+      i.src = url;
+    });
+    const { width, height } = img;
+    if (width <= 0 || height <= 0) throw new Error('图片尺寸无效');
+    // 等比缩放:长边 → maxDim
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const targetW = Math.round(width * scale);
+    const targetH = Math.round(height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2d context 不可用');
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+    // 输出 jpeg(对照片压缩率高)、webp 保留、png 不压缩
+    const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const quality = outType === 'image/jpeg' ? 0.9 : undefined;
+    return canvas.toDataURL(outType, quality);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 provide(BlueprintKey, {
   blueprint,
   loading,
@@ -201,13 +299,33 @@ onMounted(() => {
           <h1 class="font-display text-xl">Face Blueprint Wizard</h1>
           <p class="text-xs text-ink/50">8 层人脸分解 · Phase 1 (Beta)</p>
         </div>
-        <button
-          type="button"
-          class="text-sm text-ink/60 hover:text-stamp-red"
-          @click="router.push('/creator')"
-        >
-          ← 返回创作者中心
-        </button>
+        <div class="flex items-center gap-3">
+          <!-- Track B:上传参考图按钮 — 调 MiniMax M3 反推 L1-L6 46 字段 -->
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            data-testid="reference-image-input"
+            @change="onReferenceImageSelected"
+          />
+          <button
+            type="button"
+            class="rounded border border-stamp-red/40 bg-stamp-red/5 px-3 py-1.5 text-sm text-stamp-red transition hover:bg-stamp-red hover:text-cream disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="uploadingImage"
+            data-testid="reference-image-button"
+            @click="pickReferenceImage"
+          >
+            {{ uploadingImage ? '反推中…' : '上传参考图' }}
+          </button>
+          <button
+            type="button"
+            class="text-sm text-ink/60 hover:text-stamp-red"
+            @click="router.push('/creator')"
+          >
+            ← 返回创作者中心
+          </button>
+        </div>
       </div>
     </header>
 
