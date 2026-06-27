@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -10,11 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { AgeBucket, Ethnicity, Gender, IpStatus } from '@prisma/client';
 import { UserRole } from '../common/util/roles.util';
 import { IpsService } from './ips.service';
+import { UploadService } from '../upload/upload.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -60,6 +63,11 @@ class UpdateIpDto {
 
 class RegisterCertDto {
   @IsString() certNo!: string;
+}
+
+// #30.6.22 公示中回退补料 — admin 必须给原因 (5-500 字), 创作者端 wizard 直接显示
+class AdminDemoteDto {
+  @IsString() @MinLength(5) @MaxLength(500) reason!: string;
 }
 
 class BulkIdsDto {
@@ -182,7 +190,11 @@ export class IpsController {
 @Roles(UserRole.ADMIN)
 @Controller('admin/ips')
 export class AdminIpsController {
-  constructor(private readonly ips: IpsService) {}
+  constructor(
+    private readonly ips: IpsService,
+    private readonly upload: UploadService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('queue')
   async queue(@Query('status') status?: IpStatus) {
@@ -206,9 +218,56 @@ export class AdminIpsController {
     return { ip };
   }
 
+  /**
+   * #30.6.22 公示中回退补料 — PUBLIC_INTENT → PENDING_REVIEW
+   * 创作者改完后走 /creator/ips/:id/submit 重提交,会重跑 proofing 出新 hash
+   */
+  @Post(':id/demote')
+  async demote(@CurrentUser() u: JwtUser, @Param('id') id: string, @Body() body: AdminDemoteDto) {
+    const ip = await this.ips.adminDemoteToPendingReview(id, u.id, body.reason);
+    return { ip };
+  }
+
   @Post(':id/register-cert')
   async registerCert(@CurrentUser() u: JwtUser, @Param('id') id: string, @Body() body: RegisterCertDto) {
     const ip = await this.ips.adminRegisterCert(id, u.id, body.certNo);
     return { ip };
+  }
+
+  /**
+   * #30.6.22 后台审核 — 文件预览/下载签名 URL
+   * - mode=preview: 1h signed URL, response-content-disposition=inline, 用于 <img> 直接渲染
+   * - mode=download: 5min signed URL, content-disposition=attachment, 浏览器弹下载框
+   * - 任何 admin 都能拿到任意 IP 下的文件 URL (审核必要)
+   * - 与 /upload/files/:fileId/{preview,download}-url 的区别: 那个要求 ownership=创作者本人, 这个不要求
+   */
+  @Get(':id/files/:fileId/url')
+  async fileUrl(
+    @Param('id') ipId: string,
+    @Param('fileId') fileId: string,
+    @Query('mode') mode: 'preview' | 'download' = 'preview',
+  ) {
+    const file = await this.prisma.ipFile.findUnique({ where: { id: fileId } });
+    if (!file || file.ipId !== ipId) throw new NotFoundException('文件不存在');
+    if (mode === 'download') {
+      const url = await this.upload.signDownloadUrl(file.ossKey, 'private', file.originalName);
+      return {
+        url,
+        expiresIn: 300,
+        filename: file.originalName,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes.toString(),
+      };
+    }
+    const url = this.upload.signViewUrl(file.ossKey, 'private', 3600, {
+      'content-disposition': `inline; filename="${encodeURIComponent(file.originalName)}"`,
+    });
+    return {
+      url,
+      expiresIn: 3600,
+      filename: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes.toString(),
+    };
   }
 }
