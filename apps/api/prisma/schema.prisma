@@ -158,6 +158,9 @@ model User {
   // 捏脸蓝图 8 层分解 — 创作者原创脸 (Phase 1)
   blueprints    FaceBlueprint[]  @relation("BlueprintOwner")
 
+  // AI 助手调用日志
+  assistantCallLogs AssistantCallLog[]
+
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
 }
@@ -909,4 +912,37 @@ model HonorLedger {
   @@index([userId, createdAt])
   @@index([action, createdAt])
   @@index([refType, refId])
+}
+
+// ===================== AI 助手调用日志 =====================
+// 第一版只读型助手 — 每次 POST /assistant/chat 落一行, 含 prompt/response 全文 + 元数据。
+// 用途: (1) 审计: 谁问了什么, 助手答了什么; (2) 后续做 prompt 调优; (3) 算 token 成本(配合 model 字段)。
+//
+// 边界: 不存上下文 messages(避免 prompt 注入攻击者通过 /assistant/chat 写入数据库),
+//       不存 IP/订单 ID 等敏感引用 — 后端 assistant.service 只写"用户原话" + "助手回复全文",
+//       不把 routeContext.ipCode/orderId 落库, 仅 route path。
+model AssistantCallLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 角色快照 — 调用时点的角色 (User.roles 是 Json[], 落库时拍平为单一主角色)
+  userRole     String   // 'CREATOR' | 'BUYER' | 'ADMIN'
+
+  // 上下文 — 前端调用时的 route path, e.g. '/creator/onboard'
+  // 不存 query string 里的 ipCode/orderId (避免敏感 ID 落库)
+  route        String?
+
+  // 用户原话 + 助手回复全文 — MVP 阶段落全; 后续若合规要求收紧可改截断/脱敏
+  promptText   String   @db.Text
+  responseText String   @db.Text
+
+  // LLM 元数据 — 用于成本归因 + 切换 provider 后追溯
+  model        String   // 实际模型名, e.g. "claude-sonnet-4-6"
+  latencyMs    Int      @default(0)
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

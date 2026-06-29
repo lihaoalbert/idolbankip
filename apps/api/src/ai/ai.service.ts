@@ -526,6 +526,37 @@ ${ip.description}
   }
 
   /**
+   * 通用 chat — 复用 active Anthropic client, 接受自定义 system prompt + 多轮 messages。
+   * 用于 AssistantModule 的只读型助手 (assistant.service)。
+   *
+   * 不主动 parseJson — 调用方自己解析返回。
+   * 失败语义: 网络/限流 throw ServiceUnavailableException (上层包 503)。
+   */
+  async chat(opts: {
+    systemPrompt: string;
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    maxTokens?: number;
+  }): Promise<{ text: string; model: string; latencyMs: number }> {
+    const { client, model } = await this.getClient();
+    const t0 = Date.now();
+    try {
+      const resp = await client.messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 1024,
+        system: opts.systemPrompt,
+        messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
+      });
+      const text = (resp.content[0] as any).text ?? '';
+      const latencyMs = Date.now() - t0;
+      this.logger.log(`assistant chat: model=${model} in=${opts.messages.length}turns out=${text.length}B ${latencyMs}ms`);
+      return { text, model, latencyMs };
+    } catch (e: any) {
+      this.logger.error(`assistant chat 失败: ${e?.message || e}`);
+      throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
+    }
+  }
+
+  /**
    * 模型返的 text 可能是 ```json {...} ``` 包裹或纯 JSON, 这里 extract
    */
   private parseJson(text: string): any {

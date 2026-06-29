@@ -122,6 +122,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/creator/ApiKeysPage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  // AI 助手 — 整页对话入口,浮动气泡在 AppLayout 常驻
+  {
+    path: '/assistant',
+    name: 'assistant',
+    component: () => import('@/pages/AssistantPage.vue'),
+    meta: { requiresAuth: true },
+  },
   // 公开个人主页 — 捏者 /u/:userId
   {
     path: '/u/:userId',

@@ -6,6 +6,7 @@ import { ossUrl } from '@/api/client';
 import ToastContainer from '@/components/ToastContainer.vue';
 import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
 import NotificationBell from '@/components/NotificationBell.vue';
+import FloatingChat from '@/components/assistant/FloatingChat.vue';
 
 const auth = useAuthStore();
 const { theme, toggle: toggleTheme } = useDarkMode();
@@ -40,6 +41,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
           <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
+          <RouterLink to="/assistant" class="hover:text-gold">AI 助手</RouterLink>
           <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">捏者中心</RouterLink>
           <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
           <RouterLink v-if="showBuyerLinks" to="/my-assets" class="hover:text-gold">我的资产</RouterLink>
@@ -163,6 +165,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
     </main>
 
     <ToastContainer />
+
+    <FloatingChat />
 
     <footer class="border-t border-line mt-12 py-10 print:hidden">
       <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-sm">
