@@ -50,6 +50,9 @@ importers:
       '@alicloud/cloudauth20190307':
         specifier: ^3.13.3
         version: 3.13.3
+      '@alicloud/dm20151123':
+        specifier: ^1.10.2
+        version: 1.10.2
       '@alicloud/green20220302':
         specifier: ^3.3.0
         version: 3.3.0
@@ -307,6 +310,9 @@ packages:
 
   '@alicloud/darabonba-string@1.0.3':
     resolution: {integrity: sha512-NyWwrU8cAIesWk3uHL1Q7pTDTqLkCI/0PmJXC4/4A0MFNAZ9Ouq0iFBsRqvfyUujSSM+WhYLuTfakQXiVLkTMA==}
+
+  '@alicloud/dm20151123@1.10.2':
+    resolution: {integrity: sha512-SBpjeS2IYD72lP1GvRpvoP7Pl6unqm2Yr3Tf7aHKAzBx6qa8+USh+VyyDs7R6yrvPNQoa/7HK+QLd17zrvn8mg==}
 
   '@alicloud/endpoint-util@0.0.1':
     resolution: {integrity: sha512-+pH7/KEXup84cHzIL6UJAaPqETvln4yXlD9JzlrqioyCSaWxbug5FUobsiI6fuUOpw5WwoB3fWAtGbFnJ1K3Yg==}
@@ -4763,6 +4769,14 @@ snapshots:
   '@alicloud/darabonba-string@1.0.3':
     dependencies:
       '@alicloud/tea-typescript': 1.8.0
+    transitivePeerDependencies:
+      - supports-color
+
+  '@alicloud/dm20151123@1.10.2':
+    dependencies:
+      '@alicloud/credentials': 2.4.5
+      '@alicloud/openapi-core': 1.0.7
+      '@darabonba/typescript': 1.0.4
     transitivePeerDependencies:
       - supports-color
 

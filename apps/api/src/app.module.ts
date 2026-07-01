@@ -35,6 +35,9 @@ import { BidModule } from './bid/bid.module';
 import { PricingModule } from './pricing/pricing.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { PlatformJudgeModule } from './platform-judge/platform-judge.module';
+import { EmailModule } from './email/email.module';
+import { WechatModule } from './wechat/wechat.module';
+import { BriefPushModule } from './brief-push/brief-push.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -79,6 +82,9 @@ import { configValidationSchema } from './config/config.validation';
     PricingModule,
     CatalogModule,
     PlatformJudgeModule,
+    EmailModule,
+    WechatModule,
+    BriefPushModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

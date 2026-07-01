@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Brief } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { BriefPushService } from '../brief-push/brief-push.service';
 
 // Brief 状态机
 const TRANSITIONS: Record<string, string[]> = {
@@ -34,7 +35,10 @@ const VALID_PACKAGES = ['essential', 'standard', 'premium'];
 export class BriefService {
   private readonly logger = new Logger(BriefService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: BriefPushService,
+  ) {}
 
   /**
    * 买家发包 — 默认状态 draft,需 publish 后才进入 bidding
@@ -118,6 +122,12 @@ export class BriefService {
         bumpCount: 0,
         bumpHistory: [] as any,
       },
+    }).then(async (updated) => {
+      // W2 #29 推送 — in-site + 邮件 + 微信 fan-out
+      this.push.onPublish(updated).catch((e) =>
+        this.logger.warn(`push.onPublish err: ${e?.message ?? e}`),
+      );
+      return updated;
     });
   }
 
@@ -276,6 +286,10 @@ export class BriefService {
     });
     this.logger.log(
       `bumpPrice brief=${id} from=${currentPriceNum} to=${newPrice} (+${percent}%) bumpCount=${updated.bumpCount}`,
+    );
+    // W2 #29 推送 — 加价触达创作者(同 publish,只换 type)
+    this.push.onBump(updated).catch((e) =>
+      this.logger.warn(`push.onBump err: ${e?.message ?? e}`),
     );
     return { brief: updated, needConfirm: false, overCap };
   }

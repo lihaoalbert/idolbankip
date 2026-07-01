@@ -17,7 +17,10 @@ export type NotificationType =
   | 'COPYRIGHT_REG_SUBMITTED'
   | 'COPYRIGHT_REG_ACCEPTED'
   | 'COPYRIGHT_REG_CERTIFIED'
-  | 'COPYRIGHT_REG_REJECTED';
+  | 'COPYRIGHT_REG_REJECTED'
+  // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价触达创作者
+  | 'BRIEF_PUBLISHED'
+  | 'BRIEF_BUMPED';
 
 export interface CreateNotificationParams {
   userId: string;

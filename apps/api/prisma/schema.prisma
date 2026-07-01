@@ -122,6 +122,9 @@ model User {
   id           String    @id @default(cuid())
   email        String    @unique
   phone        String?   @unique
+  // #30.7.1 W2 #29 — 微信 Open Platform 绑定后的 openId (用于模板消息推送)
+  // 不存 unionid/公众号 openid,只存小程序/网站应用 openid (二选一时优先)
+  wechatOpenId String?   @unique
   passwordHash String
   // 角色数组 (MySQL 无 enum[], 用 JSON 列存 string[])。
   // 应用层用 parseRoles/serializeRoles 读写, 严禁直查。
@@ -184,6 +187,7 @@ model User {
 
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
+  @@index([wechatOpenId])
 }
 
 model KycSubmission {

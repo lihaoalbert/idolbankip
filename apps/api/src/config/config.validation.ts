@@ -39,6 +39,22 @@ export const configValidationSchema = Joi.object({
   MINIMAX_BASE_URL: Joi.string().uri().default('https://api.minimaxi.com'),
   MINIMAX_MODEL: Joi.string().default('claude-sonnet-4-6'),
 
+  // W2 #29 推送通知 — 阿里云 DirectMail (邮件)
+  // 凭据未配齐时 EmailService 进入 mock 模式 — 只打日志
+  ALIYUN_ACCESS_KEY_ID: Joi.string().allow('').default(''),
+  ALIYUN_ACCESS_KEY_SECRET: Joi.string().allow('').default(''),
+  DIRECTMAIL_ACCOUNT: Joi.string().allow('').default(''),
+  DIRECTMAIL_PASSWORD: Joi.string().allow('').default(''),
+  DIRECTMAIL_FROM_ALIAS: Joi.string().default('ibi.ren 平台'),
+  DIRECTMAIL_REGION: Joi.string().default('cn-shanghai'),
+
+  // W2 #29 推送通知 — 微信模板消息
+  // 凭据未配齐时 WechatService 进入 mock 模式 — 只打日志
+  WECHAT_APP_ID: Joi.string().allow('').default(''),
+  WECHAT_APP_SECRET: Joi.string().allow('').default(''),
+  WECHAT_TEMPLATE_ID_BRIEF_PUBLISHED: Joi.string().allow('').default(''),
+  WECHAT_TEMPLATE_ID_BRIEF_BUMPED: Joi.string().allow('').default(''),
+
   // DashScope (阿里云百炼) — image gen + vision
   // 之前 imageGen 静默读 env 无 Joi 校验(隐藏坑),Track B 补上
   DASHSCOPE_API_KEY: Joi.string().allow('').default(''),
