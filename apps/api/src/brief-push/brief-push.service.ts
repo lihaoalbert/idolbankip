@@ -110,14 +110,14 @@ export class BriefPushService {
     const isPublish = kind === 'BRIEF_PUBLISHED';
     const catLabel = CATEGORY_LABEL[brief.category] ?? brief.category;
     const price = brief.currentPrice ? Number(brief.currentPrice) : 0;
-    const briefUrl = `https://ibi.ren/creator/brief/${brief.id}`;
+    const briefUrl = `https://ibi.ren/creator/briefs/${brief.id}`;
     const title = isPublish
       ? `📦 新 ${catLabel} 任务包,¥${price}`
       : `💰 任务包加价,现 ¥${price}`;
     const body = isPublish
       ? `${brief.title} (${catLabel} · ¥${price})`
       : `买家加价后总价 ¥${price},点击查看`;
-    const link = `/creator/brief/${brief.id}`;
+    const link = `/creator/briefs/${brief.id}`;
 
     const wechatTemplateId = this.wechat.pickTemplateId(kind);
 

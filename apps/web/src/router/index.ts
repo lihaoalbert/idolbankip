@@ -153,6 +153,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/creator/BriefsBrowsePage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  {
+    path: '/creator/briefs/:id',
+    name: 'creator-brief-detail',
+    component: () => import('@/pages/creator/CreatorBriefDetailPage.vue'),
+    props: true,
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
   // AI 助手 — 整页对话入口,浮动气泡在 AppLayout 常驻
   {
     path: '/assistant',

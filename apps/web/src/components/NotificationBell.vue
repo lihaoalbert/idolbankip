@@ -54,6 +54,9 @@ const ICONS: Record<string, string> = {
   COPYRIGHT_REG_ACCEPTED: '✓',
   COPYRIGHT_REG_CERTIFIED: '★',
   COPYRIGHT_REG_REJECTED: '✗',
+  // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价
+  BRIEF_PUBLISHED: '◐',
+  BRIEF_BUMPED: '↑',
 };
 
 const ICON_COLOR: Record<string, string> = {
@@ -70,6 +73,9 @@ const ICON_COLOR: Record<string, string> = {
   COPYRIGHT_REG_ACCEPTED: 'text-info',
   COPYRIGHT_REG_CERTIFIED: 'text-gold',
   COPYRIGHT_REG_REJECTED: 'text-danger',
+  // #30.7.1 W2 #29
+  BRIEF_PUBLISHED: 'text-info',
+  BRIEF_BUMPED: 'text-gold',
 };
 
 onMounted(() => {

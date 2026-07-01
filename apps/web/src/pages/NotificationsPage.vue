@@ -52,6 +52,9 @@ const TYPE_META: Record<string, { label: string; roman: string; variant: 'succes
   COPYRIGHT_REG_ACCEPTED: { label: '著作权受理', roman: 'V', variant: 'info' },
   COPYRIGHT_REG_CERTIFIED: { label: '著作权登记成功', roman: 'V', variant: 'gold' },
   COPYRIGHT_REG_REJECTED: { label: '著作权驳回', roman: '×', variant: 'danger' },
+  // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价
+  BRIEF_PUBLISHED: { label: '新任务包', roman: '◐', variant: 'info' },
+  BRIEF_BUMPED: { label: '任务包加价', roman: '↑', variant: 'gold' },
 };
 </script>
 
