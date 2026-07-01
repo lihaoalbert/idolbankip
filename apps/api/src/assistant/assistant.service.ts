@@ -25,6 +25,7 @@ import {
   CTA_WHITELIST,
   OUT_OF_SCOPE_REPLY,
 } from './prompts';
+import { matchFaq } from './faq';
 
 const HISTORY_LIMIT = 20; // 前端传再多, 这里也只取最近 20 条
 
@@ -58,6 +59,37 @@ export class AssistantService {
     userRoles: UserRole[],
     dto: ChatDto,
   ): Promise<ChatResult> {
+    const userRole = this.pickPrimaryRole(userRoles);
+
+    // #30.7.1 W2 #32 — 先扫 FAQ 知识库, 命中直接返回 (省 token + 更快 + 可审计)
+    // 只对 buyer/creator 开放, admin 不走 FAQ (admin 走人工)
+    if (userRole === 'CREATOR' || userRole === 'BUYER') {
+      const faqHit = matchFaq(dto.message, userRole === 'CREATOR' ? 'creator' : 'buyer');
+      if (faqHit) {
+        const t0 = Date.now();
+        // FAQ 命中的 actions 必须再过白名单 (防 faq.ts 里手抖加了非法 href)
+        const safeActions = faqHit.entry.actions.filter((a) => this.isAllowedHref(a.href));
+        await this.prisma.assistantCallLog.create({
+          data: {
+            userId,
+            userRole,
+            route: dto.routeContext?.route ?? null,
+            promptText: dto.message.slice(0, 8000),
+            responseText: faqHit.entry.answer.slice(0, 8000),
+            model: `faq:${faqHit.entry.id}`, // 用 model 字段记 FAQ 命中, 区分 LLM 调用
+            latencyMs: Date.now() - t0,
+          },
+        }).catch(() => {});
+        this.logger.log(
+          `assistant FAQ hit: id=${faqHit.entry.id} score=${faqHit.score} user=${userId} role=${userRole}`,
+        );
+        return {
+          reply: faqHit.entry.answer,
+          suggestedActions: safeActions,
+        };
+      }
+    }
+
     const systemPrompt = this.pickSystemPrompt(userRoles);
     const userMessageText = this.composeUserMessage(dto);
 
@@ -95,7 +127,7 @@ export class AssistantService {
       await this.prisma.assistantCallLog.create({
         data: {
           userId,
-          userRole: this.pickPrimaryRole(userRoles),
+          userRole, // already computed above
           route: dto.routeContext?.route ?? null,
           promptText: userMessageText.slice(0, 8000),
           responseText: fallback,
@@ -111,10 +143,6 @@ export class AssistantService {
     const totalLatencyMs = Date.now() - t0;
 
     const { reply, suggestedActions, oos } = this.parseAndSanitize(text);
-
-    // 写审计 — 落 prompt/response 全文 + 模型 + 延迟
-    // userRole 取主角色 (创作者/采购者优先), 兜底 'BUYER'
-    const userRole = this.pickPrimaryRole(userRoles);
 
     await this.prisma.assistantCallLog.create({
       data: {
