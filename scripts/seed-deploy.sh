@@ -8,6 +8,7 @@
 #   bash scripts/seed-deploy.sh upload-thumbs     # 缩略图上传 OSS
 #   bash scripts/seed-deploy.sh honor             # 荣誉系统规则 (HonorRule/HonorLevel/HonorBadge)
 #   bash scripts/seed-deploy.sh llm-config        # LLM provider 配置 (env MINIMAX_* → DB 加密入库)
+#   bash scripts/seed-deploy.sh catalog           # W2 #28: 15 SKU + 5 验收模板 (先 db-push 再跑这个)
 #   bash scripts/seed-deploy.sh import-feishu-dry # 飞书多维表格 → IpAsset 导入 (dry-run)
 #   bash scripts/seed-deploy.sh import-feishu     # 飞书多维表格 → IpAsset 导入 (实写, 双重确认)
 #   bash scripts/seed-deploy.sh db-push           # prisma db push (schema 同步到生产 DB)
@@ -132,6 +133,15 @@ case "$CMD" in
     warn_idempotent "seed-llm-config: 把 env MINIMAX_* 加密入库 (1 行 active)"
     run_ecs_seed "pnpm exec tsx ../../scripts/seed-llm-config.ts"
     ;;
+  catalog)
+    # #30.7.1 W2 #28 — 平台菜单 15 SKU + 5 验收模板.
+    # 跑前要求: 已 deploy.sh + db-push(建好 CatalogSku / AcceptanceTemplate 表).
+    # deploy.sh 不自动 sync scripts/,所以本地 scp 一次:
+    #   scp -i ~/.ssh/key scripts/seed-catalog.ts root@<ECS_IP>:/opt/ibiren/scripts/
+    warn_idempotent "seed-catalog: 15 SKU + 5 验收模板 (CatalogSku + AcceptanceTemplate)"
+    ssh "${SSH_BASE[@]}" "$SSH_TARGET" "test -f $ECS_PROJECT_DIR/scripts/seed-catalog.ts || { echo '❌ 缺 scripts/seed-catalog.ts on ECS,先 scp 上去'; exit 1; }"
+    run_ecs_seed "pnpm exec tsx ../../scripts/seed-catalog.ts"
+    ;;
   import-feishu-dry)
     # 本机拉飞书数据 (lark-cli 需要 user token, 在本机 ~/.lark-cli/),
     # ECS 跑映射 dry-run (只读不写 DB)
@@ -200,7 +210,7 @@ case "$CMD" in
        \" 2>&1 | tail -10"
     ;;
   *)
-    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|honor|import-feishu-dry|import-feishu|db-push|status}"
+    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|honor|llm-config|catalog|import-feishu-dry|import-feishu|db-push|clean-ips|status}"
     exit 1
     ;;
 esac

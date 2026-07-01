@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth';
  *   已登录, 仅有 BUYER 角色         → /creator/onboard (KYC + 升级引导)
  *   已登录, 已是 CREATOR / ADMIN    → 不渲染
  *
- * 用法: <BecomeCreatorLink class="px-6 py-3 ...">成为捏脸师</BecomeCreatorLink>
+ * 用法: <BecomeCreatorLink class="px-6 py-3 ...">成为捏者</BecomeCreatorLink>
  * slot 让调用方传样式和文案,组件只负责可见性 + 目标路由
  */
 const auth = useAuthStore();

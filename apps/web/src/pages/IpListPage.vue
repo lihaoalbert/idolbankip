@@ -53,41 +53,41 @@ const watermarkText = computed(() =>
 
 // Chip filter 选项 — #32 enum 值大写, 与后端 1:1
 const genderChips = [
-  { value: '', label: '全部性别' },
-  { value: 'FEMALE', label: '女' },
-  { value: 'MALE', label: '男' },
-  { value: 'NONBINARY', label: '无性别' },
+  { value: '', label: '全部', cn: 'ALL' },
+  { value: 'FEMALE', label: '女', cn: 'FEMALE' },
+  { value: 'MALE', label: '男', cn: 'MALE' },
+  { value: 'NONBINARY', label: '无性别', cn: 'NONBIN' },
 ];
 const ageChips = [
-  { value: '', label: '全部年龄' },
-  { value: 'CHILD', label: '童颜' },
-  { value: 'YOUNG', label: '青年' },
-  { value: 'MIDDLE', label: '中年' },
-  { value: 'ELDERLY', label: '银发' },
+  { value: '', label: '全部', cn: 'ALL' },
+  { value: 'CHILD', label: '童颜', cn: 'CHILD' },
+  { value: 'YOUNG', label: '青年', cn: 'YOUNG' },
+  { value: 'MIDDLE', label: '中年', cn: 'MIDDLE' },
+  { value: 'ELDERLY', label: '银发', cn: 'ELDER' },
 ];
 const ethnicityChips = [
-  { value: '', label: '全部种族' },
-  { value: 'EAST_ASIAN', label: '东亚' },
-  { value: 'SOUTHEAST_ASIAN', label: '东南亚' },
-  { value: 'SOUTH_ASIAN', label: '南亚' },
-  { value: 'AFRICAN', label: '非洲' },
-  { value: 'EUROPEAN', label: '欧洲' },
-  { value: 'MIXED', label: '混合/其他' },
+  { value: '', label: '全部', cn: 'ALL' },
+  { value: 'EAST_ASIAN', label: '东亚', cn: 'E.ASIA' },
+  { value: 'SOUTHEAST_ASIAN', label: '东南亚', cn: 'SE.ASIA' },
+  { value: 'SOUTH_ASIAN', label: '南亚', cn: 'S.ASIA' },
+  { value: 'AFRICAN', label: '非洲', cn: 'AFRICA' },
+  { value: 'EUROPEAN', label: '欧洲', cn: 'EUROPE' },
+  { value: 'MIXED', label: '混合', cn: 'MIXED' },
 ];
 const styleChips = [
-  { value: '', label: '全部风格' },
-  { value: '现代', label: '现代' },
-  { value: '古风', label: '古风' },
-  { value: '赛博', label: '赛博' },
-  { value: '二次元', label: '二次元' },
+  { value: '', label: '全部', cn: 'ALL' },
+  { value: '现代', label: '现代', cn: 'MODERN' },
+  { value: '古风', label: '古风', cn: 'CLASSIC' },
+  { value: '赛博', label: '赛博', cn: 'CYBER' },
+  { value: '二次元', label: '二次元', cn: 'ANIME' },
 ];
 const scenarioChips = [
-  { value: '', label: '全部场景' },
-  { value: '短剧群演', label: '短剧群演' },
-  { value: '短剧主演', label: '短剧主演' },
-  { value: '品牌代言', label: '品牌代言' },
-  { value: '平面模特', label: '平面模特' },
-  { value: '游戏角色', label: '游戏角色' },
+  { value: '', label: '全部', cn: 'ALL' },
+  { value: '短剧群演', label: '群演', cn: 'EXTRA' },
+  { value: '短剧主演', label: '主演', cn: 'LEAD' },
+  { value: '品牌代言', label: '代言', cn: 'BRAND' },
+  { value: '平面模特', label: '平面', cn: 'PRINT' },
+  { value: '游戏角色', label: '游戏', cn: 'GAME' },
 ];
 
 const activeFilterCount = computed(() =>
@@ -152,148 +152,242 @@ onMounted(fetchList);
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-6 py-10">
-    <!-- 标题 + 总数 + 排序 -->
-    <div class="mb-8 flex items-end justify-between gap-4">
-      <div>
-        <h1 class="font-display text-3xl">形象库</h1>
-        <p class="text-sm text-ink/60 mt-1">
-          共 <span class="font-mono">{{ total }}</span> 个 IP · 已存证可商用
-        </p>
-      </div>
-      <div class="flex items-center gap-1 text-xs bg-surface border border-line rounded-full p-1">
-        <button
-          @click="setSort('newest')"
-          :class="sort === 'newest' ? 'bg-ink text-cream' : 'text-ink/60 hover:text-ink'"
-          class="px-3 py-1 rounded-full transition"
-        >最新</button>
-        <button
-          @click="setSort('popular')"
-          :class="sort === 'popular' ? 'bg-ink text-cream' : 'text-ink/60 hover:text-ink'"
-          class="px-3 py-1 rounded-full transition"
-        >热门</button>
-      </div>
-    </div>
+  <div class="bg-cream">
 
-    <!-- Chip 筛选条 -->
-    <div class="mb-8 p-4 bg-surface rounded-2xl border border-line space-y-3">
-      <div class="flex items-start gap-3 flex-wrap">
-        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">性别</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="c in genderChips"
-            :key="c.value || 'all'"
-            type="button"
-            @click="applyFilter('gender', c.value)"
-            :class="filters.gender === c.value
-              ? 'bg-ink text-cream'
-              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
-            class="px-3 py-1 text-xs rounded-full transition"
-          >{{ c.label }}</button>
-        </div>
-      </div>
-      <div class="flex items-start gap-3 flex-wrap">
-        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">年龄</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="c in ageChips"
-            :key="c.value || 'all'"
-            type="button"
-            @click="applyFilter('ageBucket', c.value)"
-            :class="filters.ageBucket === c.value
-              ? 'bg-ink text-cream'
-              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
-            class="px-3 py-1 text-xs rounded-full transition"
-          >{{ c.label }}</button>
-        </div>
-      </div>
-      <div class="flex items-start gap-3 flex-wrap">
-        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">种族</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="c in ethnicityChips"
-            :key="c.value || 'all'"
-            type="button"
-            @click="applyFilter('ethnicity', c.value)"
-            :class="filters.ethnicity === c.value
-              ? 'bg-ink text-cream'
-              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
-            class="px-3 py-1 text-xs rounded-full transition"
-          >{{ c.label }}</button>
-        </div>
-      </div>
-      <div class="flex items-start gap-3 flex-wrap">
-        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">风格</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="c in styleChips"
-            :key="c.value || 'all'"
-            type="button"
-            @click="applyFilter('style', c.value)"
-            :class="filters.style === c.value
-              ? 'bg-ink text-cream'
-              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
-            class="px-3 py-1 text-xs rounded-full transition"
-          >{{ c.label }}</button>
-        </div>
-      </div>
-      <div class="flex items-start gap-3 flex-wrap">
-        <span class="text-xs text-ink/50 mt-1.5 shrink-0 w-12">场景</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="c in scenarioChips"
-            :key="c.value || 'all'"
-            type="button"
-            @click="applyFilter('scenario', c.value)"
-            :class="filters.scenario === c.value
-              ? 'bg-ink text-cream'
-              : 'bg-cream text-ink/70 border border-line hover:border-gold hover:text-ink'"
-            class="px-3 py-1 text-xs rounded-full transition"
-          >{{ c.label }}</button>
-        </div>
-      </div>
+    <!-- ============================================================
+         HEADER · 档案首页
+         ============================================================ -->
+    <section class="relative paper-grain border-b hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 pt-14 md:pt-20 pb-10 md:pb-14 relative z-10">
 
-      <div v-if="activeFilterCount > 0 || sort !== 'newest'" class="pt-2 border-t border-line flex items-center gap-3">
-        <span class="text-xs text-ink/50">已激活 {{ activeFilterCount }} 个筛选</span>
-        <button @click="resetFilters" class="text-xs text-ink/60 hover:text-ink underline ml-auto">
-          全部重置
-        </button>
-      </div>
-    </div>
+        <!-- 元数据行 -->
+        <div class="grid grid-cols-12 gap-4 mb-10 md:mb-14">
+          <div class="col-span-3 catalog-no text-ink/50">№ 002</div>
+          <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER II — CATALOGUE</div>
+          <div class="col-span-3 col-start-9 catalog-no text-ink/50">ACCESSIONED · ON-CHAIN</div>
+          <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">2026 / Q2</div>
+        </div>
 
-    <!-- 列表 / 骨架 / 空态 -->
-    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-      <div v-for="i in 8" :key="i" class="bg-surface rounded-2xl border border-line overflow-hidden">
-        <Skeleton shape="block" aspect="1/1" />
-        <div class="p-3 space-y-2">
-          <Skeleton shape="line" width="60%" />
-          <Skeleton shape="line" width="40%" height-class="h-2" />
+        <div class="grid md:grid-cols-12 gap-6 items-end">
+          <div class="md:col-span-7">
+            <h1 class="font-display text-6xl md:text-8xl lg:text-9xl leading-[0.9] text-ink">
+              形象<span class="font-display-italic text-gold">库</span>
+            </h1>
+            <p class="mt-6 text-base md:text-lg text-ink/60 max-w-xl leading-relaxed">
+              共 <span class="font-display text-3xl text-gold mx-1">{{ total }}</span> 件已登记 AI 虚拟人资产 ·
+              <span class="font-display-italic">每一件都有作品著作权登记证书与区块链时间戳。</span>
+            </p>
+          </div>
+
+          <!-- 排序 · 像图录版次 -->
+          <div class="md:col-span-4 md:col-start-9 flex md:justify-end">
+            <div class="inline-flex items-stretch border-0.5 border-ink">
+              <div class="px-4 py-3 catalog-no text-ink/50 border-r-0.5 border-ink bg-surface">
+                SORT BY
+              </div>
+              <button
+                @click="setSort('newest')"
+                :class="sort === 'newest' ? 'bg-ink text-cream' : 'text-ink/70 hover:bg-ink hover:text-cream'"
+                class="px-5 py-3 font-mono text-xs tracking-widest uppercase transition"
+              >最新</button>
+              <button
+                @click="setSort('popular')"
+                :class="sort === 'popular' ? 'bg-ink text-cream' : 'text-ink/70 hover:bg-ink hover:text-cream'"
+                class="px-5 py-3 font-mono text-xs tracking-widest uppercase transition border-l-0.5 border-ink"
+              >热门</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已激活筛选 · 像图录的索引横标 -->
+        <div v-if="activeFilterCount > 0" class="mt-10 pt-6 hairline-t border-line flex items-center gap-3 flex-wrap">
+          <span class="catalog-no text-ink/50">ACTIVE FILTERS · {{ String(activeFilterCount).padStart(2, '0') }}</span>
+          <span class="catalog-no text-gold">{{ activeFilterCount }} of 5</span>
+          <button @click="resetFilters" class="ml-auto catalog-no text-ink/50 hover:text-gold transition flex items-center gap-2">
+            <span>RESET ALL</span>
+            <span>×</span>
+          </button>
         </div>
       </div>
-    </div>
-    <EmptyState
-      v-else-if="items.length === 0"
-      icon="🔍"
-      title="未找到匹配的 IP"
-      description="试试放宽筛选条件,或者直接浏览全部形象"
-      action-label="全部重置"
-      :action-on-click="resetFilters"
-    />
-    <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-      <IpCard v-for="ip in items" :key="ip.id" :ip="ip" :watermark-text="watermarkText" />
-    </div>
+    </section>
 
-    <!-- 分页 -->
-    <div v-if="totalPages > 1" class="mt-10 flex justify-center gap-2">
-      <button
-        v-for="p in totalPages"
-        :key="p"
-        @click="filters.page = p; fetchList()"
-        class="w-9 h-9 rounded-full text-sm"
-        :class="filters.page === p ? 'bg-ink text-cream' : 'bg-surface border border-line hover:bg-cream'"
-      >
-        {{ p }}
-      </button>
-    </div>
+    <!-- ============================================================
+         MAIN · 左侧固定图录索引 + 右侧画廊
+         ============================================================ -->
+    <section class="max-w-[1320px] mx-auto px-6 lg:px-10 py-10 md:py-14">
+      <div class="grid lg:grid-cols-12 gap-8 lg:gap-12">
+
+        <!-- ============= LEFT · 美术馆图录索引 (固定侧栏) ============= -->
+        <aside class="lg:col-span-3 lg:sticky lg:top-6 self-start space-y-8 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto pr-2">
+
+          <!-- 性别 -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">A · GENDER</h3>
+              <span class="catalog-no text-ink/30">{{ filters.gender ? '01' : '—' }}</span>
+            </div>
+            <ul class="space-y-1">
+              <li v-for="c in genderChips" :key="c.value || 'all'">
+                <button
+                  type="button"
+                  @click="applyFilter('gender', c.value)"
+                  :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.gender === c.value ? 'is-active' : '']"
+                >
+                  <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
+                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 年龄 -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">B · AGE BUCKET</h3>
+              <span class="catalog-no text-ink/30">{{ filters.ageBucket ? '01' : '—' }}</span>
+            </div>
+            <ul class="space-y-1">
+              <li v-for="c in ageChips" :key="c.value || 'all'">
+                <button
+                  type="button"
+                  @click="applyFilter('ageBucket', c.value)"
+                  :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.ageBucket === c.value ? 'is-active' : '']"
+                >
+                  <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
+                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 种族 -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">C · ETHNICITY</h3>
+              <span class="catalog-no text-ink/30">{{ filters.ethnicity ? '01' : '—' }}</span>
+            </div>
+            <ul class="space-y-1">
+              <li v-for="c in ethnicityChips" :key="c.value || 'all'">
+                <button
+                  type="button"
+                  @click="applyFilter('ethnicity', c.value)"
+                  :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.ethnicity === c.value ? 'is-active' : '']"
+                >
+                  <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
+                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 风格 -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">D · STYLE</h3>
+              <span class="catalog-no text-ink/30">{{ filters.style ? '01' : '—' }}</span>
+            </div>
+            <ul class="space-y-1">
+              <li v-for="c in styleChips" :key="c.value || 'all'">
+                <button
+                  type="button"
+                  @click="applyFilter('style', c.value)"
+                  :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.style === c.value ? 'is-active' : '']"
+                >
+                  <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
+                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 场景 -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">E · SCENARIO</h3>
+              <span class="catalog-no text-ink/30">{{ filters.scenario ? '01' : '—' }}</span>
+            </div>
+            <ul class="space-y-1">
+              <li v-for="c in scenarioChips" :key="c.value || 'all'">
+                <button
+                  type="button"
+                  @click="applyFilter('scenario', c.value)"
+                  :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.scenario === c.value ? 'is-active' : '']"
+                >
+                  <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
+                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Footer note -->
+          <div class="pt-6 hairline-t border-line">
+            <div class="catalog-no text-ink/40 mb-2">CURATOR'S NOTE</div>
+            <p class="font-display-italic text-base text-ink/60 leading-relaxed">
+              所有作品已通过区块链存证 + 国家或省级著作权登记,
+              可直接进入采购流程。
+            </p>
+          </div>
+        </aside>
+
+        <!-- ============= RIGHT · 画廊墙 ============= -->
+        <div class="lg:col-span-9">
+
+          <!-- Loading -->
+          <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div v-for="i in 9" :key="i" class="space-y-3">
+              <Skeleton shape="block" aspect="3/4" width-class="w-full" />
+              <div class="space-y-2">
+                <Skeleton shape="line" width="60%" height-class="h-3" />
+                <Skeleton shape="line" width="40%" height-class="h-2" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty -->
+          <div v-else-if="items.length === 0" class="py-24">
+            <EmptyState
+              icon="◇"
+              title="— No matching plates —"
+              description="尝试放宽筛选条件, 或直接浏览全部形象"
+              action-label="RESET FILTERS"
+              :action-on-click="resetFilters"
+            />
+          </div>
+
+          <!-- 画廊 grid · 4 列为主,每张 IP 用 archive-tab 卡片 -->
+          <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <IpCard v-for="ip in items" :key="ip.id" :ip="ip" :watermark-text="watermarkText" />
+          </div>
+
+          <!-- 分页 · 像翻图录的页码 -->
+          <div v-if="totalPages > 1" class="mt-16 pt-6 hairline-t border-line">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+              <div class="catalog-no text-ink/50">
+                PAGE <span class="text-gold">{{ String(filters.page).padStart(2, '0') }}</span> / {{ String(totalPages).padStart(2, '0') }}
+              </div>
+              <div class="flex items-stretch border-0.5 border-ink">
+                <button
+                  v-for="p in totalPages"
+                  :key="p"
+                  @click="filters.page = p; fetchList()"
+                  :class="filters.page === p ? 'bg-ink text-cream' : 'text-ink hover:bg-ink hover:text-cream'"
+                  class="w-10 h-10 font-mono text-xs transition border-r-0.5 border-ink last:border-r-0"
+                >{{ String(p).padStart(2, '0') }}</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Colophon · 底部档案签名 -->
+          <div v-if="items.length > 0" class="mt-12 grid grid-cols-12 gap-4 catalog-no text-ink/40">
+            <div class="col-span-3">CAT. NF-26</div>
+            <div class="col-span-6 col-start-4">CATALOGUED BY ibi.ren ARCHIVE DEPT.</div>
+            <div class="col-span-3 col-start-10 text-right">© 2026</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </div>
 </template>

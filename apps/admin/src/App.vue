@@ -29,5 +29,17 @@ onMounted(() => auth.bootstrap());
     <main class="flex-1">
       <RouterView />
     </main>
+    <footer v-if="auth.isAuthenticated" class="border-t border-line py-4 text-center text-xs text-ink/40">
+      <div>© 2026 ibi.ren · Admin</div>
+      <div class="mt-1">
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-ink"
+          >沪ICP备11033154号-29</a
+        >
+      </div>
+    </footer>
   </div>
 </template>

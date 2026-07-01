@@ -5,9 +5,10 @@ import { AgentService } from './agent.service';
 import { IpsModule } from '../ips/ips.module';
 import { UploadModule } from '../upload/upload.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-  imports: [IpsModule, UploadModule, PrismaModule],
+  imports: [IpsModule, UploadModule, PrismaModule, AiModule],
   controllers: [ApiKeyController, AgentController],
   providers: [ApiKeyService, AgentService],
   exports: [ApiKeyService],

@@ -40,10 +40,10 @@ function fmtSpec(spec: any) {
 function daysLeft(deadlineAt: string) {
   const ms = new Date(deadlineAt).getTime() - now.value;
   const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  if (days < 0) return { text: '已截止', danger: true };
-  if (days === 0) return { text: '今天截止', danger: true };
-  if (days <= 3) return { text: `${days} 天后截止`, danger: true };
-  return { text: `${days} 天后截止`, danger: false };
+  if (days < 0) return { text: 'EXPIRED', cn: '已截止', danger: true };
+  if (days === 0) return { text: 'TODAY', cn: '今天截止', danger: true };
+  if (days <= 3) return { text: `${days}D LEFT`, cn: `${days} 天后截止`, danger: true };
+  return { text: `${days}D LEFT`, cn: `${days} 天后截止`, danger: false };
 }
 
 async function loadOpen() {
@@ -70,7 +70,6 @@ async function loadMine() {
   }
 }
 
-// 我接的任务后端返 {task, acceptedAt, submittedCount} — 摊平到顶层, 让模板字段访问统一
 const visibleTasks = computed(() => {
   if (tab.value === 'open') return openTasks.value;
   return myAccepts.value.map((a) => ({
@@ -91,7 +90,7 @@ async function accept(task: any) {
   acting.value = task.id;
   try {
     await apiClient.post(`/tasks/${task.id}/accept`);
-    toast.success('接单成功,可前往提交 IP');
+    toast.success('接单成功, 可前往提交 IP');
     router.push(`/creator/ips/new?taskId=${task.id}`);
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '接单失败');
@@ -116,91 +115,168 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto px-6 py-10 space-y-6">
-    <div class="flex items-baseline justify-between">
-      <h1 class="font-display text-3xl">任务板</h1>
-      <RouterLink to="/creator" class="text-xs text-ink/60 hover:text-gold transition">← 返回创作者中心</RouterLink>
-    </div>
-    <p class="text-sm text-ink/60">平台发布的官方形象征集任务,接单后版权归平台,审核通过后获得报酬。</p>
+  <div class="bg-cream paper-grain min-h-screen">
 
-    <!-- Tabs -->
-    <div class="flex items-center gap-2 border-b border-line">
-      <button
-        @click="switchTab('open')"
-        :class="[
-          'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
-          tab === 'open' ? 'border-gold text-ink' : 'border-transparent text-ink/50 hover:text-ink',
-        ]"
-      >可接任务</button>
-      <button
-        @click="switchTab('mine')"
-        :class="[
-          'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
-          tab === 'mine' ? 'border-gold text-ink' : 'border-transparent text-ink/50 hover:text-ink',
-        ]"
-      >我接的</button>
-    </div>
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · TASK BOARD</div>
+        <div class="catalog-no text-ink/40">VOL. I — COMMISSIONS</div>
+        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
+      </div>
+    </header>
 
-    <!-- 任务卡片网格 -->
-    <div v-if="loading" class="text-center text-sm text-ink/50 py-8">加载中…</div>
-    <div v-else-if="tab === 'open' && openTasks.length === 0" class="text-center py-12 bg-cream/40 rounded-2xl">
-      <div class="text-3xl mb-2">📭</div>
-      <div class="text-sm text-ink/60">暂无可接任务,下批任务敬请期待</div>
-    </div>
-    <div v-else-if="tab === 'mine' && myAccepts.length === 0" class="text-center py-12 bg-cream/40 rounded-2xl">
-      <div class="text-3xl mb-2">📭</div>
-      <div class="text-sm text-ink/60">你还没接过任务</div>
-      <button @click="switchTab('open')" class="mt-3 text-xs text-gold hover:underline">去看看 →</button>
-    </div>
-    <div v-else class="grid md:grid-cols-2 gap-4">
-      <!-- 任务板卡片 -->
-      <div
-        v-for="t in visibleTasks"
-        :key="t.id"
-        class="bg-surface rounded-2xl border border-line p-5 hover:border-gold/50 transition"
-      >
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <h3 class="font-medium text-lg flex-1 min-w-0">{{ t.title }}</h3>
-          <span
-            v-if="tab === 'open' && daysLeft(t.deadlineAt).danger"
-            class="shrink-0 text-xs px-2 py-0.5 bg-danger/10 text-danger rounded-full"
-          >{{ daysLeft(t.deadlineAt).text }}</span>
-          <span
-            v-else-if="tab === 'open'"
-            class="shrink-0 text-xs px-2 py-0.5 bg-success/10 text-success rounded-full"
-          >{{ daysLeft(t.deadlineAt).text }}</span>
+    <main class="max-w-[1320px] mx-auto px-6 lg:px-10 py-10 md:py-14">
+      <!-- 返回捏者中心 -->
+      <RouterLink to="/creator" class="catalog-no text-ink/50 hover:text-gold transition inline-flex items-center gap-2 mb-6">
+        <span>←</span><span>RETURN TO CREATOR CENTER</span>
+      </RouterLink>
+
+      <!-- 章节头 -->
+      <div class="grid grid-cols-12 gap-4 mb-8">
+        <div class="col-span-3 catalog-no text-ink/50">№ 031</div>
+        <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER XXXI — COMMISSIONS</div>
+        <div class="col-span-3 col-start-9 catalog-no text-ink/50">OFFICIAL BRIEFS</div>
+        <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">{{ visibleTasks.length }} ACTIVE</div>
+      </div>
+
+      <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
+        <div>
+          <h1 class="font-display text-5xl md:text-7xl text-ink leading-[0.95]">
+            任务<span class="font-display-italic text-gold">板</span>
+          </h1>
+          <p class="mt-3 text-sm text-ink/60 max-w-xl leading-relaxed">
+            平台发布的官方形象征集任务 · 接单后版权归平台 ·
+            审核通过后获得报酬。
+          </p>
         </div>
-        <p class="text-sm text-ink/70 leading-relaxed line-clamp-3 mb-3 whitespace-pre-line">
-          {{ t.description }}
-        </p>
-        <div class="text-xs text-ink/60 mb-3 p-2 bg-cream/60 rounded-lg">
-          <span class="font-medium">规格:</span> {{ fmtSpec(t.spec) || '不限' }}
-        </div>
-        <div class="flex items-center justify-between text-xs text-ink/50 flex-wrap gap-2">
-          <div class="flex items-center gap-3">
-            <span class="text-ink font-mono text-base">¥{{ (t.perIpFen ? t.perIpFen / 100 : t.budgetFen / 100).toFixed(0) }}<span class="text-xs text-ink/50">{{ t.perIpFen ? ' / IP' : ' 总预算' }}</span></span>
-            <span v-if="tab === 'open'">{{ t.acceptedCount || 0 }}/{{ t.maxAccepts }} 已接</span>
-            <span v-else>已交 {{ t.submittedCount }} 个</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              v-if="tab === 'open' && !t.acceptedByMe"
-              @click="accept(t)"
-              :disabled="acting === t.id"
-              class="px-4 py-1.5 bg-ink text-cream rounded-full text-xs font-medium hover:bg-gold transition disabled:opacity-50"
-            >{{ acting === t.id ? '接单中...' : '接单' }}</button>
-            <span
-              v-if="tab === 'open' && t.acceptedByMe"
-              class="text-xs px-3 py-1 bg-success/15 text-success rounded-full"
-            >已接单</span>
-            <button
-              v-if="(tab === 'open' && t.acceptedByMe) || tab === 'mine'"
-              @click="goSubmit(t.id)"
-              class="px-4 py-1.5 border border-gold text-gold rounded-full text-xs font-medium hover:bg-gold hover:text-ink transition"
-            >{{ t.submittedCount > 0 ? '继续提交' : '提交 IP' }}</button>
-          </div>
+        <RouterLink to="/creator" class="catalog-no text-ink/50 hover:text-gold transition inline-flex items-center gap-2">
+          <span>←</span><span>RETURN TO STUDIO</span>
+        </RouterLink>
+      </div>
+
+      <!-- Tabs · 像图录版次切换 -->
+      <div class="flex items-stretch border-0.5 border-ink mb-10">
+        <button
+          @click="switchTab('open')"
+          :class="[
+            'flex-1 px-5 py-3 catalog-no transition border-r-0.5 border-ink',
+            tab === 'open' ? 'bg-ink text-cream' : 'text-ink/60 hover:bg-ink hover:text-cream'
+          ]"
+        >
+          OPEN · 可接任务
+        </button>
+        <button
+          @click="switchTab('mine')"
+          :class="[
+            'flex-1 px-5 py-3 catalog-no transition',
+            tab === 'mine' ? 'bg-ink text-cream' : 'text-ink/60 hover:bg-ink hover:text-cream'
+          ]"
+        >
+          MINE · 我接的
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="loading" class="grid md:grid-cols-2 gap-6">
+        <div v-for="i in 4" :key="i" class="bg-surface border-0.5 border-ink p-6 space-y-4">
+          <Skeleton shape="line" width="70%" height-class="h-5" />
+          <Skeleton shape="line" :lines="3" />
+          <Skeleton shape="line" width="40%" height-class="h-3" />
         </div>
       </div>
-    </div>
+
+      <!-- Empty open -->
+      <div v-else-if="tab === 'open' && openTasks.length === 0" class="py-24 text-center bg-surface border-0.5 border-line">
+        <div class="catalog-no text-ink/40 mb-3">— EMPTY BOARD —</div>
+        <div class="font-display text-xl text-ink/60">暂无可接任务</div>
+        <div class="text-sm text-ink/40 mt-2 catalog-no">下批任务敬请期待</div>
+      </div>
+
+      <!-- Empty mine -->
+      <div v-else-if="tab === 'mine' && myAccepts.length === 0" class="py-24 text-center bg-surface border-0.5 border-line">
+        <div class="catalog-no text-ink/40 mb-3">— NO COMMISSIONS YET —</div>
+        <div class="font-display text-xl text-ink/60 mb-3">你还没接过任务</div>
+        <button @click="switchTab('open')" class="catalog-no text-gold hover:underline">去看看 →</button>
+      </div>
+
+      <!-- 任务卡片 grid -->
+      <div v-else class="grid md:grid-cols-2 gap-6">
+        <article
+          v-for="(t, idx) in visibleTasks"
+          :key="t.id"
+          class="bg-surface border-0.5 border-ink p-6 md:p-7 relative hover:border-gold transition group"
+        >
+          <div class="absolute -top-3 left-6">
+            <div class="stamp text-gold border-gold bg-cream">№ {{ String(idx + 1).padStart(3, '0') }}</div>
+          </div>
+
+          <header class="flex items-start justify-between gap-3 mb-3">
+            <h3 class="font-display text-xl text-ink leading-tight flex-1">{{ t.title }}</h3>
+            <span
+              v-if="tab === 'open'"
+              :class="[
+                'shrink-0 catalog-no text-xs px-2 py-1',
+                daysLeft(t.deadlineAt).danger ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
+              ]"
+            >
+              {{ daysLeft(t.deadlineAt).text }}
+            </span>
+            <span
+              v-else-if="t.acceptedByMe"
+              class="shrink-0 catalog-no text-xs px-2 py-1 bg-success/10 text-success"
+            >
+              ACCEPTED
+            </span>
+          </header>
+
+          <p class="text-sm text-ink/70 leading-relaxed line-clamp-3 mb-4 whitespace-pre-line">{{ t.description }}</p>
+
+          <div class="mb-4 p-3 bg-cream border-0.5 border-line catalog-no text-xs">
+            <span class="text-ink/50 mr-2">SPEC · 规格</span>
+            <span class="text-ink/80">{{ fmtSpec(t.spec) || '不限' }}</span>
+          </div>
+
+          <footer class="hairline-t border-line pt-4 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-baseline gap-4">
+              <div class="font-display text-2xl text-ink">
+                ¥{{ (t.perIpFen ? t.perIpFen / 100 : t.budgetFen / 100).toFixed(0) }}
+                <span class="catalog-no text-xs text-ink/50 ml-1">{{ t.perIpFen ? '/ IP' : 'TOTAL' }}</span>
+              </div>
+              <div class="catalog-no text-xs text-ink/50">
+                {{ tab === 'open' ? `${t.acceptedCount || 0}/${t.maxAccepts} ACCEPTED` : `${t.submittedCount} SUBMITTED` }}
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                v-if="tab === 'open' && !t.acceptedByMe"
+                @click="accept(t)"
+                :disabled="acting === t.id"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-ink text-cream hover:bg-gold transition catalog-no text-xs disabled:opacity-50"
+              >
+                {{ acting === t.id ? 'ACCEPTING…' : 'ACCEPT' }}
+              </button>
+              <button
+                v-if="(tab === 'open' && t.acceptedByMe) || tab === 'mine'"
+                @click="goSubmit(t.id)"
+                class="inline-flex items-center gap-2 px-4 py-2 border-0.5 border-gold text-gold hover:bg-gold hover:text-ink transition catalog-no text-xs"
+              >
+                {{ t.submittedCount > 0 ? 'CONTINUE' : 'SUBMIT IP' }}
+                <span class="font-display-italic">→</span>
+              </button>
+            </div>
+          </footer>
+        </article>
+      </div>
+    </main>
+
+    <!-- 底部 colophon -->
+    <footer class="hairline-t border-line mt-12">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+        <span>CAT. COMM-031</span>
+        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>© 2026 IBI.REN</span>
+      </div>
+    </footer>
   </div>
 </template>

@@ -1,11 +1,7 @@
 <script setup lang="ts">
 /**
- * 升级为创作者 — 已登录 BUYER 用户的引导页
- *
- * 流程:
- *   1. KYC 状态查询 + 提交表单 (无独立 KYC 页面, 借此补上)
- *   2. KYC 通过后 (后端自动补 CREATOR 角色) 直接跳 /creator
- *      见 [[project-post-mvp-backlog]] #17 — 之前 KYC 通过后只跳 /contact 是死循环
+ * 升级为创作者 · ARCHIVE ONBOARDING
+ * KYC 实名认证 + 进入捏者中心的引导流程
  */
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -36,7 +32,6 @@ async function fetchStatus() {
   try {
     const { data } = await apiClient.get('/kyc/status');
     kycStatus.value = data.status ?? 'NOT_SUBMITTED';
-    // 后端 KycSubmission 用 notes 存 admin reject 原因 (无 rejectionReason 字段)
     rejectReason.value = data.latest?.notes ?? null;
     submittedAt.value = data.latest?.createdAt ?? null;
   } catch (e) {
@@ -46,7 +41,6 @@ async function fetchStatus() {
   }
 }
 
-// PENDING 时显示已等待天数 (从 submittedAt 算到今天)
 const pendingDays = computed(() => {
   if (!submittedAt.value) return null;
   const ms = Date.now() - new Date(submittedAt.value).getTime();
@@ -61,10 +55,8 @@ async function submit() {
   submitting.value = true;
   try {
     const { data } = await apiClient.post('/kyc/submit', form.value);
-    toast.success('KYC 已提交,审核结果会通过站内通知');
-    // 后端 KYC mock 直接返回 APPROVED 时,角色已自动补 CREATOR;刷新 token + auth store
+    toast.success('KYC 已提交, 审核结果会通过站内通知');
     if (data?.submission?.status === 'APPROVED') {
-      // refresh 会重读 user.roles 重签 token;fetchMe 再刷一次 user 对象
       try { await auth.refresh(); } catch {}
       await auth.fetchMe();
     }
@@ -80,18 +72,16 @@ async function submit() {
 async function goToCreator() {
   upgrading.value = true;
   try {
-    // 用户可能从历史 tab 直接进来 KYC=APPROVED 但 token 还是旧的 BUYER-only;
-    // 刷一次 token + user,确保 CREATOR 角色生效
     try { await auth.refresh(); } catch {}
     await auth.fetchMe();
     if (!auth.isCreator) {
-      toast.error('CREATOR 角色未生效,请重新登录');
+      toast.error('CREATOR 角色未生效, 请重新登录');
       upgrading.value = false;
       return;
     }
     await router.push('/creator');
   } catch {
-    toast.error('进入捏脸师中心失败');
+    toast.error('进入捏者中心失败');
     upgrading.value = false;
   }
 }
@@ -100,154 +90,228 @@ onMounted(fetchStatus);
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto px-6 py-12">
-    <h1 class="font-display text-3xl mb-2">升级为捏脸师</h1>
-    <p class="text-sm text-ink/60 mb-10">
-      想把自己创造的虚拟形象上架到 ibi.ren? 完成 KYC 认证即可开通捏脸师权限。
-    </p>
+  <div class="bg-cream paper-grain min-h-screen">
 
-    <div v-if="loading" class="space-y-4">
-      <Skeleton shape="block" height-class="h-32" />
-      <Skeleton shape="block" height-class="h-20" />
-    </div>
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE ONBOARDING</div>
+        <div class="catalog-no text-ink/40">VOL. I — KYC</div>
+        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
+      </div>
+    </header>
 
-    <template v-else>
-      <!-- PENDING 状态顶部 banner — 醒目提示审核中 + 等待天数 + 预期时长 -->
+    <main class="max-w-3xl mx-auto px-6 lg:px-10 py-12 md:py-20">
+
+      <!-- HERO -->
+      <section class="mb-12 md:mb-16">
+        <div class="catalog-no text-ink/50 mb-3">№ 030 · ARCHIVE ONBOARDING</div>
+        <h1 class="font-display text-5xl md:text-7xl text-ink leading-[0.95]">
+          升级为<span class="font-display-italic text-gold">捏</span>脸师
+        </h1>
+        <p class="mt-5 text-base md:text-lg text-ink/60 max-w-xl leading-relaxed">
+          想把自己创造的虚拟形象上架到 ibi.ren?
+          <span class="font-display-italic text-ink">完成 KYC 认证即可开通捏者权限</span>
+          —— 通常 1-2 个工作日审核完成。
+        </p>
+      </section>
+
+      <!-- PENDING 顶部 banner -->
       <div
-        v-if="kycStatus === 'PENDING'"
-        class="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-2xl"
+        v-if="!loading && kycStatus === 'PENDING'"
+        class="mb-10 bg-surface border-0.5 border-blue-200/60 p-6 md:p-8 relative overflow-hidden"
       >
-        <div class="flex items-start gap-3">
-          <span class="text-2xl">⏳</span>
-          <div class="flex-1 text-sm">
-            <div class="font-medium text-blue-900 mb-1">KYC 实名认证审核中</div>
-            <div class="text-blue-800/80 leading-relaxed">
-              <template v-if="submittedAt">你于 <strong>{{ new Date(submittedAt).toLocaleString('zh-CN') }}</strong> 提交的申请</template>
+        <div class="absolute top-4 right-4 stamp text-blue-700 border-blue-700">PENDING</div>
+        <div class="flex items-start gap-4">
+          <span class="font-display-italic text-4xl text-blue-700 shrink-0">⌛</span>
+          <div class="flex-1 text-sm leading-relaxed">
+            <div class="catalog-no text-blue-700 mb-2">UNDER REVIEW · 实名认证审核中</div>
+            <div class="text-ink/70">
+              <template v-if="submittedAt">你于 <strong class="font-mono">{{ new Date(submittedAt).toLocaleString('zh-CN') }}</strong> 提交的申请</template>
               <template v-else>你的申请已提交</template>
               <template v-if="pendingDays !== null">
-                ,已等待 <strong class="font-mono">{{ pendingDays }}</strong> 天
+                ,已等待 <strong class="font-mono text-gold">{{ pendingDays }}</strong> 天
               </template>
-              。审核通常 <strong>1-2 个工作日</strong>完成,审核结果会通过站内消息通知。
+              。审核通常 <strong>1-2 个工作日</strong>完成 · 审核结果会通过站内消息通知。
             </div>
-            <div class="mt-2 text-xs text-blue-700/70">
-              如超过 3 个工作日未收到结果,可联系 <a href="mailto:kyc@ibi.ren" class="underline">kyc@ibi.ren</a> 加急。
+            <div class="mt-3 text-xs catalog-no text-ink/50">
+              如超过 3 个工作日未收到结果, 可联系
+              <a href="mailto:kyc@ibi.ren" class="text-gold hover:underline">kyc@ibi.ren</a>
+              加急。
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 步骤 1: KYC -->
-      <section class="mb-8 bg-surface rounded-2xl border border-line p-6">
-        <div class="flex items-start gap-4">
-          <div
-            class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shrink-0"
-            :class="{
-              'bg-gold/20 text-gold': kycStatus === 'APPROVED',
-              'bg-blue-100 text-blue-700': kycStatus === 'PENDING',
-              'bg-red-100 text-red-700': kycStatus === 'REJECTED',
-              'bg-ink/10 text-ink/60': kycStatus === 'NOT_SUBMITTED',
-            }"
-          >
-            {{ kycStatus === 'APPROVED' ? '✓' : '1' }}
+      <div v-if="loading" class="space-y-6">
+        <Skeleton shape="block" height-class="h-40" />
+        <Skeleton shape="block" height-class="h-32" />
+      </div>
+
+      <template v-else>
+        <!-- 步骤 1 · KYC -->
+        <section class="mb-10 bg-surface border-0.5 border-ink p-8 md:p-10 relative">
+          <div class="absolute -top-3 left-8">
+            <div
+              :class="[
+                'stamp',
+                kycStatus === 'APPROVED' ? 'text-success border-success' :
+                kycStatus === 'PENDING' ? 'text-blue-700 border-blue-700' :
+                kycStatus === 'REJECTED' ? 'text-danger border-danger' :
+                'text-gold border-gold'
+              ]"
+              :style="{ background: 'var(--color-cream)' }"
+            >STEP 01</div>
           </div>
-          <div class="flex-1 min-w-0">
-            <h2 class="font-medium text-lg mb-1">KYC 实名认证</h2>
-            <p class="text-sm text-ink/60 mb-4">
-              用于创作者权益归属与结算, 提交后通常 1–2 个工作日审核完成。
-            </p>
 
-            <!-- NOT_SUBMITTED: 表单 -->
-            <div v-if="kycStatus === 'NOT_SUBMITTED'" class="space-y-3">
-              <div>
-                <label class="text-xs text-ink/60 mb-1 block">真实姓名</label>
-                <input
-                  v-model="form.realName"
-                  type="text"
-                  placeholder="请输入身份证上的真实姓名"
-                  class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-ink/60 mb-1 block">身份证号</label>
-                <input
-                  v-model="form.idNumber"
-                  type="text"
-                  placeholder="18 位身份证号"
-                  class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-ink/60 mb-1 block">联系手机 (选填)</label>
-                <input
-                  v-model="form.phone"
-                  type="tel"
-                  placeholder="便于审核沟通"
-                  class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold"
-                />
-              </div>
-              <button
-                @click="submit"
-                :disabled="submitting"
-                class="px-5 py-2 bg-ink text-cream rounded-full hover:bg-gold transition disabled:opacity-50"
-              >
-                {{ submitting ? '提交中...' : '提交 KYC 申请' }}
-              </button>
-            </div>
-
-            <!-- PENDING — 详细提示已搬到顶部 banner,这里只留状态徽标 -->
-            <div v-else-if="kycStatus === 'PENDING'" class="text-sm text-blue-700 bg-blue-50 px-4 py-3 rounded-lg">
-              ⏳ 审核中 · 详见顶部提示
-            </div>
-
-            <!-- APPROVED -->
-            <div v-else-if="kycStatus === 'APPROVED'" class="text-sm text-emerald-700 bg-emerald-50 px-4 py-3 rounded-lg">
-              ✓ KYC 已通过, 创作者权限已自动开通!
-            </div>
-
-            <!-- REJECTED -->
-            <div v-else-if="kycStatus === 'REJECTED'" class="space-y-3">
-              <div class="text-sm text-red-700 bg-red-50 px-4 py-3 rounded-lg">
-                审核未通过{{ rejectReason ? `: ${rejectReason}` : '' }}, 请修正后重新提交。
-              </div>
-              <div>
-                <label class="text-xs text-ink/60 mb-1 block">真实姓名</label>
-                <input v-model="form.realName" type="text" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
-              </div>
-              <div>
-                <label class="text-xs text-ink/60 mb-1 block">身份证号</label>
-                <input v-model="form.idNumber" type="text" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" />
-              </div>
-              <button
-                @click="submit"
-                :disabled="submitting"
-                class="px-5 py-2 bg-ink text-cream rounded-full hover:bg-gold transition disabled:opacity-50"
-              >
-                {{ submitting ? '提交中...' : '重新提交' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 步骤 2: 进入创作者中心 (仅 KYC APPROVED 时) -->
-      <section v-if="kycStatus === 'APPROVED'" class="bg-surface rounded-2xl border border-line p-6">
-        <div class="flex items-start gap-4">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium shrink-0 bg-gold/20 text-gold">2</div>
-          <div class="flex-1">
-            <h2 class="font-medium text-lg mb-1">进入创作者中心</h2>
-            <p class="text-sm text-ink/60 mb-4">
-              上传虚拟人资产、查看订单收益、申请版权证书 — 都在创作者中心完成。
-            </p>
-            <button
-              @click="goToCreator"
-              :disabled="upgrading"
-              class="px-5 py-2 bg-ink text-cream rounded-full hover:bg-gold transition disabled:opacity-50"
+          <div class="flex items-start gap-6">
+            <div
+              :class="[
+                'w-14 h-14 shrink-0 flex items-center justify-center font-display text-2xl border-0.5 transition',
+                kycStatus === 'APPROVED' ? 'bg-success/15 text-success border-success' :
+                kycStatus === 'PENDING' ? 'bg-blue-100/40 text-blue-700 border-blue-200' :
+                kycStatus === 'REJECTED' ? 'bg-danger/10 text-danger border-danger' :
+                'bg-gold/15 text-gold border-gold'
+              ]"
             >
-              {{ upgrading ? '进入中...' : '立即成为创作者 →' }}
-            </button>
+              {{ kycStatus === 'APPROVED' ? '✓' : 'I' }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="catalog-no text-ink/50 mb-2">KYC · 实名认证</div>
+              <h2 class="font-display text-2xl text-ink mb-3 leading-tight">身份核验与权益归属</h2>
+              <p class="text-sm text-ink/60 leading-relaxed mb-6">
+                用于创作者权益归属与结算 · 提交后通常 1–2 个工作日审核完成 ·
+                身份证号经国密 SM2 加密, 仅版权登记机构可见。
+              </p>
+
+              <!-- NOT_SUBMITTED: 表单 -->
+              <div v-if="kycStatus === 'NOT_SUBMITTED'" class="space-y-5">
+                <div>
+                  <label class="catalog-no text-ink/60 block mb-2">REAL NAME · 真实姓名</label>
+                  <input
+                    v-model="form.realName"
+                    type="text"
+                    placeholder="请输入身份证上的真实姓名"
+                    class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label class="catalog-no text-ink/60 block mb-2">ID NUMBER · 身份证号</label>
+                  <input
+                    v-model="form.idNumber"
+                    type="text"
+                    placeholder="18 位身份证号"
+                    class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label class="catalog-no text-ink/60 block mb-2">PHONE · 联系手机 <span class="text-ink/30">(选填)</span></label>
+                  <input
+                    v-model="form.phone"
+                    type="tel"
+                    placeholder="便于审核沟通"
+                    class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm"
+                  />
+                </div>
+                <button
+                  @click="submit"
+                  :disabled="submitting"
+                  class="inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream hover:bg-gold transition font-display disabled:opacity-50 group"
+                >
+                  <span class="catalog-no text-cream/70 group-hover:text-ink/70 text-[10px]">SUBMIT</span>
+                  <span>{{ submitting ? '提交中…' : '提交 KYC 申请' }}</span>
+                  <span class="font-display-italic">→</span>
+                </button>
+              </div>
+
+              <!-- PENDING -->
+              <div v-else-if="kycStatus === 'PENDING'" class="p-5 bg-blue-100/30 border-0.5 border-blue-200 text-sm text-blue-700">
+                <span class="catalog-no text-blue-700 mr-2">PENDING</span>
+                审核中 · 详见顶部提示
+              </div>
+
+              <!-- APPROVED -->
+              <div v-else-if="kycStatus === 'APPROVED'" class="p-5 bg-success/5 border-0.5 border-success/40 text-sm text-success">
+                <span class="catalog-no text-success mr-2">APPROVED</span>
+                KYC 已通过 · 创作者权限已自动开通 · 可进入捏者中心
+              </div>
+
+              <!-- REJECTED -->
+              <div v-else-if="kycStatus === 'REJECTED'" class="space-y-5">
+                <div class="p-5 bg-danger/5 border-0.5 border-danger/40 text-sm text-danger">
+                  <span class="catalog-no text-danger mr-2">REJECTED</span>
+                  审核未通过{{ rejectReason ? `: ${rejectReason}` : '' }} · 请修正后重新提交
+                </div>
+                <div>
+                  <label class="catalog-no text-ink/60 block mb-2">REAL NAME · 真实姓名</label>
+                  <input v-model="form.realName" type="text"
+                    class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition" />
+                </div>
+                <div>
+                  <label class="catalog-no text-ink/60 block mb-2">ID NUMBER · 身份证号</label>
+                  <input v-model="form.idNumber" type="text"
+                    class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm" />
+                </div>
+                <button
+                  @click="submit"
+                  :disabled="submitting"
+                  class="inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream hover:bg-gold transition font-display disabled:opacity-50"
+                >
+                  <span>{{ submitting ? '提交中…' : '重新提交' }}</span>
+                  <span class="font-display-italic">→</span>
+                </button>
+              </div>
+            </div>
           </div>
+        </section>
+
+        <!-- 步骤 2 · 进入捏者中心 -->
+        <section v-if="kycStatus === 'APPROVED'" class="bg-surface border-0.5 border-ink p-8 md:p-10 relative">
+          <div class="absolute -top-3 left-8">
+            <div class="stamp text-gold border-gold" :style="{ background: 'var(--color-cream)' }">STEP 02</div>
+          </div>
+          <div class="flex items-start gap-6">
+            <div class="w-14 h-14 shrink-0 flex items-center justify-center font-display text-2xl bg-gold/15 text-gold border-0.5 border-gold">
+              II
+            </div>
+            <div class="flex-1">
+              <div class="catalog-no text-ink/50 mb-2">DASHBOARD · 创作者中心</div>
+              <h2 class="font-display text-2xl text-ink mb-3 leading-tight">进入捏者工作台</h2>
+              <p class="text-sm text-ink/60 leading-relaxed mb-6">
+                上传虚拟人资产 · 查看订单收益 · 申请版权证书 ·
+                接入 Agent API Key — 都在创作者中心完成。
+              </p>
+              <button
+                @click="goToCreator"
+                :disabled="upgrading"
+                class="inline-flex items-center gap-3 px-6 py-3 bg-gold text-ink hover:bg-cream transition font-display disabled:opacity-50 group"
+              >
+                <span class="catalog-no text-ink/70 text-[10px]">ENTER</span>
+                <span>{{ upgrading ? '进入中…' : '立即成为创作者' }}</span>
+                <span class="font-display-italic">→</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CURATOR'S NOTE -->
+        <div class="mt-12 pt-8 hairline-t border-line">
+          <div class="catalog-no text-ink/40 mb-2">CURATOR'S NOTE</div>
+          <p class="font-display-italic text-base text-ink/60 leading-relaxed max-w-2xl">
+            实名信息仅用于版权登记与税务结算 · 平台不向任何第三方披露 ·
+            ibi.ren 一切交易记录均经区块链时间戳校验, 不可篡改。
+          </p>
         </div>
-      </section>
-    </template>
+      </template>
+    </main>
+
+    <!-- 底部 colophon -->
+    <footer class="hairline-t border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+        <span>CAT. ONBOARD-030</span>
+        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>© 2026 IBI.REN</span>
+      </div>
+    </footer>
   </div>
 </template>

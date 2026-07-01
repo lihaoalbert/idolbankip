@@ -30,6 +30,11 @@ import { BlueprintModule } from './blueprint/blueprint.module';
 import { CopyrightModule } from './copyright/copyright.module';
 import { LlmConfigModule } from './llm-config/llm-config.module';
 import { AssistantModule } from './assistant/assistant.module';
+import { BriefModule } from './brief/brief.module';
+import { BidModule } from './bid/bid.module';
+import { PricingModule } from './pricing/pricing.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { PlatformJudgeModule } from './platform-judge/platform-judge.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -69,6 +74,11 @@ import { configValidationSchema } from './config/config.validation';
     CopyrightModule,
     LlmConfigModule,
     AssistantModule,
+    BriefModule,
+    BidModule,
+    PricingModule,
+    CatalogModule,
+    PlatformJudgeModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

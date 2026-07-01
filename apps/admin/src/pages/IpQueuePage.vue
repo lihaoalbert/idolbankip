@@ -35,6 +35,9 @@ const ethnicityLabel: Record<string, string> = {
   AFRICAN: '非洲', EUROPEAN: '欧洲', MIXED: '混合/其他',
 };
 
+// #30.6.22 KYC 简短 label — Prisma enum 有 NOT_SUBMITTED (空) 和 NONE (空字段) 两种
+const kycShort: Record<string, string> = { APPROVED: '✓', PENDING: '…', REJECTED: '✗', NONE: '—', NOT_SUBMITTED: '—' };
+
 const counts = ref<Record<string, number>>({});
 
 async function load() {
@@ -127,7 +130,43 @@ onMounted(() => { load().then(loadCounts); });
               <div class="font-medium">{{ ip.displayName }}</div>
               <div class="text-xs text-ink/50 font-mono">{{ ip.code }}</div>
             </td>
-            <td class="table-td text-ink/60">{{ ip.creator?.displayName || ip.creator?.email || '—' }}</td>
+            <td class="table-td text-ink/60">
+              <div class="flex items-center gap-2">
+                <img
+                  v-if="ip.creator?.avatarUrl"
+                  :src="ip.creator.avatarUrl"
+                  :alt="ip.creator?.displayName || ''"
+                  class="w-7 h-7 rounded-full object-cover border border-line shrink-0"
+                  referrerpolicy="no-referrer"
+                />
+                <div v-else class="w-7 h-7 rounded-full bg-ink/10 flex items-center justify-center text-ink/50 text-[10px] shrink-0">👤</div>
+                <div class="min-w-0">
+                  <div class="text-ink truncate">{{ ip.creator?.displayName || '—' }}</div>
+                  <div class="text-[10px] text-ink/50 font-mono truncate flex items-center gap-1.5">
+                    <span>{{ ip.creator?.email }}</span>
+                    <span
+                      :class="[
+                        'px-1 py-0.5 rounded text-[9px] shrink-0',
+                        (ip.creator?.kycStatus === 'APPROVED' || ip.creator?.kycStatus === 'APPROVED_AUTO') ? 'bg-success/15 text-success'
+                        : ip.creator?.kycStatus === 'PENDING' ? 'bg-warn/15 text-warn'
+                        : ip.creator?.kycStatus === 'REJECTED' ? 'bg-danger/10 text-danger'
+                        : 'bg-ink/10 text-ink/50'
+                      ]"
+                    >
+                      KYC:{{ kycShort[ip.creator?.kycStatus || 'NONE'] || '—' }}
+                    </span>
+                    <a
+                      v-if="ip.creator?.id"
+                      :href="`https://ibi.idata.mobi/u/${ip.creator.id}`"
+                      target="_blank"
+                      rel="noopener"
+                      class="text-gold hover:underline shrink-0"
+                      title="作者公开主页"
+                    >↗</a>
+                  </div>
+                </div>
+              </div>
+            </td>
             <td class="table-td text-xs">
               <span :class="packComplete(ip) ? 'text-success' : 'text-warn'">{{ fileSummary(ip) }}</span>
             </td>

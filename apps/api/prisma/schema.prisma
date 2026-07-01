@@ -136,6 +136,10 @@ model User {
   kycData      Json?
   avatarUrl    String?
   bio          String?  @db.Text // 捏者个人简介
+  // AIGC 众包扩展 — 创作者认证 + 提现资格 + 最后活跃时间
+  isCreatorVerified Boolean   @default(false) // AIGC 创作者认证通过 (kYC + 技能认证)
+  canWithdraw       Boolean   @default(false) // 是否可提现 (创作者完成首单后开通)
+  lastActiveAt      DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -146,6 +150,23 @@ model User {
   kycSubs       KycSubmission[]
   notifications Notification[]
   apiKeys       ApiKey[]
+
+  // AIGC 众包模块 — 反向关系
+  briefsAsBuyer     Brief[]               @relation("BuyerBriefs")
+  bidsAsCreator     Bid[]                 @relation("CreatorBids")
+  workspacesAsCreator Workspace[]         @relation("CreatorWorkspaces")
+  workspaceMessages WorkspaceMessage[]    @relation("WorkspaceMessageFrom")
+  creatorSkills     CreatorSkill[]
+  creatorProfile    CreatorProfile?
+  reviewsFrom       Review[]              @relation("ReviewFrom")
+  reviewsTo         Review[]              @relation("ReviewTo")
+  disputesInitiated Dispute[]             @relation("DisputeInitiator")
+  disputesMediated  Dispute[]             @relation("DisputeMediator")
+  royaltyAsOriginalCreator RoyaltyRecord[] @relation("OriginalCreator")
+  royaltyAsIpOwner        RoyaltyRecord[] @relation("IPOwner")
+  royaltyAsBuyer          RoyaltyRecord[] @relation("BuyerRoyalty")
+  buyerSubscriptions      BuyerSubscription[]
+  withdrawals             Withdrawal[]
 
   // 平台代办员角色
   registrationsAsAgent CopyrightRegistration[] @relation("RegistrationAgents")
@@ -945,4 +966,560 @@ model AssistantCallLog {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+// =================================================================
+// #30.7.1 AIGC 众包 — 方案 C 完整数据模型
+// 设计文档: docs/plans/2026-plan-c-aigc-crowdsourcing.md §5
+//
+// 关系图:
+//
+//   Brief (1) ── (N) Bid (抢单)
+//   Brief (1) ── (1) Workspace (工作台,中标后创建)
+//   Brief (1) ── (N) Deliverable (成片,可多次提交)
+//   Brief (1) ── (1) Review (订单评价)
+//   Brief (1) ── (1) Dispute (仲裁)
+//   Brief (1) ── (N) RoyaltyRecord (IP 二次授权分账)
+//
+//   CreatorProfile 是 User 的 1:1 扩展,创作者档案(等级/评分/抽佣)
+//   CreatorSkill 是 User × SkillTag 的多对多(N:M)
+//
+//   命名风格:不写 enum,状态/品类/套餐用 String 列存,应用层 const 校验
+// (避免 MySQL enum 增改值需要 ALTER TABLE,迁移友好)。
+// =================================================================
+
+// ===================== 1. Brief 发包单 =====================
+// 买家发包,平台拆任务 + 匹配创作者
+model Brief {
+  id            String   @id @default(cuid())
+  buyerId       String
+  buyer         User     @relation("BuyerBriefs", fields: [buyerId], references: [id])
+
+  title         String
+  description   String?  @db.Text
+
+  // 品类: ad / shortvideo / livestream_clip / poster / 3d
+  category      String
+  // 投放平台: ["douyin","xiaohongshu","wechat",...] — 9 平台枚举由前端常量提供
+  platformSet   Json
+  // 选用的虚拟形象 IP ID 列表
+  ipIds         Json
+
+  // 预算 (单位:元, 保留 2 位小数; 用 Decimal 而非 Int 分, 简化显示)
+  budgetMin     Decimal  @db.Decimal(10, 2)
+  budgetMax     Decimal  @db.Decimal(10, 2)
+
+  // 套餐: essential / standard / premium
+  packageTier   String
+  // 截止时间
+  deadlineAt    DateTime
+
+  // 状态机: draft / bidding / in_progress / delivered / closed / disputed
+  status        String   @default("draft")
+
+  // LLM 拆解的详细规格(JSON),由 pricing 模块填入
+  spec          Json?
+  // 买家上传的参考资料 OSS keys
+  attachments   Json?
+
+  // LLM 预估价格(¥)
+  estimatedPrice Decimal? @db.Decimal(10, 2)
+
+  // ========== W2 #28 平台层标准(2026-07-01+) ==========
+  // 挂的标准 SKU ID(关联 CatalogSku)
+  standardSkuId       String?
+  standardSku         CatalogSku? @relation(fields: [standardSkuId], references: [id])
+  // 验收清单 JSON: { version, items[{id,criterion,weight,automated}], passingScore }
+  acceptanceChecklist Json?
+  // 加项清单 JSON: [{ code, name, price, unit, quantity }]
+  addOns              Json?
+  // 原始 brief 文档(本地)SHA-256 哈希 — 平台只存哈希不存内容
+  originalBriefHash   String?
+  // 当前价格(¥)— 含加价;初始 = packageTier 对应 basePrice
+  currentPrice        Decimal?    @db.Decimal(10, 2)
+  // 加价次数(3 道软护栏之一:封顶 3 次)
+  bumpCount           Int         @default(0)
+  // 加价历史 JSON: [{ at, fromPrice, toPrice, percent, by: 'buyer' }]
+  bumpHistory         Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 反向
+  bids          Bid[]
+  workspace     Workspace?
+  deliverables  Deliverable[]
+  review        Review?
+  dispute       Dispute?
+  platformJudgments PlatformJudgment[]
+  royaltyRecords RoyaltyRecord[]
+
+  @@index([buyerId, status])
+  @@index([category, status])
+  @@index([createdAt])
+  @@index([deadlineAt])
+  @@index([standardSkuId])
+}
+
+// ===================== 1.5 CatalogSku 标准 SKU 菜单(W2 #28) =====================
+// 平台挂的标准服务单元菜单,essential/standard/premium × 5 品类 = 15 SKU
+// 不可议价,加价/加项走另外通道
+model CatalogSku {
+  id              String   @id @default(cuid())
+  // SKU code, 唯一: AIGC-AD-ESSENTIAL / AIGC-SHORTVIDEO-STANDARD / ...
+  code            String   @unique
+  // 品类: ad / shortvideo / livestream_clip / poster / 3d
+  category        String
+  // 档位: essential / standard / premium
+  tier            String
+  // 基础价格(¥)— 不可议价
+  basePrice       Decimal  @db.Decimal(10, 2)
+  // 交付天数
+  deliveryDays    Int
+  // 包含视频/海报数量
+  quantity        Int
+  // 包含 IP 数
+  ipsIncluded     Int      @default(1)
+  // 包含平台数
+  platformsIncluded Int    @default(1)
+  // 加项规则 JSON: [{ code, name, basePercent, description, min, max }]
+  addOnRules      Json
+  // 默认验收清单模板 ID(关联 AcceptanceTemplate)
+  defaultChecklistId String?
+  defaultChecklist    AcceptanceTemplate? @relation(fields: [defaultChecklistId], references: [id])
+  // 描述
+  description     String?  @db.Text
+  // 是否启用
+  enabled         Boolean  @default(true)
+  // 排序
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  briefs          Brief[]
+
+  @@index([category, tier])
+  @@index([enabled, sortOrder])
+}
+
+// ===================== 1.6 AcceptanceTemplate 验收清单模板(W2 #28) =====================
+// 每个 SKU 配一份默认 acceptanceChecklist 模板,买家可基于模板增删
+// 平台公信力底层之一 — 验收质量标准化
+model AcceptanceTemplate {
+  id          String   @id @default(cuid())
+  // 模板 code
+  code        String   @unique
+  // 适用品类
+  category    String
+  // 适用档位
+  tier        String
+  // 模板名称
+  name        String
+  // 模板描述
+  description String?  @db.Text
+  // 验收清单 JSON: { version, items[{id,criterion,weight,automated,evidenceMethod}], passingScore }
+  checklist   Json
+  // 版本(模板迭代)
+  version     String   @default("1.0")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  catalogSkus CatalogSku[]
+
+  @@index([category, tier])
+}
+
+// ===================== 2. SkillTag 技能标签字典 =====================
+model SkillTag {
+  id          String   @id @default(cuid())
+  // 标签名,unique — e.g. "Sora 视频生成", "可灵镜头控制", "数字人 Live2D"
+  name        String   @unique
+  // 分类: video / image / 3d / copywriting / tool
+  category    String
+  description String?
+
+  creators    CreatorSkill[]
+
+  @@index([category])
+}
+
+// ===================== 3. CreatorSkill 创作者技能(N:M) =====================
+model CreatorSkill {
+  id           String   @id @default(cuid())
+  creatorId    String
+  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  skillId      String
+  skill        SkillTag @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  // 1-5 自评 / admin 评定
+  level        Int      @default(1)
+  // admin 是否认证过
+  certified    Boolean  @default(false)
+  verifiedAt   DateTime?
+  // 作品集 URL
+  portfolioUrl String?
+
+  @@unique([creatorId, skillId])
+  @@index([creatorId])
+  @@index([skillId])
+}
+
+// ===================== 4. CreatorProfile 创作者档案(1:1) =====================
+model CreatorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName     String
+  bio             String?  @db.Text
+  avatarUrl       String?
+
+  // 等级: bronze / silver / gold / platinum
+  level           String   @default("bronze")
+
+  // 业绩指标(由 background job 每日更新)
+  completedOrders Int      @default(0)
+  totalEarnings   Decimal  @default(0) @db.Decimal(12, 2)
+  ratingAvg       Float    @default(0)
+  ratingCount     Int      @default(0)
+  responseRate    Float    @default(0) // 0-1
+  fulfillmentRate Float    @default(0) // 0-1
+
+  // 当前抽佣比例 (根据等级自动调整)
+  commissionRate  Float    @default(0.08)
+
+  // Pro 订阅(¥199/月)
+  proSubscribed   Boolean  @default(false)
+  proExpiresAt    DateTime?
+
+  joinedAt        DateTime @default(now())
+
+  @@index([level, ratingAvg])
+  @@index([completedOrders])
+}
+
+// ===================== 5. Bid 报价/抢单 =====================
+model Bid {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  creatorId    String
+  creator      User     @relation("CreatorBids", fields: [creatorId], references: [id])
+
+  price        Decimal  @db.Decimal(10, 2)
+  deliveryDays Int
+  proposal     String   @db.Text
+
+  // pending / accepted / rejected / withdrawn
+  status       String   @default("pending")
+  acceptedAt   DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([briefId, creatorId])
+  @@index([briefId])
+  @@index([creatorId, status])
+}
+
+// ===================== 6. Workspace 工作台 =====================
+model Workspace {
+  id           String   @id @default(cuid())
+  briefId      String   @unique
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  creatorId    String
+  creator      User     @relation("CreatorWorkspaces", fields: [creatorId], references: [id])
+
+  // 创作者启用的工具链 {sora:true, runway:true, kling:true, jimeng:true}
+  toolchain    Json
+
+  // 分镜脚本
+  scripts      Json?
+
+  // 状态机: active / submitted / approved / revision
+  status       String   @default("active")
+
+  startedAt    DateTime @default(now())
+  submittedAt  DateTime?
+  finishedAt   DateTime?
+  revisionCount Int     @default(0)
+
+  generations  AIGenerationRecord[]
+  messages     WorkspaceMessage[]
+
+  @@index([creatorId, status])
+}
+
+// ===================== 7. WorkspaceMessage 工作台消息 =====================
+model WorkspaceMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromUserId  String
+  from        User     @relation("WorkspaceMessageFrom", fields: [fromUserId], references: [id])
+
+  content     String   @db.Text
+  attachments Json?    // OSS keys
+  // text / system / file
+  type        String   @default("text")
+
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+// ===================== 8. AIGenerationRecord AI 生成记录(成本核算 + 防作弊) =====================
+model AIGenerationRecord {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // sora / runway / kling / jimeng / luma / pika / mjvideo / veo
+  toolName    String
+  modelName   String
+  prompt      String   @db.Text
+  outputUrl   String?
+
+  // 创作者实际成本(分,人民币)
+  costCents   Int
+  // 调用耗时(毫秒)
+  durationMs  Int
+
+  // success / failed / timeout
+  status      String   @default("success")
+  errorMsg    String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([toolName, createdAt])
+}
+
+// ===================== 9. Deliverable 成片交付 =====================
+model Deliverable {
+  id          String   @id @default(cuid())
+  briefId     String
+  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  workspaceId String
+
+  // video / image / copy
+  type        String
+  // douyin / xiaohongshu / wechat / youtube / tiktok / ...
+  platform    String
+
+  // OSS 路径(已转码后的成片)
+  url         String
+  thumbnailUrl String?
+
+  // {duration, ratio, resolution, fileSize}
+  spec        Json
+
+  // pending / approved / rejected
+  status      String   @default("pending")
+  approvedAt  DateTime?
+  rejectedReason String?
+
+  // 多平台发布后的实际链接
+  publishedAt DateTime?
+  publishedUrl String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([briefId])
+  @@index([platform, status])
+}
+
+// ===================== 10. Review 评价 =====================
+model Review {
+  id          String   @id @default(cuid())
+  briefId     String   @unique
+  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  fromUserId  String
+  from        User     @relation("ReviewFrom", fields: [fromUserId], references: [id])
+  toUserId    String
+  to          User     @relation("ReviewTo", fields: [toUserId], references: [id])
+
+  // buyer_to_creator / creator_to_buyer
+  role        String
+  rating      Int      // 1-5
+  content     String   @db.Text
+  tags        Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([toUserId])
+}
+
+// ===================== 11. Dispute 仲裁 =====================
+model Dispute {
+  id          String   @id @default(cuid())
+  briefId     String   @unique
+  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  initiatorId String
+  initiator   User     @relation("DisputeInitiator", fields: [initiatorId], references: [id])
+
+  // quality_issue / deadline_miss / scope_change / payment_issue / other
+  reason      String
+  description String   @db.Text
+  // 证据 OSS URL 列表
+  evidence    Json
+
+  // open / mediating / resolved / closed
+  status      String   @default("open")
+
+  // refund_full / refund_partial / no_refund / redo
+  resolution  String?
+  refundAmount Decimal? @db.Decimal(10, 2)
+
+  mediatorId  String?
+  mediator    User?    @relation("DisputeMediator", fields: [mediatorId], references: [id], onDelete: SetNull)
+
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ===================== 11.5 PlatformJudgment 平台仲裁 Agent 判定 (W2 #28) =====================
+// 平台 Agent 对创作者交付物按 acceptanceChecklist 打分,留痕
+// pass=false 且 totalScore < passingScore 时自动创建 Dispute
+// 法律责任:Agent 判定是"参考",终极争议由 admin /disputes 人工 review
+model PlatformJudgment {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  // brief | deliverable | pre_bid  触发场景
+  trigger      String   @default("deliverable")
+  // 通过的 Checklist 版本
+  checklistVersion String?
+  // 每项得分: [{ itemId, criterion, weight, score(0-1), reason }]
+  itemScores   Json
+  // 加权总分(0-1)
+  totalScore   Float
+  // 通过分数线
+  passingScore Float
+  // 是否通过
+  pass         Boolean
+  // 总体评语
+  summary      String?  @db.Text
+  // LLM 元信息
+  modelUsed    String
+  promptVersion String
+  // 触发 dispute 后的关联
+  disputeId    String?
+  createdAt    DateTime @default(now())
+
+  @@index([briefId, createdAt])
+  @@index([pass, createdAt])
+}
+
+// ===================== 12. RoyaltyRecord IP 二次授权分账 =====================
+// 独家壁垒 — 数字人 IP 被二次使用时,自动按比例分账
+// 公式: IP 所有者 60% / 原创者 10% / 平台 30%
+model RoyaltyRecord {
+  id                String   @id @default(cuid())
+  briefId           String
+  brief             Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  ipId              String   // 被二次使用的 IP ID
+
+  originalCreatorId String
+  originalCreator   User     @relation("OriginalCreator", fields: [originalCreatorId], references: [id])
+
+  ipOwnerId         String
+  ipOwner           User     @relation("IPOwner", fields: [ipOwnerId], references: [id])
+
+  buyerId           String
+  buyer             User     @relation("BuyerRoyalty", fields: [buyerId], references: [id])
+
+  // direct_use / derivative_use
+  usageType         String
+  usageCount        Int      @default(1)
+
+  totalAmount       Decimal  @db.Decimal(10, 2)
+  ipOwnerShare      Decimal  @db.Decimal(10, 2)
+  creatorShare      Decimal  @db.Decimal(10, 2)
+  platformShare     Decimal  @db.Decimal(10, 2)
+
+  settledAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([ipId])
+  @@index([originalCreatorId])
+  @@index([ipOwnerId])
+  @@index([buyerId])
+}
+
+// ===================== 13. BuyerSubscription 买家订阅 =====================
+// Starter / Growth / Enterprise 三档
+model BuyerSubscription {
+  id           String   @id @default(cuid())
+  buyerId      String
+  buyer        User     @relation(fields: [buyerId], references: [id])
+
+  // starter / growth / enterprise
+  plan         String
+  priceMonthly Decimal  @db.Decimal(10, 2)
+
+  startedAt    DateTime @default(now())
+  expiresAt    DateTime
+  autoRenew    Boolean  @default(true)
+
+  // active / cancelled / expired
+  status       String   @default("active")
+
+  @@index([buyerId, status])
+  @@index([expiresAt])
+}
+
+// ===================== 14. Withdrawal 提现申请 =====================
+model Withdrawal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  amount      Decimal  @db.Decimal(10, 2)
+  fee         Decimal  @db.Decimal(10, 2)
+  netAmount   Decimal  @db.Decimal(10, 2)
+
+  // wechat / alipay / digital_rmb / bank
+  channel     String
+  // 收款账号(脱敏存储,只存末 4 位)
+  accountInfo Json
+
+  // pending / processing / success / failed
+  status      String   @default("pending")
+  processedAt DateTime?
+  failReason  String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+// ===================== 15. PlatformAnalytics 平台数据看板(预聚合) =====================
+// 由 background job 每日凌晨聚合写入,前端 dashboard 直接读
+model PlatformAnalytics {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date
+
+  briefsNew       Int      @default(0)
+  briefsClosed    Int      @default(0)
+  // GMV 单位:分
+  gmvCents        BigInt   @default(0)
+  commissionCents BigInt   @default(0)
+
+  activeBuyers    Int      @default(0)
+  activeCreators  Int      @default(0)
+  disputesOpened  Int      @default(0)
+  disputesResolved Int     @default(0)
+  avgRating       Float    @default(0)
+
+  createdAt       DateTime @default(now())
 }

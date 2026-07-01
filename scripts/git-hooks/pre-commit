@@ -38,6 +38,7 @@ ALLOWLIST_FILES=(
   'AGENTS.md'
   'scripts/git-hooks/pre-commit'
   '.github/'  # CI 配置
+  '.env.example'  # env 模板,占位符 (LTAIxxx / CHANGE_ME) 是预期内容
 )
 
 is_allowlisted() {

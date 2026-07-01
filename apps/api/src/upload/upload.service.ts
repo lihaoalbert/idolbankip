@@ -257,11 +257,18 @@ export class UploadService {
    * - 限制 maxBytes (默认 30MB) 防止恶意大文件拖垮 API
    */
   async getCertBuffer(ossKey: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
+    return this.getFileBuffer(ossKey, maxBytes);
+  }
+
+  /**
+   * #30.6.26 通用读 private 桶文件 Buffer (PDF 生成 / 图片处理).
+   * 与 getCertBuffer 同实现,只是名字更通用.
+   */
+  async getFileBuffer(ossKey: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
     const res = await this.privateClient.get(ossKey);
-    // ali-oss get returns { res, content } where content is Buffer
     let buf: Buffer = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content as ArrayBuffer);
     if (buf.length > maxBytes) {
-      throw new Error(`文件过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)}), 拒绝预览`);
+      throw new Error(`文件过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)})`);
     }
     return buf;
   }

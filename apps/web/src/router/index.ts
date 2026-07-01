@@ -11,6 +11,18 @@ const routes: RouteRecordRaw[] = [
   { path: '/contact', name: 'contact', component: () => import('@/pages/ContactPage.vue'), meta: { public: true } },
   { path: '/legal/originality-commitment', name: 'legal-originality-commitment', component: () => import('@/pages/OriginalityCommitmentPage.vue'), meta: { public: true } },
   {
+    path: '/studio/catalog',
+    name: 'studio-catalog',
+    component: () => import('@/pages/StudioCatalogPage.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/studio/standards',
+    name: 'studio-standards',
+    component: () => import('@/pages/StudioStandardsPage.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/guide/creator',
     name: 'creator-guide',
     component: () => import('@/pages/CreatorGuidePage.vue'),
@@ -120,6 +132,25 @@ const routes: RouteRecordRaw[] = [
     path: '/creator/api-keys',
     name: 'creator-api-keys',
     component: () => import('@/pages/creator/ApiKeysPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  // AIGC 众包 (#30.7.1)
+  {
+    path: '/buyer/brief/new',
+    name: 'buyer-brief-new',
+    component: () => import('@/pages/buyer/BriefNewPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
+  {
+    path: '/buyer/briefs/:id',
+    name: 'buyer-brief-detail',
+    component: () => import('@/pages/buyer/BriefDetailPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
+  {
+    path: '/creator/briefs',
+    name: 'creator-briefs',
+    component: () => import('@/pages/creator/BriefsBrowsePage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   // AI 助手 — 整页对话入口,浮动气泡在 AppLayout 常驻

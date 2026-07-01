@@ -36,6 +36,8 @@ prisma/migrations/dev/
 seed-assets/.cache
 seed-assets/ibi-ren-seed/.thumbnails-cache
 uploads/
+# Firecrawl CLI 本地缓存 (scrape/crawl 输出)
+.firecrawl/
 # tsc build 产物 (shared-contracts)
 packages/*/src/*.js
 packages/*/src/*.js.map
@@ -55,3 +57,10 @@ AGENTS.md
 形象-*.txt
 # 用户与第三方 AI 的讨论稿目录 (思考/草稿/调研, 不入库)
 sa/
+# .env 备份(可能含 dev DB 密码 — 误 commit 风险)
+.env.bak
+.env.*.bak
+# Playwright MCP 本地缓存(截图/录制/trace)与测试产物
+.playwright-mcp/
+apps/web/test-results/
+apps/admin/test-results/

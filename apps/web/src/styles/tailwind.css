@@ -67,10 +67,13 @@
 
 /* ============================================================
    Display font 工具类
+   - .font-display-italic: 设计意图原为 Cormorant Garamond italic accent,
+     但中文字符 fallback 后 italic 强制合成导致扭曲,看起来与其他字不协调。
+     2026-06-30: 去掉 font-style: italic, 统一为 serif 衬线,
+     accent 仅靠 text-gold 颜色区分。类名保留 (历史包袱) 以避免 100+ 处引用改动。
    ============================================================ */
 .font-display-italic {
   font-family: '"Cormorant Garamond"', '"Noto Serif SC"', serif;
-  font-style: italic;
   font-weight: 500;
 }
 

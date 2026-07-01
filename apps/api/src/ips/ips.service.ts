@@ -17,7 +17,8 @@ import { HonorService } from '../honor/honor.service';
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
   REVIEWED_PROOFING: ['PUBLIC_INTENT', 'REJECTED'],
-  PUBLIC_INTENT: ['OFFICIAL_REGISTERED', 'ARCHIVED'],
+  // 公示中 admin 可回退补料 (PUBLIC_INTENT → PENDING_REVIEW), 创作者改完重提交会重跑 proofing 出新 hash
+  PUBLIC_INTENT: ['OFFICIAL_REGISTERED', 'ARCHIVED', 'PENDING_REVIEW'],
   OFFICIAL_REGISTERED: ['ARCHIVED'],
   // 创作者被拒后可改 → 重提 (走 PENDING_REVIEW → 正常 submitForReview 流程)
   REJECTED: ['ARCHIVED', 'PENDING_REVIEW'],
@@ -447,6 +448,29 @@ export class IpsService {
     return rejected;
   }
 
+  /**
+   * #30.6.22 公示中回退补料 — admin 触发 PUBLIC_INTENT → PENDING_REVIEW
+   * - 不清空 blockchainHash/txId (proofing 重提交时会自动覆盖, 旧值由 AuditLog IP_TRANSITION_PENDING_REVIEW 留底)
+   * - 保留所有已上传文件 (faceCloseupFileId 等不动, 创作者可能已补传)
+   * - rejectionReason 写入 admin 给的 reason, 创作者端 wizard 直接看到
+   * - 走 notification 通知创作者 "已回退, 请改完后重新提交"
+   */
+  async adminDemoteToPendingReview(ipId: string, actorId: string, reason: string): Promise<IpAsset> {
+    const ip = await this.requireById(ipId);
+    if (ip.status !== 'PUBLIC_INTENT') {
+      throw new BadRequestException(`仅 PUBLIC_INTENT 状态可回退补料, 当前 ${ip.status}`);
+    }
+    const demoted = await this.transitionStatus(ip, 'PENDING_REVIEW', actorId, { rejectionReason: reason });
+    await this.notifications.create({
+      userId: demoted.creatorId,
+      type: 'IP_DEMOTED',
+      title: '资产已回退至待审核',
+      body: `${demoted.displayName} 已被管理员回退补料: ${reason}。请修改后重新提交。`,
+      link: `/creator/ips/${demoted.id}`,
+    });
+    return demoted;
+  }
+
   async adminRegisterCert(ipId: string, actorId: string, certNo: string): Promise<IpAsset> {
     const ip = await this.requireById(ipId);
     if (ip.status !== 'PUBLIC_INTENT') {
@@ -520,7 +544,7 @@ export class IpsService {
     });
     const creator = await this.prisma.user.findUnique({
       where: { id: ip.creatorId },
-      select: { id: true, email: true, displayName: true, roles: true, kycStatus: true },
+      select: { id: true, email: true, displayName: true, roles: true, kycStatus: true, avatarUrl: true, bio: true, createdAt: true },
     });
     return {
       ip,
@@ -598,7 +622,7 @@ export class IpsService {
       orderBy: { updatedAt: 'desc' },
       take: 200,
       include: {
-        creator: { select: { id: true, email: true, displayName: true, roles: true, kycStatus: true } },
+        creator: { select: { id: true, email: true, displayName: true, roles: true, kycStatus: true, avatarUrl: true } },
         files: { select: { id: true, assetType: true, validated: true } },
       },
     });
@@ -609,7 +633,7 @@ export class IpsService {
     if (ip.status === 'PENDING_REVIEW' || ip.status === 'REJECTED' || ip.status === 'ARCHIVED') {
       throw new NotFoundException('该 IP 暂不可见');
     }
-    // #30.6.20 加载捏脸师公开信息 — 用于详情页作者名旁的称号 chip
+    // #30.6.20 加载捏者公开信息 — 用于详情页作者名旁的称号 chip
     const creator = await this.prisma.user.findUnique({
       where: { id: ip.creatorId },
       select: { id: true, displayName: true, avatarUrl: true, bio: true, roles: true },

@@ -32,93 +32,166 @@ function statusLabel(s: string): string {
   }[s] || s;
 }
 
-function statusColor(s: string): string {
+function statusRoman(s: string): string {
   return {
-    DOWNLOAD_UNLOCKED: 'bg-success/15 text-success',
-    PAID: 'bg-gold/20 text-ink',
-    CONTRACT_PENDING: 'bg-ink/10 text-ink/70',
-    CREATED: 'bg-danger/10 text-danger',
-    REFUNDED: 'bg-ink/10 text-ink/50',
-  }[s] || 'bg-ink/10 text-ink/60';
+    CREATED: 'I',
+    PAID: 'II',
+    CONTRACT_PENDING: 'III',
+    CONTRACT_SIGNED: 'IV',
+    DOWNLOAD_UNLOCKED: 'V',
+    DELIVERED: 'VI',
+    REFUNDED: '—',
+    CANCELLED: '×',
+  }[s] || '?';
+}
+
+function statusVariant(s: string): 'pending' | 'success' | 'danger' | 'neutral' {
+  if (['DOWNLOAD_UNLOCKED', 'DELIVERED', 'CONTRACT_SIGNED'].includes(s)) return 'success';
+  if (['CREATED', 'REFUNDED', 'CANCELLED'].includes(s)) return 'danger';
+  if (s === 'PAID' || s === 'CONTRACT_PENDING') return 'pending';
+  return 'neutral';
 }
 
 onMounted(fetchOrders);
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-6 py-10">
-    <h1 class="font-display text-3xl mb-2">我的订单</h1>
-    <p class="text-sm text-ink/60 mb-8">查看所有已购与待支付订单</p>
+  <div class="bg-cream paper-grain min-h-screen">
 
-    <div v-if="loading" class="bg-surface rounded-2xl border border-line overflow-hidden">
-      <div class="p-4 border-b border-line bg-cream">
-        <Skeleton shape="line" width="30%" height-class="h-4" />
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · ORDER LEDGER</div>
+        <div class="catalog-no text-ink/40">VOL. I — ACQUISITIONS</div>
+        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
-      <div v-for="i in 4" :key="i" class="flex items-center gap-3 p-4 border-b border-line">
-        <Skeleton shape="circle" width-class="w-10 h-10" />
-        <div class="flex-1 space-y-2">
-          <Skeleton shape="line" width="40%" />
-          <Skeleton shape="line" width="20%" height-class="h-2" />
+    </header>
+
+    <main class="max-w-[1320px] mx-auto px-6 lg:px-10 py-12 md:py-16">
+      <!-- 章节头 -->
+      <div class="grid grid-cols-12 gap-4 mb-8">
+        <div class="col-span-3 catalog-no text-ink/50">№ 010</div>
+        <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER X — LEDGER</div>
+        <div class="col-span-3 col-start-9 catalog-no text-ink/50">PRIVATE DOSSIER</div>
+        <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">{{ orders.length }} ENTRIES</div>
+      </div>
+
+      <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
+        <h1 class="font-display text-6xl md:text-8xl text-ink leading-[0.9]">
+          我的<span class="font-display-italic text-gold">订</span>单
+        </h1>
+        <p class="text-sm text-ink/60 max-w-md leading-relaxed">
+          所有支付、授权合同、电子签状态都在此处归档 ·
+          每条订单都有唯一编号, 可在订单详情下载完整凭证。
+        </p>
+      </div>
+
+      <!-- 内容 -->
+      <div v-if="loading" class="bg-surface border-0.5 border-ink p-6">
+        <div class="flex items-baseline justify-between mb-6 pb-3 hairline-b border-line">
+          <span class="catalog-no text-ink/50">LOADING LEDGER…</span>
+          <span class="catalog-no text-ink/30">№ —</span>
         </div>
-        <Skeleton shape="line" width="15%" />
+        <div class="space-y-1">
+          <div v-for="i in 4" :key="i" class="flex items-center gap-4 py-4 hairline-b border-line">
+            <Skeleton shape="block" width-class="w-12 h-12" />
+            <div class="flex-1 space-y-2">
+              <Skeleton shape="line" width="40%" height-class="h-3" />
+              <Skeleton shape="line" width="20%" height-class="h-2" />
+            </div>
+            <Skeleton shape="line" width="15%" height-class="h-4" />
+          </div>
+        </div>
       </div>
-    </div>
-    <EmptyState
-      v-else-if="orders.length === 0"
-      icon="🧾"
-      title="还没有订单"
-      description="去形象库挑选一个数字人 IP,完成支付后会自动生成授权订单"
-      action-label="去形象库看看"
-      action-to="/ips"
-    />
-    <div v-else class="bg-surface rounded-2xl border border-line overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-cream border-b border-line text-xs text-ink/60">
-          <tr>
-            <th class="text-left p-4">IP</th>
-            <th class="text-left p-4">类型</th>
-            <th class="text-right p-4">金额</th>
-            <th class="text-left p-4">状态</th>
-            <th class="text-left p-4">创建时间</th>
-            <th class="p-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="o in orders"
-            :key="o.id"
-            class="border-b border-line hover:bg-cream/40 transition"
-          >
-            <td class="p-4">
-              <div class="flex items-center gap-3">
-                <img
-                  v-if="o.ip?.thumbnailKey"
-                  :src="thumbUrl(o.ip.thumbnailKey)"
-                  class="w-10 h-10 rounded object-cover"
-                />
-                <div>
-                  <div class="font-medium">{{ o.ip?.displayName }}</div>
-                  <div class="text-xs text-ink/40 font-mono">{{ o.ip?.code }}</div>
-                </div>
+
+      <div v-else-if="orders.length === 0" class="py-20">
+        <EmptyState
+          icon="◇"
+          title="— No entries yet —"
+          description="去形象库挑选一个数字人 IP, 完成支付后会自动生成授权订单"
+          action-label="BROWSE CATALOGUE"
+          action-to="/ips"
+        />
+      </div>
+
+      <!-- 订单列表 · 像图录的条目 -->
+      <div v-else class="bg-surface border-0.5 border-ink">
+        <!-- 表头 -->
+        <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-4 hairline-b border-line bg-cream/50 catalog-no text-ink/50">
+          <div class="col-span-4">PLATE · IP</div>
+          <div class="col-span-2">TYPE</div>
+          <div class="col-span-2 text-right">AMOUNT</div>
+          <div class="col-span-2">STATUS</div>
+          <div class="col-span-2 text-right">FILED</div>
+        </div>
+
+        <RouterLink
+          v-for="(o, idx) in orders"
+          :key="o.id"
+          :to="`/orders/${o.id}`"
+          class="block grid grid-cols-12 gap-4 px-6 py-5 hairline-b border-line items-center hover:bg-gold/5 transition group"
+        >
+          <!-- IP -->
+          <div class="col-span-12 md:col-span-4 flex items-center gap-4 min-w-0">
+            <div class="catalog-no text-gold shrink-0">{{ String(idx + 1).padStart(3, '0') }}</div>
+            <img
+              v-if="o.ip?.thumbnailKey"
+              :src="thumbUrl(o.ip.thumbnailKey)"
+              class="w-12 h-12 object-cover border-0.5 border-line shrink-0"
+              :alt="o.ip.displayName"
+            />
+            <div class="min-w-0">
+              <div class="font-display text-base text-ink truncate group-hover:text-gold transition">
+                {{ o.ip?.displayName }}
               </div>
-            </td>
-            <td class="p-4">
-              <span class="text-xs">{{ o.orderType === 'DEPOSIT_INTENT' ? '意向金' : '正式授权' }}</span>
-              <div v-if="o.licenseScope" class="text-xs text-ink/40 mt-0.5">{{ o.licenseScope }}</div>
-            </td>
-            <td class="p-4 text-right font-mono">{{ formatFen(o.amountFen) }}</td>
-            <td class="p-4">
-              <span :class="['px-2 py-0.5 text-xs rounded-full', statusColor(o.status)]">
-                {{ statusLabel(o.status) }}
-              </span>
-            </td>
-            <td class="p-4 text-xs text-ink/60">{{ new Date(o.createdAt).toLocaleString('zh-CN') }}</td>
-            <td class="p-4">
-              <RouterLink :to="`/orders/${o.id}`" class="text-xs text-gold hover:underline">查看 →</RouterLink>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              <div class="font-mono text-xs text-ink/40 truncate">{{ o.ip?.code }}</div>
+            </div>
+          </div>
+
+          <!-- 类型 -->
+          <div class="col-span-6 md:col-span-2">
+            <div class="font-sans text-sm text-ink">
+              {{ o.orderType === 'DEPOSIT_INTENT' ? '意向金 / 测试期' : '正式授权' }}
+            </div>
+            <div v-if="o.licenseScope" class="font-mono text-xs text-ink/40 mt-0.5 truncate">
+              {{ o.licenseScope }}
+            </div>
+          </div>
+
+          <!-- 金额 -->
+          <div class="col-span-6 md:col-span-2 md:text-right">
+            <div class="font-display text-lg text-ink">{{ formatFen(o.amountFen) }}</div>
+          </div>
+
+          <!-- 状态 -->
+          <div class="col-span-6 md:col-span-2">
+            <span
+              :class="[
+                'inline-flex items-center gap-2 px-2 py-1 text-xs catalog-no',
+                statusVariant(o.status) === 'success' ? 'bg-success/10 text-success' :
+                statusVariant(o.status) === 'danger' ? 'bg-danger/10 text-danger' :
+                statusVariant(o.status) === 'pending' ? 'bg-gold/15 text-ink' :
+                'bg-ink/5 text-ink/60'
+              ]"
+            >
+              <span class="text-gold">{{ statusRoman(o.status) }}</span>
+              <span>{{ statusLabel(o.status) }}</span>
+            </span>
+          </div>
+
+          <!-- 时间 -->
+          <div class="col-span-6 md:col-span-2 md:text-right text-xs text-ink/60 font-mono">
+            {{ new Date(o.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
+          </div>
+        </RouterLink>
+
+        <!-- 底部 colophon -->
+        <div class="px-6 py-4 flex items-center justify-between catalog-no text-ink/40">
+          <span>END OF LEDGER</span>
+          <span>FILED UNDER MEMBER {{ $route.meta.requiresAuth ? 'AUTH' : '—' }}</span>
+          <span>© 2026 IBI.REN</span>
+        </div>
+      </div>
+    </main>
   </div>
 </template>

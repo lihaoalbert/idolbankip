@@ -1026,22 +1026,54 @@ const stepMeta = [
 
 <template>
   <!-- 加载骨架 -->
-  <div v-if="loading" class="max-w-4xl mx-auto px-6 py-10 space-y-6">
-    <Skeleton shape="line" width="40%" height-class="h-6" />
-    <Skeleton shape="line" width="60%" height-class="h-3" />
-    <Skeleton shape="block" aspect="16/3" width-class="w-full rounded-2xl" />
-    <Skeleton shape="line" :lines="5" />
+  <div v-if="loading" class="bg-cream paper-grain min-h-screen py-16">
+    <div class="max-w-4xl mx-auto px-6 space-y-6">
+      <Skeleton shape="line" width="40%" height-class="h-6" />
+      <Skeleton shape="line" width="60%" height-class="h-3" />
+      <Skeleton shape="block" aspect="16/3" width-class="w-full" />
+      <Skeleton shape="line" :lines="5" />
+    </div>
   </div>
 
-  <div v-else class="max-w-4xl mx-auto px-6 py-10">
-    <RouterLink to="/creator" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回捏脸师中心</RouterLink>
-    <!-- 标题区 + 顶部右侧面部特写入口 — 跨步骤、新建/已建都可见 (修了 #30.6.11 v-else 漏改) -->
-    <div class="flex items-start justify-between mb-2 gap-4">
+  <div v-else class="bg-cream paper-grain min-h-screen">
+
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · PLATE WIZARD</div>
+        <div class="catalog-no text-ink/40">VOL. I — {{ isNew ? 'NEW ENTRY' : 'EDIT' }}</div>
+        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-6 lg:px-10 py-10 md:py-14 relative z-10">
+
+    <RouterLink to="/creator" class="catalog-no text-ink/50 hover:text-gold transition inline-flex items-center gap-2 mb-6">
+      <span>←</span><span>RETURN TO STUDIO</span>
+    </RouterLink>
+
+    <!-- 章节头 -->
+    <div class="grid grid-cols-12 gap-4 mb-6">
+      <div class="col-span-3 catalog-no text-ink/50">№ 033</div>
+      <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER XXXIII — WIZARD</div>
+      <div class="col-span-3 col-start-9 catalog-no text-ink/50">{{ stepMeta[step - 1].label }}</div>
+      <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">STEP {{ step }} / 3</div>
+    </div>
+
+    <!-- 标题区 + 顶部右侧面部特写入口 -->
+    <div class="flex items-start justify-between mb-8 gap-4">
       <div class="min-w-0 flex-1">
-        <h1 v-if="ip" class="font-display text-3xl truncate">{{ ip.displayName }}</h1>
-        <h1 v-else class="font-display text-3xl">创建新 IP</h1>
-        <span v-if="ip" class="font-mono text-xs text-ink/40">{{ ip.code }}</span>
-        <p v-else class="text-sm text-ink/60 mt-1">填写基础信息后,下一步上传资产包,完整度 100% 即可提交审核</p>
+        <h1 v-if="ip" class="font-display text-4xl md:text-6xl text-ink truncate leading-[0.95]">
+          {{ ip.displayName }}<span class="font-display-italic text-gold">.</span>
+        </h1>
+        <h1 v-else class="font-display text-4xl md:text-6xl text-ink leading-[0.95]">
+          创建新 <span class="font-display-italic text-gold">IP</span>
+        </h1>
+        <span v-if="ip" class="catalog-no text-ink/40 block mt-2">{{ ip.code }}</span>
+        <p v-else class="text-sm text-ink/60 mt-3 max-w-md leading-relaxed">
+          填写基础信息后, 下一步上传资产包 ·
+          <span class="font-display-italic text-ink">完整度 100% 即可提交审核</span>
+        </p>
       </div>
       <!-- #30.6.11 顶部右侧 — 面部特写入口 + 缩略图, 1-2-3 步上方, 跨步骤可见 -->
       <div class="shrink-0 flex flex-col items-end gap-1.5">
@@ -1140,45 +1172,51 @@ const stepMeta = [
     <div
       v-if="ip && statusBanner(ip.status)"
       :class="[
-        'mb-6 p-4 rounded-2xl border text-sm',
+        'mb-8 p-5 border-0.5 text-sm',
         statusBanner(ip.status)!.type === 'info' ? 'bg-gold/10 border-gold/30' :
         statusBanner(ip.status)!.type === 'success' ? 'bg-success/10 border-success/30' :
         statusBanner(ip.status)!.type === 'danger' ? 'bg-danger/10 border-danger/30' :
         'bg-ink/5 border-ink/10',
       ]"
     >
-      <div class="font-medium mb-1">{{ statusBanner(ip.status)!.title }}</div>
+      <div class="font-display text-base mb-2">{{ statusBanner(ip.status)!.title }}</div>
       <div class="text-ink/70 leading-relaxed">{{ statusBanner(ip.status)!.body }}</div>
       <div
         v-if="statusBanner(ip.status)!.detail"
-        class="mt-2 p-2.5 bg-danger/15 border border-danger/30 rounded-lg text-danger text-sm whitespace-pre-line"
+        class="mt-3 p-3 bg-danger/15 border-0.5 border-danger/30 text-danger text-sm whitespace-pre-line"
       >
-        <span class="font-medium">原因:</span> {{ statusBanner(ip.status)!.detail }}
+        <span class="catalog-no text-danger mr-2">REASON</span>
+        {{ statusBanner(ip.status)!.detail }}
       </div>
     </div>
 
-    <!-- 步骤进度条 (sticky) -->
-    <div class="sticky top-16 z-20 bg-cream/90 backdrop-blur -mx-6 px-6 py-4 mb-6 border-b border-line">
-      <div class="flex items-center gap-3">
+    <!-- 步骤进度条 (sticky) · 档案版次切换 -->
+    <div class="sticky top-16 z-20 bg-cream/90 backdrop-blur -mx-6 px-6 py-4 mb-8 border-b hairline-b border-line">
+      <div class="flex items-center gap-2">
         <template v-for="(s, idx) in stepMeta" :key="s.num">
           <button
             type="button"
             @click="jumpTo(s.num)"
             :disabled="s.num > 1 && !(s.num === 2 ? step1Done : step2Done)"
             :class="[
-              'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition',
+              'flex items-center gap-3 px-4 py-2 text-sm transition border-0.5',
               step === s.num
-                ? 'bg-ink text-cream'
+                ? 'bg-ink text-cream border-ink'
                 : (s.num === 1 ? step1Done : s.num === 2 ? step1Done : step2Done)
-                  ? 'bg-success/15 text-success hover:bg-success/25'
-                  : 'bg-line/60 text-ink/40 cursor-not-allowed',
+                  ? 'border-success/40 text-success hover:bg-success/10'
+                  : 'border-line text-ink/40 cursor-not-allowed',
             ]"
           >
             <span :class="[
-              'inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-mono',
-              step === s.num ? 'bg-cream text-ink' : 'bg-white/60 text-current',
-            ]">{{ (s.num === 1 ? step1Done : s.num === 2 ? step1Done : step2Done) && step !== s.num ? '✓' : s.num }}</span>
-            <span class="font-medium">{{ s.label }}</span>
+              'inline-flex items-center justify-center w-7 h-7 text-xs font-mono border-0.5',
+              step === s.num ? 'bg-cream text-ink border-cream' :
+              ((s.num === 1 ? step1Done : s.num === 2 ? step1Done : step2Done) && step !== s.num) ? 'bg-success/10 border-success/40' :
+              'bg-cream border-line'
+            ]">
+              <span v-if="(s.num === 1 ? step1Done : s.num === 2 ? step1Done : step2Done) && step !== s.num">✓</span>
+              <span v-else class="font-display">{{ s.num }}</span>
+            </span>
+            <span class="font-display tracking-wide">{{ s.label }}</span>
           </button>
           <div v-if="idx < stepMeta.length - 1" class="flex-1 h-px bg-line" />
         </template>
@@ -1186,8 +1224,13 @@ const stepMeta = [
     </div>
 
     <!-- 步骤 1: 基础信息 -->
-    <section v-show="step === 1" class="bg-surface rounded-2xl border border-line p-6 space-y-5">
-      <h2 class="font-display text-lg">① 基础信息</h2>
+    <section v-show="step === 1" class="bg-surface border-0.5 border-ink p-6 md:p-8 mb-10 relative">
+      <div class="absolute -top-3 left-8">
+        <div class="stamp text-gold border-gold bg-cream">STEP 01</div>
+      </div>
+      <div class="catalog-no text-ink/50 mb-6 pb-3 hairline-b border-line">
+        — 01 — BASE INFO · 基础信息
+      </div>
       <!-- #30.6.11 面部特写快速通道已挪到顶部右侧, 此处不再展示上传卡 -->
       <!-- #30 任务接单模式 banner — 预填 spec + 提示"版权归平台" -->
       <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-xl space-y-2">
@@ -1376,15 +1419,21 @@ const stepMeta = [
     </section>
 
     <!-- 步骤 2: 资产包 -->
-    <section v-show="step === 2" class="bg-surface rounded-2xl border border-line p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-display text-lg">② 资产包</h2>
-        <div class="text-xs text-ink/60">
-          必填 3 图 + 小传自动 / 选填 4 项 · 当前完成度
-          <span class="font-mono ml-1" :class="completion === 100 ? 'text-success' : 'text-gold'">{{ completion }}%</span>
+    <section v-show="step === 2" class="bg-surface border-0.5 border-ink p-6 md:p-8 mb-10 relative">
+      <div class="absolute -top-3 left-8">
+        <div class="stamp text-gold border-gold bg-cream">STEP 02</div>
+      </div>
+      <div class="catalog-no text-ink/50 mb-6 pb-3 hairline-b border-line">
+        — 02 — ASSET PACKAGE · 资产包
+      </div>
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div class="font-display text-2xl text-ink">资产包 <span class="font-display-italic text-gold">/</span> ASSETS</div>
+        <div class="catalog-no text-ink/50">
+          REQUIRED · 3 IMG + AUTO BIO / OPTIONAL · 4 ITEMS · COMPLETENESS
+          <span class="font-display text-lg ml-2" :class="completion === 100 ? 'text-success' : 'text-gold'">{{ completion }}%</span>
         </div>
       </div>
-      <div class="h-1 bg-cream rounded-full overflow-hidden mb-6">
+      <div class="h-1 bg-cream overflow-hidden mb-6">
         <div class="h-full bg-gold transition-all" :style="{ width: completion + '%' }" />
       </div>
       <div v-if="!ip" class="p-6 bg-cream/60 rounded-xl text-center text-sm text-ink/60">
@@ -1724,8 +1773,14 @@ const stepMeta = [
     </section>
 
     <!-- 步骤 3: 预览提交 -->
-    <section v-show="step === 3" class="bg-surface rounded-2xl border border-line p-6">
-      <h2 class="font-display text-lg mb-4">③ 预览提交</h2>
+    <section v-show="step === 3" class="bg-surface border-0.5 border-ink p-6 md:p-8 mb-10 relative">
+      <div class="absolute -top-3 left-8">
+        <div class="stamp text-gold border-gold bg-cream">STEP 03</div>
+      </div>
+      <div class="catalog-no text-ink/50 mb-6 pb-3 hairline-b border-line">
+        — 03 — REVIEW & SUBMIT · 预览提交
+      </div>
+      <div class="font-display text-2xl text-ink mb-6">预览 <span class="font-display-italic text-gold">/</span> 提交</div>
       <div v-if="!ip" class="p-6 bg-cream/60 rounded-xl text-center text-sm text-ink/60">
         请先完成步骤 ① + ②
       </div>
@@ -1833,13 +1888,26 @@ const stepMeta = [
       </div>
     </section>
 
-    <!-- #30.6.15 图片灯箱 — 点缩略图放大, AI 生成图可下载/重新生成 -->
-    <ImageLightbox
-      v-model:visible="lightboxVisible"
-      :file="lightboxFile"
-      :ip-id="ipId || ''"
-      @regenerate="aiGenerateImage"
-    />
+    </main>
+
+    <!-- 底部 colophon -->
+    <footer class="hairline-t border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+        <span>CAT. WIZARD-033</span>
+        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>© 2026 IBI.REN</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- #30.6.15 图片灯箱 — 点缩略图放大, AI 生成图可下载/重新生成 -->
+  <ImageLightbox
+    v-model:visible="lightboxVisible"
+    :file="lightboxFile"
+    :ip-id="ipId || ''"
+    @regenerate="aiGenerateImage"
+  />
 
     <!-- #30.6.16 Prompt 说明书预览弹窗 -->
     <Teleport to="body">
@@ -1891,5 +1959,4 @@ const stepMeta = [
         </div>
       </Transition>
     </Teleport>
-  </div>
 </template>

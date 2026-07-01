@@ -498,7 +498,7 @@ export class HonorService {
         return {
           rank: i + 1,
           userId: g.userId,
-          displayName: u?.displayName ?? '匿名捏脸师',
+          displayName: u?.displayName ?? '匿名捏者',
           avatarUrl: u?.avatarUrl ?? null,
           roles: u?.roles ?? null,
           periodPoints: g._sum.delta ?? 0,
@@ -534,7 +534,7 @@ export class HonorService {
       orderBy: { minPoints: 'desc' },
     });
     if (!lvl) {
-      return { level: 1, minPoints: 0, title: '新人捏脸师', icon: '🌱', colorHex: '#9CA3AF' };
+      return { level: 1, minPoints: 0, title: '新人捏者', icon: '🌱', colorHex: '#9CA3AF' };
     }
     return {
       level: lvl.level,

@@ -1,5 +1,5 @@
 /**
- * scripts/seed-honor.ts — 捏脸师荣誉系统规则种子
+ * scripts/seed-honor.ts — 捏者荣誉系统规则种子
  *
  * 把所有业务规则 (奖励分值 / 等级阈值 / 徽章条件) upsert 到 DB,
  * 代码只读不写。修改规则 = 改这个文件 + 跑一次种子, 无需改代码逻辑。
@@ -72,34 +72,34 @@ interface LevelSeed {
 }
 
 const LEVELS: LevelSeed[] = [
-  { level: 1, minPoints: 0, title: '新人捏脸师', icon: '🌱', colorHex: '#9CA3AF' },
-  { level: 2, minPoints: 200, title: '新手捏脸师', icon: '🌱', colorHex: '#9CA3AF' },
-  { level: 3, minPoints: 500, title: '进阶捏脸师', icon: '🌱', colorHex: '#9CA3AF' },
-  { level: 4, minPoints: 800, title: '潜力捏脸师', icon: '🌱', colorHex: '#9CA3AF' },
-  { level: 5, minPoints: 1500, title: '合格捏脸师', icon: '🌱', colorHex: '#9CA3AF' },
+  { level: 1, minPoints: 0, title: '新人捏者', icon: '🌱', colorHex: '#9CA3AF' },
+  { level: 2, minPoints: 200, title: '新手捏者', icon: '🌱', colorHex: '#9CA3AF' },
+  { level: 3, minPoints: 500, title: '进阶捏者', icon: '🌱', colorHex: '#9CA3AF' },
+  { level: 4, minPoints: 800, title: '潜力捏者', icon: '🌱', colorHex: '#9CA3AF' },
+  { level: 5, minPoints: 1500, title: '合格捏者', icon: '🌱', colorHex: '#9CA3AF' },
 
-  { level: 6, minPoints: 2500, title: '灵感捏脸师', icon: '✨', colorHex: '#CD7F32' },
-  { level: 7, minPoints: 4000, title: '活跃捏脸师', icon: '✨', colorHex: '#CD7F32' },
-  { level: 8, minPoints: 6000, title: '高产捏脸师', icon: '✨', colorHex: '#CD7F32' },
-  { level: 9, minPoints: 9000, title: '勤奋捏脸师', icon: '✨', colorHex: '#CD7F32' },
-  { level: 10, minPoints: 12000, title: '精英捏脸师', icon: '✨', colorHex: '#CD7F32' },
+  { level: 6, minPoints: 2500, title: '灵感捏者', icon: '✨', colorHex: '#CD7F32' },
+  { level: 7, minPoints: 4000, title: '活跃捏者', icon: '✨', colorHex: '#CD7F32' },
+  { level: 8, minPoints: 6000, title: '高产捏者', icon: '✨', colorHex: '#CD7F32' },
+  { level: 9, minPoints: 9000, title: '勤奋捏者', icon: '✨', colorHex: '#CD7F32' },
+  { level: 10, minPoints: 12000, title: '精英捏者', icon: '✨', colorHex: '#CD7F32' },
 
-  { level: 11, minPoints: 16000, title: '匠心捏脸师', icon: '🎨', colorHex: '#C0C0C0' },
-  { level: 15, minPoints: 30000, title: '资深捏脸师', icon: '🎨', colorHex: '#C0C0C0' },
-  { level: 20, minPoints: 50000, title: '专家捏脸师', icon: '🎨', colorHex: '#C0C0C0' },
+  { level: 11, minPoints: 16000, title: '匠心捏者', icon: '🎨', colorHex: '#C0C0C0' },
+  { level: 15, minPoints: 30000, title: '资深捏者', icon: '🎨', colorHex: '#C0C0C0' },
+  { level: 20, minPoints: 50000, title: '专家捏者', icon: '🎨', colorHex: '#C0C0C0' },
   { level: 25, minPoints: 80000, title: '高级专家', icon: '🎨', colorHex: '#C0C0C0' },
   { level: 30, minPoints: 120000, title: '资深专家', icon: '🎨', colorHex: '#C0C0C0' },
 
-  { level: 35, minPoints: 180000, title: '大师捏脸师', icon: '🏆', colorHex: '#FFD700' },
+  { level: 35, minPoints: 180000, title: '大师捏者', icon: '🏆', colorHex: '#FFD700' },
   { level: 40, minPoints: 250000, title: '资深大师', icon: '🏆', colorHex: '#FFD700' },
   { level: 45, minPoints: 350000, title: '顶级大师', icon: '🏆', colorHex: '#FFD700' },
   { level: 50, minPoints: 500000, title: '殿堂大师', icon: '🏆', colorHex: '#FFD700' },
 
-  { level: 60, minPoints: 800000, title: '传奇捏脸师', icon: '💎', colorHex: '#E5E4E2' },
+  { level: 60, minPoints: 800000, title: '传奇捏者', icon: '💎', colorHex: '#E5E4E2' },
   { level: 70, minPoints: 1200000, title: '超凡传奇', icon: '💎', colorHex: '#E5E4E2' },
   { level: 80, minPoints: 1800000, title: '神话传奇', icon: '💎', colorHex: '#E5E4E2' },
   { level: 90, minPoints: 2500000, title: '永恒传奇', icon: '💎', colorHex: '#E5E4E2' },
-  { level: 100, minPoints: 5000000, title: '造物捏脸师', icon: '💎', colorHex: '#E5E4E2' },
+  { level: 100, minPoints: 5000000, title: '造物捏者', icon: '💎', colorHex: '#E5E4E2' },
 ];
 
 // ===================== HonorBadge (徽章目录) =====================
@@ -124,7 +124,7 @@ const BADGES: BadgeSeed[] = [
   { code: 'STREAK_3', name: '三日不灭火', desc: '连续活跃 3 天', icon: '🔥', tier: BadgeTier.BRONZE, conditionJson: { type: 'STREAK_GTE', threshold: 3 }, sortOrder: 104 },
 
   // 📈 成长 (青铜 → 白银)
-  { code: 'FIVE_IPS', name: '量产捏脸师', desc: '累计发布 5 个 IP', icon: '📚', tier: BadgeTier.BRONZE, conditionJson: { type: 'TOTAL_IPS_GTE', threshold: 5 }, sortOrder: 200 },
+  { code: 'FIVE_IPS', name: '量产捏者', desc: '累计发布 5 个 IP', icon: '📚', tier: BadgeTier.BRONZE, conditionJson: { type: 'TOTAL_IPS_GTE', threshold: 5 }, sortOrder: 200 },
   { code: 'TEN_IPS', name: '工业化产出', desc: '累计发布 10 个 IP', icon: '🏭', tier: BadgeTier.SILVER, conditionJson: { type: 'TOTAL_IPS_GTE', threshold: 10 }, sortOrder: 201 },
   { code: 'VIEWS_1K', name: '千次浏览', desc: '全部 IP 总浏览 ≥ 1,000', icon: '👁', tier: BadgeTier.BRONZE, conditionJson: { type: 'TOTAL_VIEWS_GTE', threshold: 1000 }, sortOrder: 202 },
   { code: 'VIEWS_10K', name: '万人围观', desc: '全部 IP 总浏览 ≥ 10,000', icon: '💯', tier: BadgeTier.SILVER, conditionJson: { type: 'TOTAL_VIEWS_GTE', threshold: 10000 }, sortOrder: 203 },
@@ -156,7 +156,7 @@ const BADGES: BadgeSeed[] = [
   { code: 'NIGHT_OWL', name: '夜行者', desc: '凌晨 0-5 点发布 10 个 IP', icon: '🌙', tier: BadgeTier.GOLD, conditionJson: { type: 'NIGHT_PUBLISH_GTE', threshold: 10 }, sortOrder: 600 },
   { code: 'FLASH_HAND', name: '闪电手', desc: '1 分钟内完成 10 个有效操作', icon: '⚡', tier: BadgeTier.GOLD, conditionJson: { type: 'BURST_ACTIONS_GTE', threshold: 10 }, sortOrder: 601 },
   { code: 'BUG_HUNTER', name: '缺陷猎手', desc: '报告有效 bug/违规 → 被采纳', icon: '🐛', tier: BadgeTier.GOLD, conditionJson: { type: 'CONTENT_REPORTED_GTE', threshold: 1 }, sortOrder: 602 },
-  { code: 'MENTOR', name: '伯乐', desc: '推荐新捏脸师, 该用户发布首个 IP', icon: '🎁', tier: BadgeTier.GOLD, conditionJson: { type: 'REFERRAL_SUCCESS_GTE', threshold: 1 }, sortOrder: 603 },
+  { code: 'MENTOR', name: '伯乐', desc: '推荐新捏者, 该用户发布首个 IP', icon: '🎁', tier: BadgeTier.GOLD, conditionJson: { type: 'REFERRAL_SUCCESS_GTE', threshold: 1 }, sortOrder: 603 },
   { code: 'BETA_VETERAN', name: '内测元老', desc: '2026 年内注册的种子期用户', icon: '🧪', tier: BadgeTier.GOLD, conditionJson: { type: 'JOINED_BEFORE', threshold: '2027-01-01' }, sortOrder: 604 },
   { code: 'CROSS_DOMAIN', name: '跨域先驱', desc: '单个 IP 涵盖 ≥ 3 个 styleTags', icon: '🌍', tier: BadgeTier.GOLD, conditionJson: { type: 'IP_STYLETAGS_GTE', threshold: 3 }, sortOrder: 605 },
 

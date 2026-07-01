@@ -8,8 +8,9 @@
 //
 // 重置: 同名脚本 idempotent, 重跑安全
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // 在多个位置找 .env (script 既可能在 scripts/ 也可能在 apps/api/ 下被调用)
@@ -38,10 +39,12 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',         // web dev
   'http://localhost:5173',         // web vite dev
   'http://localhost:8080',         // 镜像端口
-  'https://ibi.ren',
+  'https://ibi.ren',               // 生产主域
   'https://www.ibi.ren',
+  'https://admin.ibi.ren',         // 后台独立子域 (2026-06-30 备案完成)
   'http://ibi.ren',
   'http://www.ibi.ren',
+  'http://admin.ibi.ren',
 ];
 
 const buckets = [env.OSS_BUCKET_PRIVATE, env.OSS_BUCKET_PUBLIC, env.OSS_BUCKET_CONTRACTS]
@@ -52,9 +55,10 @@ if (buckets.length === 0) {
 }
 
 const apiRoot = resolve(envPath, '..');
-// ali-oss 的 main 是 ./lib/client.js, 包名直接 import 最稳 (Node 走 package.json exports)
-process.chdir(apiRoot);
-const { default: OSS } = await import('ali-oss');
+// ali-oss 用 pnpm 装在 apps/api/node_modules, ESM bare specifier 不会从 cwd 解析,
+// 用 createRequire(apiRoot/package.json) 强制走 apps/api 的 module resolution
+const localRequire = createRequire(join(apiRoot, 'package.json'));
+const OSS = localRequire('ali-oss');
 
 const rules = [{
   allowedOrigin: ALLOWED_ORIGINS,

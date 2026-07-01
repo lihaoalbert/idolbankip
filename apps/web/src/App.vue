@@ -40,6 +40,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
+          <RouterLink to="/studio/catalog" class="hover:text-gold">标准服务</RouterLink>
+          <RouterLink to="/studio/standards" class="hover:text-gold">平台标准</RouterLink>
           <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
           <RouterLink to="/assistant" class="hover:text-gold">AI 助手</RouterLink>
           <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">捏者中心</RouterLink>
@@ -182,7 +184,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
           <ul class="space-y-1.5 text-xs text-ink/60">
             <li>🐧 企业微信: <span class="font-mono">ibi-ren-biz</span></li>
             <li>📧 邮箱: <a href="mailto:biz@ibi.ren" class="text-gold hover:underline">biz@ibi.ren</a></li>
-            <li>📞 电话: <span class="font-mono">400-xxx-xxxx</span> (工作日 10:00–19:00)</li>
+            <li>📞 电话: <span class="font-mono">400 880 1380</span> (工作日 10:00–19:00)</li>
             <li><RouterLink to="/contact" class="text-gold hover:underline">联系商务 →</RouterLink></li>
           </ul>
         </div>
@@ -197,8 +199,17 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
           </ul>
         </div>
       </div>
-      <div class="max-w-7xl mx-auto px-6 mt-8 pt-6 border-t border-line text-center text-xs text-ink/40">
-        © 2026 ibi.ren · Idol Bank IP
+      <div class="max-w-7xl mx-auto px-6 mt-8 pt-6 border-t border-line text-center text-xs text-ink/40 space-y-1">
+        <div>© 2026 ibi.ren · Idol Bank IP</div>
+        <div>
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-ink"
+            >沪ICP备11033154号-29</a
+          >
+        </div>
       </div>
     </footer>
   </div>

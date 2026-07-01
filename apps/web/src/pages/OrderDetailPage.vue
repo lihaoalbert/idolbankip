@@ -10,6 +10,8 @@ const toast = useToast();
 const orderId = computed(() => route.params.id as string);
 const order = ref<any>(null);
 const loading = ref(true);
+const files = ref<any[]>([]);
+const filesLoading = ref(false);
 
 async function fetchOrder() {
   loading.value = true;
@@ -19,6 +21,15 @@ async function fetchOrder() {
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '加载订单失败');
   } finally { loading.value = false; }
+}
+
+async function fetchFiles() {
+  if (!canDownload.value) return;
+  filesLoading.value = true;
+  try {
+    const { data } = await apiClient.get('/download/list', { params: { orderId: orderId.value } });
+    files.value = data.files;
+  } finally { filesLoading.value = false; }
 }
 
 async function buyerSignContract() {
@@ -34,7 +45,6 @@ async function buyerSignContract() {
 
 async function adminSignContract() {
   if (!order.value.contract) return;
-  // 仅 admin 可调;前端兜底
   try {
     await apiClient.post(`/contracts/${order.value.contract.id}/platform-sign`);
     toast.success('平台签署成功');
@@ -46,15 +56,10 @@ async function adminSignContract() {
 
 async function downloadContract() {
   if (!order.value.contract) return;
-  // 后端返回 Content-Disposition: attachment; filename*=UTF-8''...,浏览器自动保存
-  // 不能直接 <a href> 因为没带 Authorization,会 401
-  // 用 fetch 拿 blob + a.click 触发下载
   try {
     const { data } = await apiClient.get(`/contracts/${order.value.contract.id}/file`, {
       responseType: 'blob',
     });
-    const cd = (data as any).type; // 这里拿不到 headers (axios blob 模式)
-    // 通用做法: 从 createObjectURL + a[download] 触发
     const blob = new Blob([data as any], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -75,144 +80,298 @@ const canDownload = computed(() =>
 );
 
 async function requestDownload(fileId: string) {
-  const { data } = await apiClient.post('/download/token', {
-    orderId: orderId.value,
-    fileId,
-  });
-  window.open(data.url, '_blank');
+  try {
+    const { data } = await apiClient.post('/download/token', { orderId: orderId.value, fileId });
+    window.open(data.url, '_blank');
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '生成下载链接失败');
+  }
 }
 
-onMounted(fetchOrder);
+const STAGES = [
+  { key: 'CREATED', label: '下单', roman: 'I' },
+  { key: 'PAID', label: '支付', roman: 'II' },
+  { key: 'CONTRACT_PENDING', label: '合同', roman: 'III' },
+  { key: 'DOWNLOAD_UNLOCKED', label: '下载', roman: 'IV' },
+];
+
+function stageState(stageKey: string): 'done' | 'current' | 'pending' {
+  const status = order.value?.status;
+  const order_index = STAGES.findIndex(s => s.key === stageKey);
+  const status_index = STAGES.findIndex(s => s.key === status);
+  if (status === 'DELIVERED' || status === 'CONTRACT_SIGNED') return 'done';
+  if (order_index < status_index) return 'done';
+  if (order_index === status_index) return 'current';
+  return 'pending';
+}
+
+function shortId(id: string, len = 8): string {
+  return id ? id.slice(-len).toUpperCase() : '—';
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return '—';
+  return new Date(s).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtSize(bytes?: number): string {
+  if (!bytes) return '—';
+  const mb = bytes / (1024 * 1024);
+  if (mb > 1) return `${mb.toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+onMounted(async () => {
+  await fetchOrder();
+  await fetchFiles();
+});
 </script>
 
 <template>
-  <div v-if="loading" class="max-w-4xl mx-auto px-6 py-10 space-y-6">
-    <div class="bg-surface rounded-2xl border border-line p-6">
-      <Skeleton shape="line" width="30%" height-class="h-4" />
-      <Skeleton class="mt-4" shape="line" width="100%" height-class="h-1" />
-    </div>
-    <div class="bg-surface rounded-2xl border border-line p-6 space-y-3">
-      <Skeleton shape="line" width="20%" height-class="h-4" />
-      <Skeleton shape="line" :lines="5" />
-    </div>
-  </div>
-  <div v-else-if="order" class="max-w-4xl mx-auto px-6 py-10">
-    <RouterLink to="/orders" class="text-xs text-ink/50 hover:text-ink mb-4 inline-block">← 返回订单列表</RouterLink>
+  <div class="bg-cream paper-grain min-h-screen">
 
-    <h1 class="font-display text-3xl mb-6">订单详情</h1>
+    <!-- 顶部条 -->
+    <header class="hairline-b border-line">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
+        <div class="catalog-no text-ink/50">ibi.ren · ORDER DOSSIER</div>
+        <div class="catalog-no text-ink/40">VOL. I — {{ shortId(orderId) }}</div>
+        <div class="catalog-no text-ink/30">{{ fmtDate(order?.createdAt).split(' ')[0] }}</div>
+      </div>
+    </header>
 
-    <!-- 进度时间线 -->
-    <div class="bg-surface rounded-2xl border border-line p-6 mb-6">
-      <div class="flex items-center justify-between text-sm">
-        <span :class="['flex-1 text-center', order.status !== 'CREATED' ? 'text-success' : 'text-ink/40']">下单</span>
-        <span :class="['flex-1 text-center', ['PAID','CONTRACT_PENDING','CONTRACT_SIGNED','DOWNLOAD_UNLOCKED','DELIVERED'].includes(order.status) ? 'text-success' : 'text-ink/40']">支付</span>
-        <span :class="['flex-1 text-center', ['CONTRACT_PENDING','CONTRACT_SIGNED','DOWNLOAD_UNLOCKED','DELIVERED'].includes(order.status) ? 'text-success' : 'text-ink/40']">合同</span>
-        <span :class="['flex-1 text-center', ['DOWNLOAD_UNLOCKED','DELIVERED'].includes(order.status) ? 'text-success' : 'text-ink/40']">下载</span>
+    <main class="max-w-5xl mx-auto px-6 lg:px-10 py-12 md:py-16">
+      <!-- 章节头 -->
+      <div class="mb-10">
+        <RouterLink to="/orders" class="catalog-no text-ink/50 hover:text-gold transition inline-flex items-center gap-2 mb-4">
+          <span>←</span><span>RETURN TO LEDGER</span>
+        </RouterLink>
+        <div class="flex items-baseline justify-between flex-wrap gap-4">
+          <h1 class="font-display text-5xl md:text-7xl text-ink leading-[0.95]">
+            订单<span class="font-display-italic text-gold">详</span>情
+          </h1>
+          <div class="catalog-no text-ink/50">№ {{ shortId(orderId, 12) }}</div>
+        </div>
       </div>
-      <div class="mt-3 h-1 bg-cream rounded-full overflow-hidden">
-        <div
-          class="h-full bg-success transition-all"
-          :style="{
-            width: ({
-              CREATED: '0%',
-              PAID: '33%',
-              CONTRACT_PENDING: '50%',
-              CONTRACT_SIGNED: '75%',
-              DOWNLOAD_UNLOCKED: '100%',
-              DELIVERED: '100%',
-            } as any)[order.status] || '0%'
-          }"
-        />
-      </div>
-    </div>
 
-    <!-- 订单信息 -->
-    <div class="bg-surface rounded-2xl border border-line p-6 mb-6">
-      <h2 class="text-lg font-medium mb-4">订单信息</h2>
-      <div class="grid grid-cols-2 gap-y-3 text-sm">
-        <span class="text-ink/60">IP</span><span>{{ order.ip.displayName }} <span class="text-ink/40 font-mono text-xs">({{ order.ip.code }})</span></span>
-        <span class="text-ink/60">类型</span><span>{{ order.orderType === 'DEPOSIT_INTENT' ? '意向金' : '正式授权' }}</span>
-        <span v-if="order.licenseScope" class="text-ink/60">授权范围</span><span v-if="order.licenseScope">{{ order.licenseScope }}</span>
-        <span class="text-ink/60">金额</span><span class="font-mono">{{ formatFen(order.amountFen) }}</span>
-        <span class="text-ink/60">状态</span><span>{{ order.status }}</span>
-        <span class="text-ink/60">版权状态</span>
-        <span>
-          <span v-if="order.copyrightEffective" class="text-success">已生效</span>
-          <span v-else class="text-gold">附条件生效中</span>
-        </span>
-        <span class="text-ink/60">创建时间</span><span class="text-xs">{{ new Date(order.createdAt).toLocaleString('zh-CN') }}</span>
+      <div v-if="loading" class="space-y-6">
+        <div class="bg-surface border-0.5 border-ink p-8 space-y-4">
+          <Skeleton shape="line" width="40%" height-class="h-6" />
+          <Skeleton shape="line" width="100%" height-class="h-2" />
+        </div>
+        <div class="bg-surface border-0.5 border-ink p-8 space-y-4">
+          <Skeleton shape="line" width="20%" height-class="h-5" />
+          <Skeleton shape="line" :lines="5" />
+        </div>
       </div>
-    </div>
 
-    <!-- 合同操作 -->
-    <div v-if="order.contract" class="bg-surface rounded-2xl border border-line p-6 mb-6">
-      <h2 class="text-lg font-medium mb-4">电子授权书</h2>
-      <div class="text-sm mb-4">
-        <div>合同编号: <span class="font-mono">{{ order.contract.id }}</span></div>
-        <div>模板: {{ order.contract.templateCode }}</div>
-        <div>状态: <span :class="order.contract.status === 'FULLY_SIGNED' ? 'text-success' : 'text-ink/60'">{{ order.contract.status }}</span></div>
-      </div>
-      <div class="flex flex-wrap gap-3">
-        <button
-          v-if="order.contract.status === 'AWAITING_BUYER_SIGN'"
-          @click="buyerSignContract"
-          class="px-5 py-2 bg-ink text-cream rounded-full text-sm hover:bg-gold transition"
-        >买方签署</button>
-        <button
-          v-if="order.contract.status === 'AWAITING_PLATFORM_SIGN'"
-          @click="adminSignContract"
-          class="px-5 py-2 bg-gold text-ink rounded-full text-sm hover:bg-ink hover:text-cream transition"
-        >平台签署 (Mock)</button>
-        <a
-          :href="`/api/v1/contracts/${order.contract.id}/file`"
-          @click.prevent="downloadContract"
-          class="px-5 py-2 border border-ink/20 text-ink rounded-full text-sm hover:border-ink hover:bg-cream transition inline-flex items-center gap-2"
-        >
-          <span>↓</span> 下载合同 PDF
-        </a>
-      </div>
-    </div>
+      <div v-else-if="order" class="space-y-10">
 
-    <!-- 下载列表 -->
-    <div v-if="canDownload" class="bg-surface rounded-2xl border border-line p-6">
-      <h2 class="text-lg font-medium mb-4">资产包下载</h2>
-      <p class="text-xs text-ink/50 mb-4">链接 5 分钟有效,过期请重新生成</p>
-      <FilesToDownload :order-id="order.id" />
-    </div>
+        <!-- 进度时间线 · 像图录的工序进度 -->
+        <section>
+          <div class="catalog-no text-ink/50 mb-4 pb-3 hairline-b border-line">
+            — 01 — PROCESS · 工序进度
+          </div>
+          <div class="bg-surface border-0.5 border-ink p-8 md:p-10">
+            <ol class="grid grid-cols-4 gap-0 relative">
+              <li
+                v-for="(s, idx) in STAGES"
+                :key="s.key"
+                class="flex flex-col items-center text-center"
+              >
+                <div
+                  :class="[
+                    'w-12 h-12 rounded-full flex items-center justify-center font-display text-lg border-0.5 transition',
+                    stageState(s.key) === 'done' ? 'bg-ink text-cream border-ink' :
+                    stageState(s.key) === 'current' ? 'bg-gold text-ink border-gold' :
+                    'bg-cream text-ink/30 border-line'
+                  ]"
+                >
+                  {{ stageState(s.key) === 'done' ? '✓' : s.roman }}
+                </div>
+                <div
+                  :class="[
+                    'mt-3 catalog-no',
+                    stageState(s.key) === 'pending' ? 'text-ink/30' : 'text-ink'
+                  ]"
+                >
+                  {{ s.label }}
+                </div>
+                <div class="mt-1 text-[10px] catalog-no text-ink/40">
+                  {{ stageState(s.key).toUpperCase() }}
+                </div>
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <!-- 订单信息 -->
+        <section>
+          <div class="catalog-no text-ink/50 mb-4 pb-3 hairline-b border-line">
+            — 02 — ORDER DETAILS · 订单详情
+          </div>
+          <div class="bg-surface border-0.5 border-ink p-8 md:p-10 grid md:grid-cols-2 gap-y-5 gap-x-8">
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">IP</div>
+              <div class="font-display text-lg text-ink">{{ order.ip.displayName }}</div>
+              <div class="font-mono text-xs text-ink/40 mt-1">{{ order.ip.code }}</div>
+            </div>
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">AMOUNT</div>
+              <div class="font-display text-3xl text-gold">{{ formatFen(order.amountFen) }}</div>
+            </div>
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">ORDER TYPE</div>
+              <div class="text-ink">{{ order.orderType === 'DEPOSIT_INTENT' ? '意向金 / 测试期' : '正式授权' }}</div>
+              <div v-if="order.licenseScope" class="font-mono text-xs text-ink/40 mt-1">{{ order.licenseScope }}</div>
+            </div>
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">COPYRIGHT</div>
+              <div v-if="order.copyrightEffective" class="inline-flex items-center gap-2">
+                <span class="catalog-no text-success">EFFECTIVE</span>
+                <span class="text-xs text-ink/60">已生效</span>
+              </div>
+              <div v-else class="inline-flex items-center gap-2">
+                <span class="catalog-no text-gold">CONDITIONAL</span>
+                <span class="text-xs text-ink/60">附条件生效中</span>
+              </div>
+            </div>
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">FILED</div>
+              <div class="font-mono text-sm text-ink">{{ fmtDate(order.createdAt) }}</div>
+            </div>
+            <div>
+              <div class="catalog-no text-ink/50 mb-2">TX HASH</div>
+              <div class="font-mono text-xs text-ink/60 truncate">{{ order.blockchainTxId || '—' }}</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 合同 -->
+        <section v-if="order.contract">
+          <div class="catalog-no text-ink/50 mb-4 pb-3 hairline-b border-line">
+            — 03 — CONTRACT · 电子授权书
+          </div>
+          <div class="bg-surface border-0.5 border-ink p-8 md:p-10 relative">
+            <div class="absolute -top-3 left-8">
+              <div class="stamp text-gold bg-cream">E-SIGNED</div>
+            </div>
+            <div class="grid md:grid-cols-3 gap-6 mb-6">
+              <div>
+                <div class="catalog-no text-ink/50 mb-2">CONTRACT №</div>
+                <div class="font-mono text-sm text-ink">{{ shortId(order.contract.id, 16) }}</div>
+              </div>
+              <div>
+                <div class="catalog-no text-ink/50 mb-2">TEMPLATE</div>
+                <div class="font-mono text-sm text-ink">{{ order.contract.templateCode }}</div>
+              </div>
+              <div>
+                <div class="catalog-no text-ink/50 mb-2">STATUS</div>
+                <div>
+                  <span
+                    :class="[
+                      'inline-block px-2 py-1 catalog-no text-xs',
+                      order.contract.status === 'FULLY_SIGNED' ? 'bg-success/10 text-success' :
+                      order.contract.status === 'AWAITING_PLATFORM_SIGN' ? 'bg-gold/15 text-ink' :
+                      'bg-ink/5 text-ink/60'
+                    ]"
+                  >
+                    {{ order.contract.status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-3 hairline-t border-line pt-6">
+              <button
+                v-if="order.contract.status === 'AWAITING_BUYER_SIGN'"
+                @click="buyerSignContract"
+                class="inline-flex items-center gap-3 px-5 py-3 bg-ink text-cream hover:bg-gold transition group"
+              >
+                <span class="catalog-no text-cream/70 group-hover:text-ink/70 text-[10px]">SIGN AS BUYER</span>
+                <span>买方签署</span>
+                <span class="font-display-italic">→</span>
+              </button>
+              <button
+                v-if="order.contract.status === 'AWAITING_PLATFORM_SIGN'"
+                @click="adminSignContract"
+                class="inline-flex items-center gap-3 px-5 py-3 bg-gold text-ink hover:bg-ink hover:text-cream transition"
+              >
+                <span class="catalog-no text-ink/70 text-[10px]">PLATFORM SIGN</span>
+                <span>平台签署 (Mock)</span>
+              </button>
+              <button
+                @click="downloadContract"
+                class="inline-flex items-center gap-3 px-5 py-3 border-0.5 border-ink text-ink hover:bg-ink hover:text-cream transition"
+              >
+                <span>↓</span>
+                <span>下载合同 PDF</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 资产包下载 -->
+        <section v-if="canDownload">
+          <div class="catalog-no text-ink/50 mb-4 pb-3 hairline-b border-line">
+            — 04 — ASSETS · 资产包下载
+          </div>
+          <div class="bg-surface border-0.5 border-ink p-8 md:p-10">
+            <div class="mb-6 p-4 bg-gold/5 border-0.5 border-gold/30 flex items-start gap-3">
+              <span class="font-display-italic text-gold text-2xl shrink-0">※</span>
+              <div class="text-sm leading-relaxed text-ink/70">
+                <div class="font-display text-base text-ink mb-1">下载即溯源</div>
+                每个文件均嵌入 DWT-SVD 隐水印 (含您的用户 ID + 时间戳)。
+                文件即使被裁剪、压缩、调色, 平台仍可通过
+                <code class="font-mono text-gold">ibi.ren/verify</code>
+                提取水印取证。请勿外传, 以免被追溯至您的账户。
+              </div>
+            </div>
+
+            <div v-if="filesLoading" class="space-y-3">
+              <Skeleton shape="line" :lines="3" />
+            </div>
+
+            <ul v-else-if="files.length > 0" class="space-y-2">
+              <li
+                v-for="f in files"
+                :key="f.id"
+                class="flex items-center gap-4 py-3 hairline-b border-line last:border-b-0"
+              >
+                <div class="catalog-no text-gold shrink-0 w-12">FILE</div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-mono text-sm text-ink truncate">{{ f.fileName || f.key }}</div>
+                  <div class="text-xs text-ink/40 catalog-no mt-0.5">
+                    {{ fmtSize(f.sizeBytes) }} · {{ f.mimeType || 'asset' }}
+                  </div>
+                </div>
+                <button
+                  @click="requestDownload(f.id)"
+                  class="inline-flex items-center gap-2 px-4 py-2 border-0.5 border-ink text-ink hover:bg-ink hover:text-cream transition text-sm shrink-0"
+                >
+                  <span>↓</span>
+                  <span>下载</span>
+                </button>
+              </li>
+            </ul>
+
+            <div v-else class="text-center py-8 text-sm text-ink/40 catalog-no">
+              NO FILES ATTACHED · 资产包准备中
+            </div>
+
+            <p class="mt-4 text-[11px] text-ink/40 catalog-no">
+              链接 5 分钟有效 · 过期请重新生成
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- 底部 colophon -->
+    <footer class="hairline-t border-line mt-12">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+        <span>CAT. ORDER-{{ shortId(orderId) }}</span>
+        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>© 2026 IBI.REN</span>
+      </div>
+    </footer>
   </div>
 </template>
-
-<script lang="ts">
-// 双 <script> 块子组件: 用 as 别名避免与 <script setup> 顶层 import 冲突。
-import { defineComponent as _defineComponent, onMounted as _onMounted, ref as _ref } from 'vue';
-import { apiClient as _apiClient } from '@/api/client';
-
-const FilesToDownload = _defineComponent({
-  props: { orderId: { type: String, required: true } },
-  setup(props) {
-    const files = _ref<any[]>([]);
-    const loading = _ref(false);
-
-    async function fetch() {
-      loading.value = true;
-      try {
-        const { data } = await _apiClient.get('/download/list', { params: { orderId: props.orderId } });
-        files.value = data.files;
-      } finally { loading.value = false; }
-    }
-
-    async function download(fileId: string) {
-      const { data } = await _apiClient.post('/download/token', {
-        orderId: props.orderId,
-        fileId,
-      });
-      window.open(data.url, '_blank');
-    }
-
-    _onMounted(fetch);
-    return { files, loading, download };
-  },
-});
-
-export default { components: { FilesToDownload } };
-</script>
