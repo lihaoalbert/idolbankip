@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
+import { useCountdown } from '@/composables/useCountdown';
 
 const route = useRoute();
 const router = useRouter();
@@ -90,6 +91,8 @@ const overCap = computed(() => {
 
 const bumpCountRemaining = computed(() => Math.max(0, 3 - (brief.value?.bumpCount ?? 0)));
 const canBump = computed(() => brief.value?.status === 'bidding' && bumpCountRemaining.value > 0);
+
+const countdown = useCountdown(() => brief.value?.deadlineAt);
 
 onMounted(async () => {
   if (!auth.hasAnyRole(['BUYER'])) {
@@ -199,6 +202,21 @@ const formatPrice = (n: number | string) => `¥${Number(n).toLocaleString('zh-CN
               <div class="text-xs text-ink/50 mb-1">菜单价 (首次发布价)</div>
               <div class="font-display text-2xl text-ink/70">{{ formatPrice(basePrice) }}</div>
             </div>
+          </div>
+          <!-- W2 #31 倒计时 -->
+          <div class="mt-4 pt-4 border-t border-line flex items-center gap-3 text-xs">
+            <span class="catalog-no text-ink/40">DEADLINE</span>
+            <span
+              :class="[
+                'font-mono text-sm',
+                countdown.variant.value === 'expired' ? 'text-ink/40 line-through'
+                  : countdown.variant.value === 'danger' ? 'text-stamp-red font-medium'
+                  : 'text-ink/80'
+              ]"
+            >
+              {{ countdown.label.value }}
+            </span>
+            <span class="text-ink/40">· {{ new Date(brief.deadlineAt).toLocaleString('zh-CN') }}</span>
           </div>
           <div class="mt-4 pt-4 border-t border-line">
             <div class="flex items-center justify-between mb-3">

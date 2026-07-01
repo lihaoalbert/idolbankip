@@ -8,6 +8,7 @@ import {
 import { Brief } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BriefPushService } from '../brief-push/brief-push.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Brief 状态机
 const TRANSITIONS: Record<string, string[]> = {
@@ -38,6 +39,7 @@ export class BriefService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: BriefPushService,
+    private readonly notif: NotificationsService,
   ) {}
 
   /**
@@ -146,6 +148,56 @@ export class BriefService {
       where: { id },
       data: { status: 'closed' },
     });
+  }
+
+  /**
+   * #30.7.1 W2 #31 过期 brief 自动 close (cron 调用)
+   * 扫描 status='bidding' 且 deadlineAt < now() 的 brief,批量 close
+   * 每个 brief 给买家推一条 BRIEF_EXPIRED 通知
+   * 返回: { closedCount, closedIds, expiredAt }
+   *
+   * 注意:不撤稿已收到的 bid(让买家可以查看历史报价 / 重新发包时参考)
+   */
+  async autoCloseExpired(): Promise<{ closedCount: number; closedIds: string[]; expiredAt: string }> {
+    const now = new Date();
+    const expired = await this.prisma.brief.findMany({
+      where: {
+        status: 'bidding',
+        deadlineAt: { lt: now },
+      },
+      select: { id: true, buyerId: true, title: true, category: true },
+      take: 200,
+    });
+    if (expired.length === 0) {
+      this.logger.log('[autoCloseExpired] 无过期 brief');
+      return { closedCount: 0, closedIds: [], expiredAt: now.toISOString() };
+    }
+
+    const ids = expired.map((b) => b.id);
+    await this.prisma.brief.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'closed' },
+    });
+
+    // 逐个推 BRIEF_EXPIRED 给买家
+    for (const b of expired) {
+      try {
+        await this.notif.create({
+          userId: b.buyerId,
+          type: 'BRIEF_EXPIRED',
+          title: '⏰ 任务包已过期关闭',
+          body: `「${b.title}」已超过截止时间未有人接单,系统已自动关闭。可重新发包或调整预算。`,
+          link: `/buyer/briefs/${b.id}`,
+        });
+      } catch (e: any) {
+        this.logger.warn(`[autoCloseExpired] notif fail brief=${b.id}: ${e?.message}`);
+      }
+    }
+
+    this.logger.log(
+      `[autoCloseExpired] closed=${expired.length} ids=${ids.join(',')}`,
+    );
+    return { closedCount: expired.length, closedIds: ids, expiredAt: now.toISOString() };
   }
 
   /**

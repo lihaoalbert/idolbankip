@@ -194,4 +194,12 @@ export class AdminBriefOpsController {
   async bumpRecommendations() {
     return { items: await this.briefs.getBumpRecommendations() };
   }
+
+  // #30.7.1 W2 #31 过期自动 close
+  // POST /api/v1/admin/briefs/auto-close-expired
+  // 调用方: crontab 每小时跑一次
+  @Post('auto-close-expired')
+  async autoCloseExpired() {
+    return this.briefs.autoCloseExpired();
+  }
 }

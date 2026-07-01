@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
+import { useCountdown } from '@/composables/useCountdown';
 
 const route = useRoute();
 const router = useRouter();
@@ -187,14 +188,7 @@ async function withdrawBid() {
 
 const formatPrice = (n: number | string) => `¥${Number(n).toLocaleString('zh-CN')}`;
 const formatPlatforms = (arr: string[]) => (arr ?? []).map((p) => PLATFORM_LABEL[p] || p).join(' · ');
-const daysLeft = computed(() => {
-  if (!brief.value) return '';
-  const ms = new Date(brief.value.deadlineAt).getTime() - Date.now();
-  if (ms < 0) return '已截止';
-  const days = Math.floor(ms / (24 * 3600 * 1000));
-  if (days <= 0) return `${Math.floor(ms / 3600000)} 小时`;
-  return `${days} 天`;
-});
+const countdown = useCountdown(() => brief.value?.deadlineAt);
 </script>
 
 <template>
@@ -212,7 +206,7 @@ const daysLeft = computed(() => {
             <span>·</span>
             <span>{{ TIER_LABEL[brief.packageTier] }}</span>
             <span>·</span>
-            <span class="font-mono">{{ daysLeft }} 截止</span>
+            <span class="font-mono">{{ countdown.label.value }} 截止</span>
           </div>
         </div>
         <RouterLink

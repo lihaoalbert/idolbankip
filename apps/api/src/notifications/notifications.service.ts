@@ -20,7 +20,11 @@ export type NotificationType =
   | 'COPYRIGHT_REG_REJECTED'
   // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价触达创作者
   | 'BRIEF_PUBLISHED'
-  | 'BRIEF_BUMPED';
+  | 'BRIEF_BUMPED'
+  // #30.7.1 W2 #31 过期自动 close — 通知买家
+  | 'BRIEF_EXPIRED'
+  // #30.7.1 W2 #31 买家手动关闭后通知(便于买家误关时定位)
+  | 'BRIEF_CLOSED';
 
 export interface CreateNotificationParams {
   userId: string;

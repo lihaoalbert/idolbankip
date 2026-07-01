@@ -57,6 +57,9 @@ const ICONS: Record<string, string> = {
   // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价
   BRIEF_PUBLISHED: '◐',
   BRIEF_BUMPED: '↑',
+  // #30.7.1 W2 #31 过期自动 close / 买家手动 close
+  BRIEF_EXPIRED: '⏰',
+  BRIEF_CLOSED: '×',
 };
 
 const ICON_COLOR: Record<string, string> = {
@@ -76,6 +79,9 @@ const ICON_COLOR: Record<string, string> = {
   // #30.7.1 W2 #29
   BRIEF_PUBLISHED: 'text-info',
   BRIEF_BUMPED: 'text-gold',
+  // #30.7.1 W2 #31
+  BRIEF_EXPIRED: 'text-danger',
+  BRIEF_CLOSED: 'text-ink/60',
 };
 
 onMounted(() => {

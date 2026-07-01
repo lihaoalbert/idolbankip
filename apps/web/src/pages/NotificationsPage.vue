@@ -55,6 +55,9 @@ const TYPE_META: Record<string, { label: string; roman: string; variant: 'succes
   // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价
   BRIEF_PUBLISHED: { label: '新任务包', roman: '◐', variant: 'info' },
   BRIEF_BUMPED: { label: '任务包加价', roman: '↑', variant: 'gold' },
+  // #30.7.1 W2 #31 过期 / 关闭
+  BRIEF_EXPIRED: { label: '已过期关闭', roman: '⏰', variant: 'danger' },
+  BRIEF_CLOSED: { label: '已关闭', roman: '×', variant: 'neutral' },
 };
 </script>
 
