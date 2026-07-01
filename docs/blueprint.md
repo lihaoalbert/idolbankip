@@ -2,7 +2,7 @@
 
 > **Phase 1 Layered Prompt Generator** · 8 步人脸分解向导
 >
-> 入口:`https://ibi.idata.mobi/creator` → "Layered Prompt Generator" 卡片 → 8 步向导
+> 入口:`https://ibi.ren/creator` → "Layered Prompt Generator" 卡片 → 8 步向导
 >
 > Beta · 2026-06-24 上线
 
@@ -39,7 +39,7 @@
 
 ### 2.1 进入向导
 
-1. 登录创作者账号 → `https://ibi.idata.mobi/creator`
+1. 登录创作者账号 → `https://ibi.ren/creator`
 2. 在 "Layered Prompt Generator" 卡片点 **开始 Layered Prompt →**
 3. 自动跳转到 `/creator/blueprint/new/step/1` → 后端创建空 Blueprint → 跳到带 ID 的 URL
 

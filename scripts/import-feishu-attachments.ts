@@ -43,7 +43,7 @@ const TABLE_ID = 'tbl0hJKrA9tBTC5s';
 const ATTACH_FIELD_ID = 'fldhIpBK8T'; // 形象3D建模档案
 
 // ── API 配置 ────────────────────────────────────────────────────────────────
-const API_BASE = process.env.API_BASE ?? 'https://ibi.idata.mobi/api/v1';
+const API_BASE = process.env.API_BASE ?? 'https://ibi.ren/api/v1';
 const API_KEY_FILE = process.env.API_KEY_FILE ?? path.join(os.homedir(), '.config/ibiren/albert.key');
 const ASSET_TYPE = 'FACE_CLOSEUP';
 

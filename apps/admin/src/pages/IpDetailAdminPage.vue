@@ -312,7 +312,7 @@ onMounted(loadWithThumbs);
               </div>
               <a
                 v-if="ip.creator?.id"
-                :href="`https://ibi.idata.mobi/u/${ip.creator.id}`"
+                :href="`https://ibi.ren/u/${ip.creator.id}`"
                 target="_blank"
                 rel="noopener"
                 class="text-[11px] text-gold hover:underline shrink-0"

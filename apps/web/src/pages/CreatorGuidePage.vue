@@ -234,7 +234,7 @@ const faqs = [
             <div class="catalog-no text-gold mb-2">STEP 1.1</div>
             <h3 class="font-display text-xl text-ink mb-3">邮箱注册 → 默认拿 BUYER 角色</h3>
             <ol class="space-y-2 text-sm leading-relaxed text-ink/80 ml-4 list-decimal">
-              <li>打开 <code class="font-mono text-gold">https://ibi.idata.mobi/register</code></li>
+              <li>打开 <code class="font-mono text-gold">https://ibi.ren/register</code></li>
               <li>填邮箱 + 密码 (≥8 位) → 提交</li>
               <li>注册成功后默认拿到 <strong>BUYER 角色</strong>(可浏览形象库、下单)</li>
             </ol>

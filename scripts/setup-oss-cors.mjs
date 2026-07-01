@@ -1,6 +1,6 @@
-// 设置 OSS 桶 CORS — 允许 ibi.idata.mobi:8080 (HTTP 临时域名) 上传
+// 设置 OSS 桶 CORS — 允许 ibi.ren / admin.ibi.ren 主域名 + 本地 dev 上传
 //
-// 现象: 浏览器从 http://ibi.idata.mobi:8080 PUT 到 OSS bucket 触发 preflight,
+// 现象: 浏览器从 https://ibi.ren PUT 到 OSS bucket 触发 preflight,
 //       桶 CORS 没放行这个 origin,前端的 "OSS 网络错误" toast + 实际图传不到 OSS
 //
 // 跑法: 本地 `node scripts/setup-oss-cors.mjs`
@@ -35,13 +35,12 @@ const env = Object.fromEntries(
 );
 
 const ALLOWED_ORIGINS = [
-  'http://ibi.idata.mobi:8080',   // 临时域名 (HTTP, 测试)
-  'http://localhost:3000',         // web dev
+  'http://localhost:3000',         // api dev
   'http://localhost:5173',         // web vite dev
   'http://localhost:8080',         // 镜像端口
-  'https://ibi.ren',               // 生产主域
+  'https://ibi.ren',               // 生产主域 (2026-06-30 备案完成)
   'https://www.ibi.ren',
-  'https://admin.ibi.ren',         // 后台独立子域 (2026-06-30 备案完成)
+  'https://admin.ibi.ren',         // 后台独立子域
   'http://ibi.ren',
   'http://www.ibi.ren',
   'http://admin.ibi.ren',

@@ -2,13 +2,13 @@
 # scripts/smoke.sh — 三端冒烟测试
 # 用法:
 #   bash scripts/smoke.sh local          # 本地: 127.0.0.1 直打 8080/8081/3100
-#   bash scripts/smoke.sh prod           # 生产: 走 nginx 域名 (https://ibi.idata.mobi + ibi-admin.idata.mobi)
+#   bash scripts/smoke.sh prod           # 生产: 走 nginx 域名 (https://ibi.ren + https://admin.ibi.ren)
 #   bash scripts/smoke.sh ecs            # 兼容: = prod (旧"ecs"模式已废,8080/8081 不再暴露)
 #   bash scripts/smoke.sh <url>          # 自定义 base URL
 #
 # 域名配置走 deploy.env:
-#   PROD_WEB_DOMAIN=https://ibi.idata.mobi          (默认,前台)
-#   PROD_ADMIN_DOMAIN=https://ibi-admin.idata.mobi  (默认,后台,独立子域)
+#   PROD_WEB_DOMAIN=https://ibi.ren              (默认,前台)
+#   PROD_ADMIN_DOMAIN=https://admin.ibi.ren      (默认,后台,独立子域)
 #
 # 检查项:
 #   - web /              (主站 SPA, 应 200 + HTML)
@@ -48,8 +48,8 @@ case "$TARGET" in
   prod|ecs)
     # 兼容老命令 `ecs`,新写 `prod`
     # 生产环境走 nginx 域名,端口 80/443
-    WEB_DOMAIN="${PROD_WEB_DOMAIN:-https://ibi.idata.mobi}"
-    ADMIN_DOMAIN="${PROD_ADMIN_DOMAIN:-https://ibi-admin.idata.mobi}"
+    WEB_DOMAIN="${PROD_WEB_DOMAIN:-https://ibi.ren}"
+    ADMIN_DOMAIN="${PROD_ADMIN_DOMAIN:-https://admin.ibi.ren}"
     BASE="$WEB_DOMAIN"
     ADMIN_BASE="$ADMIN_DOMAIN"
     API_BASE="$WEB_DOMAIN"  # API 跟 web 同域(走 /api/ 反代)

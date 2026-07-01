@@ -38,7 +38,7 @@
 | Standard 标准版 | 主流选择 | ¥1,400 - ¥2,000 |
 | Premium 旗舰版 | 全功能 | ¥2,500 - ¥3,500 |
 
-完整 SKU 菜单见 [/studio/catalog](https://ibi.idata.mobi/studio/catalog) 与数据库表 `CatalogSku`。
+完整 SKU 菜单见 [/studio/catalog](https://ibi.ren/studio/catalog) 与数据库表 `CatalogSku`。
 
 ### ⑥ 预算区间
 ¥ 区间;菜单价 ±20% 内合理,过高/过低需在描述中说明原因。
