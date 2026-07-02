@@ -10,6 +10,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/register', name: 'register', component: () => import('@/pages/RegisterPage.vue'), meta: { public: true } },
   { path: '/contact', name: 'contact', component: () => import('@/pages/ContactPage.vue'), meta: { public: true } },
   { path: '/legal/originality-commitment', name: 'legal-originality-commitment', component: () => import('@/pages/OriginalityCommitmentPage.vue'), meta: { public: true } },
+  { path: '/legal/ai-disclaimer', name: 'legal-ai-disclaimer', component: () => import('@/pages/AiDisclaimerPage.vue'), meta: { public: true } },
   {
     path: '/studio/catalog',
     name: 'studio-catalog',

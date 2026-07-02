@@ -1,27 +1,24 @@
 /**
- * QualityEvalService — W2.5 主入口,串 L1+L2+L3+L4 全跑
+ * QualityEvalService — W2.5 主入口,串 L1+L2+L3+L4 全跑,落库 + 申诉
  *
  * 流程:
  *   1. 入参校验 (briefId / deliverableId 必填, thumbnailUrls 至少 1 张)
  *   2. 并发跑 L1/L2/L3/L4 (Promise.all, 任一异常不阻塞主线 → fallback 中性分)
  *   3. 调 calcComposite() 应用闸门 + SABC 分级
- *   4. 返回 QualityEvalResult
+ *   4. persist() 写 QualityEval 表 + audit log (§D6)
+ *   5. appeal() 入口 48h 1 次 SLA (§D7)
  *
- * 关联: docs/research/quality-eval-benchmark-2026.md §1 / §8.2 / §9.1 (决策 #8 全跑)
- *
- * 设计要点:
- *  - 并发跑: 4 个评测彼此独立, 没必要串行 (总耗时 max(L1, L2, L3, L4))
- *  - 单 layer 异常 → 不抛, 内部 fallback 到中性 0.5 + REVIEW
- *  - 输出含 evidence (各 layer 子扣分明细) — 评分"必现可解释", 用户拍板 §9.1 #1
- *  - 不阻塞主流程: 这里 throw 仅在参数错误时
+ * 关联: docs/research/quality-eval-benchmark-2026.md §1 / §8.2 / §9.1 / §9.6
  */
 
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModerationService, L3EvaluationResult } from '../moderation/moderation.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { L1TechnicalService } from './l1-technical.service';
 import { L2AestheticService } from './l2-aesthetic.service';
 import { L4CommercialService } from './l4-commercial.service';
-import { buildEvalResult } from './score-formula';
+import { buildEvalResult, calcComposite } from './score-formula';
 import type {
   L1TechnicalResult,
   L2AestheticResult,
@@ -30,6 +27,39 @@ import type {
   QualityEvalInput,
   QualityEvalResult,
 } from './types';
+
+const DISCLAIMER_VERSION = 'v0.1-2026-07';
+const APPEAL_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+/** Prisma 行 + JSON 字段 (用于服务间传递) */
+export interface QualityEvalRow {
+  id: string;
+  briefId: string;
+  deliverableId: string | null;
+  trigger: string;
+  triggeredBy: string;
+  l1Score: number;
+  l2Score: number;
+  l3Score: number;
+  l4Score: number;
+  compositeScore: number;
+  grade: string;
+  decision: string;
+  gateReason: string;
+  commercialWarning: boolean;
+  l1Detail: unknown;
+  l2Detail: unknown;
+  l3Detail: unknown;
+  l4Detail: unknown;
+  modelVersions: unknown;
+  disclaimerVersion: string;
+  appealedAt: Date | null;
+  appealReason: string | null;
+  appealDecision: string | null;
+  appealResponderId: string | null;
+  appealSummary: string | null;
+  createdAt: Date;
+}
 
 @Injectable()
 export class QualityEvalService {
@@ -40,11 +70,11 @@ export class QualityEvalService {
     private readonly l2: L2AestheticService,
     private readonly l3: ModerationService,
     private readonly l4: L4CommercialService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
-  /**
-   * 4 层评分主入口
-   */
+  /** 内存评分,不落库 */
   async evaluate(input: QualityEvalInput): Promise<QualityEvalResult> {
     const start = Date.now();
     if (!input.briefId || !input.deliverableId) {
@@ -53,20 +83,17 @@ export class QualityEvalService {
     if (!input.deliverableUrls.length && !input.thumbnailUrls.length) {
       throw new BadRequestException('deliverableUrls / thumbnailUrls 至少传一个');
     }
-
     this.logger.log(
       `evaluate start: brief=${input.briefId} deliverable=${input.deliverableId} ` +
         `thumbs=${input.thumbnailUrls.length} urls=${input.deliverableUrls.length}`,
     );
 
-    // 并发跑 4 层 — Promise.all 不会因为单个失败而中断其他
     const [l1Result, l2Result, l3Raw, l4Result] = await Promise.all([
       this.safeL1(input),
       this.safeL2(input),
       this.safeL3(input),
       this.safeL4(input),
     ]);
-
     const l3Wrapped = wrapL3(l3Raw);
 
     const result = buildEvalResult(
@@ -83,17 +110,125 @@ export class QualityEvalService {
       },
     );
 
-    const ms = Date.now() - start;
     this.logger.log(
       `evaluate done: brief=${input.briefId} composite=${result.compositeScore} grade=${result.grade} ` +
-        `decision=${result.decision} gate=${result.l3.decision} ${ms}ms`,
+        `decision=${result.decision} gate=${result.l3.decision} ${Date.now() - start}ms`,
     );
     return result;
   }
 
   /**
-   * 单 layer 跑, 失败返中性 0.5 (L1 例外: 不可达文件 = FAIL 0)
+   * 评分 + 持久化 — D6 主入口
+   * 写 QualityEval 表 + audit log
    */
+  async persist(
+    input: QualityEvalInput,
+    opts: { triggeredBy?: string; trigger?: string } = {},
+  ): Promise<QualityEvalRow> {
+    const start = Date.now();
+    const result = await this.evaluate(input);
+    const c = calcComposite({ l1: result.l1, l2: result.l2, l3: result.l3, l4: result.l4 });
+    const trigger = opts.trigger || 'manual';
+    const triggeredBy = opts.triggeredBy || input.triggeredBy || 'system';
+
+    const row = await this.prisma.qualityEval.create({
+      data: {
+        briefId: input.briefId,
+        deliverableId: input.deliverableId || null,
+        trigger,
+        triggeredBy,
+        l1Score: result.l1.score,
+        l2Score: result.l2.score,
+        l3Score: result.l3.score,
+        l4Score: result.l4.score,
+        compositeScore: result.compositeScore,
+        grade: result.grade,
+        decision: result.decision,
+        gateReason: c.gateReason,
+        commercialWarning: c.commercialWarning,
+        l1Detail: result.l1 as any,
+        l2Detail: result.l2 as any,
+        l3Detail: result.l3 as any,
+        l4Detail: result.l4 as any,
+        modelVersions: result.modelVersions as any,
+        disclaimerVersion: DISCLAIMER_VERSION,
+      },
+    });
+    await this.audit.log({
+      actorId: triggeredBy,
+      action: 'quality_eval.persisted',
+      targetType: 'QualityEval',
+      targetId: row.id,
+      payload: {
+        briefId: input.briefId,
+        deliverableId: input.deliverableId,
+        compositeScore: result.compositeScore,
+        grade: result.grade,
+        decision: result.decision,
+        gateReason: c.gateReason,
+      },
+    });
+    this.logger.log(`quality_eval persisted: id=${row.id} grade=${row.grade} ms=${Date.now() - start}`);
+    return row as QualityEvalRow;
+  }
+
+  /** 取某 deliverable 最新一条 */
+  async getLatestByDeliverable(deliverableId: string): Promise<QualityEvalRow | null> {
+    return (await this.prisma.qualityEval.findFirst({
+      where: { deliverableId },
+      orderBy: { createdAt: 'desc' },
+    })) as QualityEvalRow | null;
+  }
+
+  /** 取某 brief 全部 */
+  async listByBrief(briefId: string, limit = 20): Promise<QualityEvalRow[]> {
+    const items = await this.prisma.qualityEval.findMany({
+      where: { briefId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return items as QualityEvalRow[];
+  }
+
+  async getById(id: string): Promise<QualityEvalRow> {
+    const row = await this.prisma.qualityEval.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException(`QualityEval ${id} 不存在`);
+    return row as QualityEvalRow;
+  }
+
+  /** 申诉 — 每条 1 次,SLA 48h (§9.1 #6) */
+  async appeal(evalId: string, appealReason: string, actorId: string): Promise<QualityEvalRow> {
+    if (!appealReason || appealReason.trim().length < 10) {
+      throw new BadRequestException('申诉理由至少 10 字');
+    }
+    const cur = await this.prisma.qualityEval.findUnique({ where: { id: evalId } });
+    if (!cur) throw new NotFoundException(`QualityEval ${evalId} 不存在`);
+    if (cur.appealedAt) {
+      throw new BadRequestException('已经申诉过 1 次, 平台人工复审结论为最终结论');
+    }
+    const ageMs = Date.now() - cur.createdAt.getTime();
+    if (ageMs > APPEAL_WINDOW_MS) {
+      throw new BadRequestException('已超过 48h 申诉窗口期');
+    }
+    const row = await this.prisma.qualityEval.update({
+      where: { id: evalId },
+      data: {
+        appealedAt: new Date(),
+        appealReason: appealReason.trim(),
+      },
+    });
+    await this.audit.log({
+      actorId,
+      action: 'quality_eval.appeal_submitted',
+      targetType: 'QualityEval',
+      targetId: evalId,
+      payload: { briefId: cur.briefId, reason: appealReason.slice(0, 200) },
+    });
+    return row as QualityEvalRow;
+  }
+
+  // ============ private ============
+
   private async safeL1(input: QualityEvalInput): Promise<L1TechnicalResult> {
     try {
       const url = pickFirstUrl(input.deliverableUrls);
@@ -101,9 +236,9 @@ export class QualityEvalService {
         return neutralL1('无交付物 URL, L1 跳过');
       }
       return await this.l1.score({ videoUrl: url });
-    } catch (e) {
-      this.logger.warn(`L1 异常, fallback: ${(e as Error).message}`);
-      return neutralL1(`L1 异常: ${(e as Error).message.slice(0, 100)}`);
+    } catch (e: any) {
+      this.logger.warn(`L1 异常, fallback: ${e?.message ?? e}`);
+      return neutralL1(`L1 异常: ${(e?.message ?? String(e)).slice(0, 100)}`);
     }
   }
 
@@ -114,15 +249,14 @@ export class QualityEvalService {
         description: input.deliverableDescription,
         creatorNote: input.creatorNote,
       });
-    } catch (e) {
-      this.logger.warn(`L2 异常, fallback 中性: ${(e as Error).message}`);
-      return neutralL2(`L2 异常: ${(e as Error).message.slice(0, 100)}`, input.thumbnailUrls);
+    } catch (e: any) {
+      this.logger.warn(`L2 异常, fallback 中性: ${e?.message ?? e}`);
+      return neutralL2(`L2 异常: ${(e?.message ?? String(e)).slice(0, 100)}`, input.thumbnailUrls);
     }
   }
 
   private async safeL3(input: QualityEvalInput): Promise<L3EvaluationResult> {
     try {
-      const firstThumb = input.thumbnailUrls[0];
       return await this.l3.evaluateL3({
         briefId: input.briefId,
         deliverableId: input.deliverableId,
@@ -131,9 +265,8 @@ export class QualityEvalService {
         creatorNote: input.creatorNote,
         triggeredBy: input.triggeredBy,
       });
-    } catch (e) {
-      this.logger.warn(`L3 异常, fallback REVIEW: ${(e as Error).message}`);
-      // 中性: REVIEW (人工复审), score 0.5 — 不触发闸门
+    } catch (e: any) {
+      this.logger.warn(`L3 异常, fallback REVIEW: ${e?.message ?? e}`);
       return {
         decision: 'REVIEW',
         score: 0.5,
@@ -156,12 +289,14 @@ export class QualityEvalService {
         deliverableDescription: input.deliverableDescription,
         thumbnailUrls: input.thumbnailUrls,
       });
-    } catch (e) {
-      this.logger.warn(`L4 异常, fallback 中性: ${(e as Error).message}`);
-      return neutralL4(`L4 异常: ${(e as Error).message.slice(0, 100)}`);
+    } catch (e: any) {
+      this.logger.warn(`L4 异常, fallback 中性: ${e?.message ?? e}`);
+      return neutralL4(`L4 异常: ${(e?.message ?? String(e)).slice(0, 100)}`);
     }
   }
 }
+
+// ============ 顶层 helpers (模块内) ============
 
 function pickFirstUrl(urls: string[]): string | undefined {
   for (const u of urls) {
@@ -186,7 +321,7 @@ function wrapL3(raw: L3EvaluationResult): L3ComplianceResult {
       },
       adCompliance: { decision: raw.adCompliance.decision, hasAdViolation: raw.adCompliance.hasAdViolation },
     },
-    provider: 'aliyun-green', // ModerationService DI 已确定; 若 mock 则 decision=REVIEW
+    provider: 'aliyun-green',
     auditId: raw.auditId,
     evidence: raw.textScan.labels.map((l) => ({ text: `[${l.label}] ${l.description ?? ''}` })),
   };

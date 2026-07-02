@@ -1056,6 +1056,7 @@ model Brief {
   review        Review?
   dispute       Dispute?
   platformJudgments PlatformJudgment[]
+  qualityEvals  QualityEval[]
   royaltyRecords RoyaltyRecord[]
 
   @@index([buyerId, status])
@@ -1420,6 +1421,65 @@ model PlatformJudgment {
 
   @@index([briefId, createdAt])
   @@index([pass, createdAt])
+}
+
+// ===================== 11.6 QualityEval W2.5 AI 自动评分 =====================
+// 4 层 AI 自动评分 (技术 / 美学 / 合规 / 商业价值),S/A/B/C 分级
+// 用户拍板 (2026-07-02): 全跑 4 层 + 评分公开 (买家+创作者都看) + 证据必现
+// 关联: docs/research/quality-eval-benchmark-2026.md §1 / §8.2 / §9.1
+model QualityEval {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  deliverableId String?
+
+  // 触发场景: deliverable / dispute / manual
+  trigger      String   @default("deliverable")
+  // 触发者 (adminId / system / creatorId)
+  triggeredBy  String
+
+  // 4 层评分快照
+  l1Score      Float    // 技术 (0-1)
+  l2Score      Float    // 美学 (0-1)
+  l3Score      Float    // 合规 (0-1)
+  l4Score      Float    // 商业价值 (0-1)
+
+  // 综合
+  compositeScore Float  // 0-1, 闸门触发后为 0
+  // S / A / B / C
+  grade        String
+  // PASS / REVIEW / FAIL (闸门触发 = FAIL)
+  decision     String
+  // 闸门触发原因: none / compliance_fatal / technical_below_threshold
+  gateReason   String   @default("none")
+  // 商业价值不达标提示
+  commercialWarning Boolean @default(false)
+
+  // 各 layer 完整结果 (含 evidence / sub-scores / metrics) — JSON 永久存档
+  l1Detail     Json
+  l2Detail     Json
+  l3Detail     Json
+  l4Detail     Json
+
+  // 模型版本快照 — 用于跨评审可比 + 漂移检测
+  modelVersions Json
+
+  // 法务免责元信息: disclaimerVersion (URL 锚点)
+  disclaimerVersion String  @default("v0.1-2026-07")
+
+  // 申诉: 1 次/条目, SLA 48h
+  appealedAt     DateTime?
+  appealReason   String?  @db.Text
+  appealDecision String?  // overridden / confirmed
+  appealResponderId String?
+  appealSummary  String?  @db.Text
+
+  createdAt    DateTime @default(now())
+
+  @@index([briefId, createdAt])
+  @@index([deliverableId, createdAt])
+  @@index([grade])
+  @@index([decision])
 }
 
 // ===================== 12. RoyaltyRecord IP 二次授权分账 =====================
