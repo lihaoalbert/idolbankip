@@ -1,0 +1,15 @@
+{
+  "_comment": "广告法违禁词骨架 — 真实词表需购买(¥1,000/年), Claude 接手后由用户填入。本文件不入仓, 见 .gitignore。",
+  "_version": "2026-placeholder",
+  "_purchased": null,
+  "_source": "待购买 — 国家市场监管总局 2025 版",
+  "_license": "待填写",
+  "_see": "docs/research/quality-eval-benchmark-2026.md §5.4 自建 vs 云 API 决策 + §9.6 免责声明",
+  "extreme_absolute": [],
+  "medical_guarantee": [],
+  "comparison_rank": [],
+  "invest_return": [],
+  "minor_sensitive": [],
+  "politics_sensitive": [],
+  "religion_sensitive": []
+}

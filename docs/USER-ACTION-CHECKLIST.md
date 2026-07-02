@@ -142,4 +142,31 @@
 
 ---
 
+## 五、W2.5 AI 评审上线卡点(#13-#16)— 优先级 🟠 高(W2.5 上线前必须)
+
+> **关联文档**:`docs/research/quality-eval-benchmark-2026.md` §9(2026-07-02 拍板决策)
+> **责任**:Claude 负责所有代码 + ECS 部署 + smoke;用户负责云服务开通 + 资质审核 + 法务签字。
+
+| # | 任务 | 截止 | 工时估算 | 备注 |
+|---|---|---|---|---|
+| 13 | **阿里云内容安全增强版开通 + RAM 配置** | W2.5 D1(开工当天) | 1 小时 | 开通"绿网-增强版"(green-cip-advanced),开通后给 Claude 一个**只读 RAM 子账号** AccessKey,写入 ECS `/opt/ibiren/.env`(对应 `ALIYUN_GREEN_ACCESS_KEY_ID` / `ALIYUN_GREEN_ACCESS_KEY_SECRET`,Claude 不可见明文,只通过子账号脱敏调用)。**预购 1000 万次图片资源包(¥6,750)+ QPS 预留包(¥334/1 QPS/月)** 必走用户账号付费。详见 §5.3 踩坑预警(必须用增强版,不是 1.0 老版)。 |
+| 14 | **Anthropic API key 写入 LlmConfigService(可选)** | W2.5 D1-D2 | 30 分钟 | **可选**:现有 `LlmProviderConfig` 表已有 `provider=anthropic` 的 active 行(参考 `apps/api/src/llm-config/`),W2 #30 已完成。如果 admin 端 `/settings/llm` 已配,无需操作;否则需要登录 admin 加一条。Claude 不接触明文 key,只通过 LlmConfigService 调用。 |
+| 15 | **广告法违禁词 JSON 词表购买 + 写入** | W2.5 D3 | 1 小时 + ¥1,000/年 | 购买国家市场监管总局 2025 版广告法违禁词 JSON 词表(淘宝/拼多多 1000 元/年),Claude 提供目录路径,文件落到 `apps/api/src/moderation/keywords/ad-law-words.json`(gitignored,**不入仓**)。 |
+| 16 | **法务免责声明 review + 签字** | W2.5 D7 前(上线前) | 1 周 | `docs/research/quality-eval-benchmark-2026.md` §9.6 草案 6 条,Claude 已写,法务 review 后签字。挂 `admin /legal/ai-disclaimer` 页面 + `web /legal/ai-disclaimer`(买家/创作者可见)。**上线前必须签字,否则 W2.5 不上线**。 |
+
+### W2.5 用户行动说明
+
+- **#13 是真卡点**:阿里云不开通,W2.5 L3 合规层没法跑(临时用 MockModerationClient 顶也行,但 L3 评分全靠词表,精度差)。
+- **#14 通常已就绪**:W2 #30 已部署 admin `/settings/llm` UI,用户只要在 admin 后台确认下就行。
+- **#15 是钱买时间**:词表是"广告法 + 涉政"的高频词兜底,云 API 漏判时最后一关,¥1,000/年极便宜。
+- **#16 是合规底线**:W2.5 把 AI 评分系统上线,必须挂免责声明。法务不签就是裸奔。
+
+### W2.5 触发 dispute 时 Claude 自动做的事(用户无需操作)
+
+- dispute 触发后 Claude 自动重跑 Claude 重评分
+- dispute 复审期间 Claude 自动跑申诉统计 + 周报
+- 平台 A/B 切流 50/50(原 1.0 vs 新 2.0)由 admin 一键开关,无需 Claude 介入
+
+---
+
 > 本清单由 Claude 自动整理,任何事项如有疑问,可直接问 Claude 复核。
