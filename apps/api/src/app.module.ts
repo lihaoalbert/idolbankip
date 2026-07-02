@@ -38,6 +38,7 @@ import { PlatformJudgeModule } from './platform-judge/platform-judge.module';
 import { EmailModule } from './email/email.module';
 import { WechatModule } from './wechat/wechat.module';
 import { BriefPushModule } from './brief-push/brief-push.module';
+import { QualityEvalModule } from './quality-eval/quality-eval.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -85,6 +86,7 @@ import { configValidationSchema } from './config/config.validation';
     EmailModule,
     WechatModule,
     BriefPushModule,
+    QualityEvalModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
