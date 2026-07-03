@@ -180,6 +180,63 @@ export class QualityEvalService {
     })) as QualityEvalRow | null;
   }
 
+  /**
+   * Admin 全量查询 — 评分队列
+   * 支持 grade / decision / briefId / trigger 过滤 + 分页
+   */
+  async listAll(filter: {
+    grade?: string;
+    decision?: string;
+    briefId?: string;
+    trigger?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ items: QualityEvalRow[]; total: number; page: number; pageSize: number }> {
+    const page = filter.page ?? 1;
+    const pageSize = Math.min(filter.pageSize ?? 20, 100);
+    const where: any = {};
+    if (filter.grade) where.grade = filter.grade;
+    if (filter.decision) where.decision = filter.decision;
+    if (filter.briefId) where.briefId = filter.briefId;
+    if (filter.trigger) where.trigger = filter.trigger;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.qualityEval.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.qualityEval.count({ where }),
+    ]);
+    return { items: items as QualityEvalRow[], total, page, pageSize };
+  }
+
+  /** Admin dashboard 统计 — 28 天分布 */
+  async dashboardStats(): Promise<{
+    totalCount: number;
+    last7dCount: number;
+    byGrade: Record<string, number>;
+    byDecision: Record<string, number>;
+    appealPending: number;
+  }> {
+    const [totalCount, last7dCount, byGrade, byDecision, appealPending] = await Promise.all([
+      this.prisma.qualityEval.count(),
+      this.prisma.qualityEval.count({
+        where: { createdAt: { gte: new Date(Date.now() - 7 * 86400_000) } },
+      }),
+      this.prisma.qualityEval.groupBy({ by: ['grade'], _count: { _all: true } }),
+      this.prisma.qualityEval.groupBy({ by: ['decision'], _count: { _all: true } }),
+      this.prisma.qualityEval.count({ where: { appealedAt: { not: null }, appealDecision: null } }),
+    ]);
+    return {
+      totalCount,
+      last7dCount,
+      byGrade: Object.fromEntries(byGrade.map((g) => [g.grade, g._count._all])),
+      byDecision: Object.fromEntries(byDecision.map((d) => [d.decision, d._count._all])),
+      appealPending,
+    };
+  }
+
   /** 取某 brief 全部 */
   async listByBrief(briefId: string, limit = 20): Promise<QualityEvalRow[]> {
     const items = await this.prisma.qualityEval.findMany({

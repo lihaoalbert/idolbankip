@@ -52,6 +52,18 @@ const routes: RouteRecordRaw[] = [
     name: 'llm-config',
     component: () => import('@/pages/LlmConfigPage.vue'),
   },
+  // W2.5 质量评审 — 队列 + 详情
+  {
+    path: '/quality-eval',
+    name: 'quality-eval-queue',
+    component: () => import('@/pages/QualityEvalQueuePage.vue'),
+  },
+  {
+    path: '/quality-eval/:id',
+    name: 'quality-eval-detail',
+    component: () => import('@/pages/QualityEvalDetailPage.vue'),
+    props: true,
+  },
   {
     path: '/tasks',
     name: 'tasks',

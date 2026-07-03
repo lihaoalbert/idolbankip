@@ -8,28 +8,19 @@ import { L2AestheticService } from './l2-aesthetic.service';
 import { L4CommercialService } from './l4-commercial.service';
 import { QualityEvalService } from './quality-eval.service';
 import { QualityEvalController } from './quality-eval.controller';
+import { QualityEvalAdminController } from './quality-eval-admin.controller';
 
 /**
- * QualityEvalModule — W2.5 (D4-D7)
+ * QualityEvalModule — W2.5 (D4-D9)
  *
- * DI 依赖:
- *   - PrismaModule     QualityEval 表读写 (§11.6 schema)
- *   - AuditModule      evaluate + appeal 写入审计流
- *   - LlmConfigModule  Anthropic client (L2/L4 主用)
- *   - ModerationModule  L3 (走阿里云增强版或 Mock fallback)
- *
- * 路由 (QualityEvalController):
- *   - POST /api/v1/quality-eval/run          创作者/买家触发自评
- *   - GET  /api/v1/quality-eval/by-deliverable/:id
- *   - GET  /api/v1/quality-eval/by-brief/:briefId
- *   - POST /api/v1/quality-eval/:id/appeal   申诉入口 (48h 1 次)
- *
- * admin 路由独立在 AdminQualityEvalController,不在本 module 暴露
+ * 暴露 2 个 controller:
+ *   - QualityEvalController (公开): 创作者/买家侧评分查询 + 申诉
+ *   - QualityEvalAdminController (ADMIN): admin 评分队列 + 复审
  */
 @Module({
   imports: [PrismaModule, AuditModule, LlmConfigModule, ModerationModule],
   providers: [QualityEvalService, L1TechnicalService, L2AestheticService, L4CommercialService],
-  controllers: [QualityEvalController],
+  controllers: [QualityEvalController, QualityEvalAdminController],
   exports: [QualityEvalService],
 })
 export class QualityEvalModule {}

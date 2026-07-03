@@ -6,6 +6,11 @@
  *  - bumpCount < 3 (封顶)
  *  - 加价后总价 > 2x 菜单价 → 弹窗二次确认
  *  - 创作者端脱敏(后端处理)
+ *
+ * #30.7.3 W2 #30 漏的 bid 列表 + accept 按钮
+ *  - bidding 状态显示所有报价(按价格升序)
+ *  - 接受/拒绝仅 pending 状态可点
+ *  - accept 后:brief → in_progress + 创作者获得 workspace
  */
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -13,6 +18,37 @@ import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
 import { useCountdown } from '@/composables/useCountdown';
+
+interface BidCreatorProfile {
+  level: string;
+  ratingAvg: number | null;
+  completedOrders: number;
+  responseRate: number | null;
+}
+
+interface BidCreator {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  creatorProfile: BidCreatorProfile | null;
+}
+
+interface Bid {
+  id: string;
+  briefId: string;
+  creatorId: string;
+  price: string;
+  message: string | null;
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  createdAt: string;
+  acceptedAt: string | null;
+  creator: BidCreator;
+}
+
+interface BidListResponse {
+  items: Bid[];
+  total: number;
+}
 
 const route = useRoute();
 const router = useRouter();
@@ -45,6 +81,11 @@ const showBumpModal = ref(false);
 const bumpPercent = ref<number>(10);
 const needConfirmDialog = ref<{ newPrice: number; percent: number; basePrice: number } | null>(null);
 const bumping = ref(false);
+
+// W2 #30 bid 列表 + accept/reject
+const bids = ref<Bid[]>([]);
+const bidsLoading = ref(false);
+const actingBidId = ref<string | null>(null);
 
 const CATEGORY_LABEL: Record<string, string> = {
   ad: '数字人广告片',
@@ -101,6 +142,7 @@ onMounted(async () => {
     return;
   }
   await loadBrief();
+  await loadBids();
 });
 
 async function loadBrief() {
@@ -157,6 +199,53 @@ async function closeBrief() {
     await loadBrief();
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '关闭失败');
+  }
+}
+
+// W2 #30 — bid 列表(按价格升序)
+async function loadBids() {
+  if (!brief.value) return;
+  bidsLoading.value = true;
+  try {
+    const { data } = await apiClient.get<BidListResponse>(
+      `/buyer/briefs/${brief.value.id}/bids`,
+    );
+    bids.value = data.items;
+  } catch (e: any) {
+    // 静默失败:新 brief 无 bid 时也会报,不影响主流程
+    bids.value = [];
+  } finally {
+    bidsLoading.value = false;
+  }
+}
+
+async function acceptBid(bid: Bid) {
+  if (!brief.value) return;
+  if (!confirm(`确认接受 ${bid.creator.displayName} 的报价 ¥${Number(bid.price).toLocaleString('zh-CN')}?其他报价将自动拒绝。`)) return;
+  actingBidId.value = bid.id;
+  try {
+    await apiClient.post(`/buyer/briefs/${brief.value.id}/bids/${bid.id}/accept`);
+    toast.success('已中标,创作者获得工作区');
+    await Promise.all([loadBrief(), loadBids()]);
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '接受失败');
+  } finally {
+    actingBidId.value = null;
+  }
+}
+
+async function rejectBid(bid: Bid) {
+  if (!brief.value) return;
+  if (!confirm(`确认拒绝 ${bid.creator.displayName} 的报价?`)) return;
+  actingBidId.value = bid.id;
+  try {
+    await apiClient.post(`/buyer/briefs/${brief.value.id}/bids/${bid.id}/reject`);
+    toast.success('已拒绝');
+    await loadBids();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '拒绝失败');
+  } finally {
+    actingBidId.value = null;
   }
 }
 
@@ -264,6 +353,136 @@ const formatPrice = (n: number | string) => `¥${Number(n).toLocaleString('zh-CN
               <div>
                 {{ formatPrice(h.fromPrice) }} → {{ formatPrice(h.toPrice) }}
                 <span class="ml-2 text-stamp-red font-mono">+{{ h.percent }}%</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- W2 #30 — 创作者报价(按价格升序) -->
+        <section class="plate p-6">
+          <div class="flex items-center justify-between mb-3">
+            <div class="catalog-no">CREATOR BIDS · {{ bids.length }}</div>
+            <span v-if="brief.status === 'in_progress'" class="text-xs text-ink/50">
+              订单进行中,不再接受报价
+            </span>
+            <span v-else-if="brief.status === 'closed'" class="text-xs text-ink/50">
+              brief 已关闭
+            </span>
+            <span v-else-if="brief.status === 'delivered'" class="text-xs text-ink/50">
+              订单已交付
+            </span>
+          </div>
+
+          <div v-if="bidsLoading" class="text-center text-ink/40 py-6 text-xs">加载报价中…</div>
+
+          <div v-else-if="!bids.length" class="text-center text-ink/40 py-6 text-xs">
+            暂无报价 · 创作者会在招集中持续看到这条 brief
+          </div>
+
+          <div v-else class="space-y-3">
+            <div
+              v-for="(b, idx) in bids"
+              :key="b.id"
+              class="border-0.5 border-line p-4 bg-surface/30"
+              :class="{
+                'border-stamp-red bg-stamp-red/5': b.status === 'accepted',
+                'border-ink/10 opacity-60': b.status === 'rejected' || b.status === 'withdrawn',
+              }"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex items-start gap-3 flex-1 min-w-0">
+                  <!-- 排名标 -->
+                  <div
+                    class="font-display text-2xl w-10 text-center shrink-0"
+                    :class="idx === 0 ? 'text-stamp-red' : 'text-ink/30'"
+                  >
+                    #{{ idx + 1 }}
+                  </div>
+                  <!-- 创作者头像 + 信息 -->
+                  <img
+                    v-if="b.creator.avatarUrl"
+                    :src="b.creator.avatarUrl"
+                    :alt="b.creator.displayName"
+                    class="w-10 h-10 rounded-full object-cover shrink-0"
+                  />
+                  <div
+                    v-else
+                    class="w-10 h-10 rounded-full bg-ink/10 flex items-center justify-center text-xs text-ink/40 shrink-0"
+                  >
+                    {{ b.creator.displayName.charAt(0) }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-medium text-sm">{{ b.creator.displayName }}</span>
+                      <span
+                        v-if="b.creator.creatorProfile"
+                        class="text-[10px] px-1.5 py-0.5 bg-ink/5 text-ink/60 font-mono"
+                      >
+                        {{ b.creator.creatorProfile.level }}
+                      </span>
+                      <span
+                        v-if="b.status === 'accepted'"
+                        class="text-[10px] px-1.5 py-0.5 bg-stamp-red text-cream font-mono"
+                      >
+                        已中标
+                      </span>
+                      <span
+                        v-else-if="b.status === 'rejected'"
+                        class="text-[10px] px-1.5 py-0.5 bg-ink/10 text-ink/50"
+                      >
+                        已拒绝
+                      </span>
+                      <span
+                        v-else-if="b.status === 'withdrawn'"
+                        class="text-[10px] px-1.5 py-0.5 bg-ink/10 text-ink/50"
+                      >
+                        已撤回
+                      </span>
+                    </div>
+                    <div v-if="b.creator.creatorProfile" class="text-[10px] text-ink/50 mb-2 flex gap-3">
+                      <span v-if="b.creator.creatorProfile.ratingAvg !== null">
+                        ⭐ {{ b.creator.creatorProfile.ratingAvg.toFixed(2) }}
+                      </span>
+                      <span>
+                        成交 {{ b.creator.creatorProfile.completedOrders }} 单
+                      </span>
+                      <span v-if="b.creator.creatorProfile.responseRate !== null">
+                        响应率 {{ Math.round(b.creator.creatorProfile.responseRate * 100) }}%
+                      </span>
+                    </div>
+                    <div v-if="b.message" class="text-xs text-ink/70 whitespace-pre-line leading-relaxed">
+                      {{ b.message }}
+                    </div>
+                    <div class="text-[10px] text-ink/40 mt-2">
+                      {{ new Date(b.createdAt).toLocaleString('zh-CN') }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 报价 + 操作 -->
+                <div class="text-right shrink-0">
+                  <div class="font-display text-2xl text-stamp-red mb-2 tabular-nums">
+                    {{ formatPrice(b.price) }}
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <button
+                      v-if="b.status === 'pending' && brief.status === 'bidding'"
+                      @click="acceptBid(b)"
+                      :disabled="actingBidId === b.id"
+                      class="px-4 py-1.5 bg-stamp-red text-cream text-[11px] tracking-widest uppercase hover:bg-ink disabled:opacity-50"
+                    >
+                      {{ actingBidId === b.id ? '处理中…' : '接受报价' }}
+                    </button>
+                    <button
+                      v-if="b.status === 'pending' && brief.status === 'bidding'"
+                      @click="rejectBid(b)"
+                      :disabled="actingBidId === b.id"
+                      class="px-4 py-1.5 border-0.5 border-ink/30 text-[11px] hover:border-ink disabled:opacity-50"
+                    >
+                      拒绝
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
