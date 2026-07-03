@@ -172,6 +172,29 @@ export class QualityEvalService {
     return row as QualityEvalRow;
   }
 
+  /**
+   * 系统触发 — A/B 切流入口 (W2.5 D13-D14)
+   *
+   * 检查 rollout config, 按概率决定是否跑评分。
+   * 用法: 未来 deliverable 上传 hook 里调用此方法, 而不是直接 persist().
+   *
+   * @returns QualityEvalRow if 跑了; null if 跳过 (mode=off 或不在桶内)
+   */
+  async systemTrigger(
+    input: QualityEvalInput,
+    rollout: { shouldEvaluate(deliverableId: string | null): Promise<{ run: boolean; mode: 'off' | 'shadow' | 'active' }> },
+  ): Promise<{ row: QualityEvalRow | null; mode: 'off' | 'shadow' | 'active'; run: boolean }> {
+    const decision = await rollout.shouldEvaluate(input.deliverableId || null);
+    if (!decision.run) {
+      this.logger.log(
+        `systemTrigger skip: deliverableId=${input.deliverableId} mode=${decision.mode} (rollout 决策)`,
+      );
+      return { row: null, mode: decision.mode, run: false };
+    }
+    const row = await this.persist(input, { triggeredBy: 'system', trigger: 'deliverable' });
+    return { row, mode: decision.mode, run: true };
+  }
+
   /** 取某 deliverable 最新一条 */
   async getLatestByDeliverable(deliverableId: string): Promise<QualityEvalRow | null> {
     return (await this.prisma.qualityEval.findFirst({

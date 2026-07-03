@@ -1482,6 +1482,22 @@ model QualityEval {
   @@index([decision])
 }
 
+// ===================== 11.7 QualityEvalRollout W2.5 D13-D14 A/B 切流 =====================
+// 单行配置: AI 自动评分的发布策略
+// - mode: 'off' = 完全关闭; 'shadow' = 跑 + 落库 + 不影响决策; 'active' = 跑 + 落库 + 写决策
+// - rolloutPct: 0-100, 触发概率 (按 deliverableId hash 取模分桶, 同一 deliverable 始终同组)
+// - admin 可在 /settings/llm 旁边 /settings/quality-eval-rollout 调
+// 关联: docs/research/w25-calibration-2026-07.md §7
+model QualityEvalRollout {
+  id           String   @id @default("default")
+  mode         String   @default("off")  // off / shadow / active
+  rolloutPct   Int      @default(0)       // 0-100
+  note         String?  @db.Text
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 // ===================== 12. RoyaltyRecord IP 二次授权分账 =====================
 // 独家壁垒 — 数字人 IP 被二次使用时,自动按比例分账
 // 公式: IP 所有者 60% / 原创者 10% / 平台 30%

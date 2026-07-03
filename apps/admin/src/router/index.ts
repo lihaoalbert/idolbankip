@@ -59,6 +59,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/QualityEvalQueuePage.vue'),
   },
   {
+    path: '/quality-eval/rollout',
+    name: 'quality-eval-rollout',
+    component: () => import('@/pages/QualityEvalRolloutPage.vue'),
+  },
+  {
     path: '/quality-eval/:id',
     name: 'quality-eval-detail',
     component: () => import('@/pages/QualityEvalDetailPage.vue'),

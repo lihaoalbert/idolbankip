@@ -165,6 +165,61 @@ L4 商业│     NaN      NaN    0.208  0.500±0.000  0.668±0.164
 
 ---
 
+## 8. A/B 切流策略 (D13-D14)
+
+### 8.1 配置
+
+`QualityEvalRollout` 表 — 单行,singleton (id='default')。
+字段:
+- `mode`: `off` / `shadow` / `active`
+- `rolloutPct`: 0-100 (按 deliverableId hash 分桶,同一 deliverable 始终同组)
+- `note`: admin 备注 (例 "D13 A/B 启动")
+- `updatedBy` / `updatedAt`: 审计
+
+### 8.2 Mode 语义
+
+| Mode | 跑评分 | 落库 | 写决策到下游 | 用途 |
+|------|--------|------|------------|------|
+| **off** (默认) | ❌ | ❌ | ❌ | 上线前 / 紧急回滚 |
+| **shadow** | ✅ | ✅ | ❌ | 攒数据校准 / 静默对比 |
+| **active** | ✅ | ✅ | ✅ | 全量上线 |
+
+### 8.3 Admin 配置入口
+
+`/quality-eval/rollout` (admin SPA),提供:
+- 当前状态展示 (mode + % + 最近更新)
+- 编辑表单 (3 个 mode 按钮 + 0-100 slider + note)
+- 改完写 audit log (`quality_eval.rollout_changed`)
+- 上线节奏清单
+
+后端 API:
+- `GET  /api/v1/admin/quality-eval/rollout` — 读
+- `PUT  /api/v1/admin/quality-eval/rollout` — 写
+
+### 8.4 系统触发钩子
+
+`QualityEvalService.systemTrigger(input, rollout)` — 未来 deliverable 上传 hook 里调用此方法,而不是直接 `persist()`。`systemTrigger` 会:
+1. 调 `rollout.shouldEvaluate(deliverableId)` 按 mode + % 决定是否跑
+2. 跑 → `persist()` 走正常流程
+3. 跳过 → 记录日志,返回 null
+
+**当前状态**: systemTrigger API 已就绪,但 deliverable 上传 hook 尚未接 (W3 工作)。上线前保持 mode=off。
+
+### 8.5 上线节奏 (W2.5 决策 #4)
+
+1. **默认 off** — 上线时保持,任何 AI 评分只通过 admin POST /quality-eval/run 手动触发
+2. 攒够 50+ 人评 → 跑 `scripts/quality-eval-calibrate.ts`,SRCC ≥ 0.75
+3. 切 **shadow 10%** 跑 1 周,对比 AI 与人工,无 regression
+4. → shadow 50% (1 周) → active 50% (1 周) → active 100%
+5. 每月跑一次 SRCC drift 检测 (脚本可 cron 化)
+
+### 8.6 紧急回滚
+
+任何时候切回 `off` 即可。后续 deliverable 不会被自动评分 (systemTrigger 返回 null)。
+已落库的 QualityEval 记录不删除 — 用于事后复盘。
+
+---
+
 ## 8. 附录:文件清单
 
 | 文件 | 作用 |

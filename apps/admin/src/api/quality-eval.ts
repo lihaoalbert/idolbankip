@@ -46,6 +46,16 @@ export interface DashboardStats {
   appealPending: number;
 }
 
+export type RolloutMode = 'off' | 'shadow' | 'active';
+
+export interface RolloutConfig {
+  mode: RolloutMode;
+  rolloutPct: number;
+  note: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
 export const qualityEvalAdminApi = {
   queue: (q: {
     grade?: SabcGrade;
@@ -65,4 +75,12 @@ export const qualityEvalAdminApi = {
     appealSummary?: string;
     newScores?: number[];
   }) => apiClient.post(`/admin/quality-eval/${id}/appeal-decision`, body).then((r) => r.data),
+
+  getRollout: () => apiClient.get<RolloutConfig>('/admin/quality-eval/rollout').then((r) => r.data),
+
+  updateRollout: (body: {
+    mode?: RolloutMode;
+    rolloutPct?: number;
+    note?: string;
+  }) => apiClient.put<RolloutConfig>('/admin/quality-eval/rollout', body).then((r) => r.data),
 };

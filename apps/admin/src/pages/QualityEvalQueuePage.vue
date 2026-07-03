@@ -98,6 +98,14 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
       <p class="mt-2 text-sm text-ink/60">
         W2.5 AI 4 层评分 (技术 / 美学 / 合规 / 商业价值) · S/A/B/C 分级 · 评分公开
       </p>
+      <div class="mt-3">
+        <RouterLink
+          to="/quality-eval/rollout"
+          class="text-xs font-mono text-ink/60 hover:text-stamp-red"
+        >
+          ⚙️ A/B 切流配置 →
+        </RouterLink>
+      </div>
     </header>
 
     <!-- Dashboard 统计 -->
