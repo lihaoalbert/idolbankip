@@ -1,0 +1,105 @@
+[
+  {
+    "id": "demo-001",
+    "briefDescription": "数字人广告片:都市女性白领,30秒,品牌代言,办公室场景,产品植入咖啡",
+    "deliverableDescription": "创意都市广告 30 秒,办公室咖啡场景,轻快节奏",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo001/600/400"],
+    "creatorNote": "目标受众 25-35 都市白领",
+    "humanScores": { "l1": 0.82, "l2": 0.78, "l4": 0.75 },
+    "note": "真实感好,画面稳定;商业信息略单薄"
+  },
+  {
+    "id": "demo-002",
+    "briefDescription": "古风数字人短视频:汉服少女,15秒,美妆产品种草,水墨场景",
+    "deliverableDescription": "水墨汉服美妆 15 秒短片",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo002/600/400"],
+    "creatorNote": "东方美学,淡雅色调",
+    "humanScores": { "l1": 0.65, "l2": 0.85, "l4": 0.70 },
+    "note": "美学高分但技术一般,镜头略晃"
+  },
+  {
+    "id": "demo-003",
+    "briefDescription": "赛博朋克数字人 10 秒,游戏宣传,霓虹场景",
+    "deliverableDescription": "赛博霓虹游戏宣传短片",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo003/600/400"],
+    "creatorNote": "强视觉冲击",
+    "humanScores": { "l1": 0.88, "l2": 0.92, "l4": 0.80 },
+    "note": "S 级水准,各维度均高"
+  },
+  {
+    "id": "demo-004",
+    "briefDescription": "校园清新数字人 8 秒,文具品牌种草,简洁校园场景",
+    "deliverableDescription": "校园清新文具种草",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo004/600/400"],
+    "creatorNote": "阳光活力",
+    "humanScores": { "l1": 0.55, "l2": 0.62, "l4": 0.50 },
+    "note": "B 级,整体中规中矩"
+  },
+  {
+    "id": "demo-005",
+    "briefDescription": "民国闺秀数字人 12 秒,旗袍展示,复古色调",
+    "deliverableDescription": "民国旗袍展示 12 秒",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo005/600/400"],
+    "creatorNote": "复古胶片质感",
+    "humanScores": { "l1": 0.72, "l2": 0.80, "l4": 0.68 },
+    "note": "A 级,色彩好但叙事略弱"
+  },
+  {
+    "id": "demo-006",
+    "briefDescription": "3D 数字人 元气偶像 20 秒,音乐节 MV 风格",
+    "deliverableDescription": "3D 元气偶像 MV 片段",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo006/600/400"],
+    "creatorNote": "高能节奏,镜头切剪",
+    "humanScores": { "l1": 0.90, "l2": 0.88, "l4": 0.85 },
+    "note": "S 级商业大片"
+  },
+  {
+    "id": "demo-007",
+    "briefDescription": "直播切片 30 秒,带货主播表情动作",
+    "deliverableDescription": "直播切片整理 30 秒",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo007/600/400"],
+    "creatorNote": "自然带货",
+    "humanScores": { "l1": 0.58, "l2": 0.45, "l4": 0.60 },
+    "note": "B 级,C 级美学,商业信息中等"
+  },
+  {
+    "id": "demo-008",
+    "briefDescription": "营销海报系列 5 张,美妆品牌,夏日防晒主题",
+    "deliverableDescription": "夏日防晒美妆海报 5 张",
+    "deliverableUrls": [],
+    "thumbnailUrls": [
+      "https://picsum.photos/seed/demo008a/600/400",
+      "https://picsum.photos/seed/demo008b/600/400"
+    ],
+    "creatorNote": "夏日清新色调",
+    "humanScores": { "l1": 0.75, "l2": 0.82, "l4": 0.72 },
+    "note": "A 级,海报系列整体均衡"
+  },
+  {
+    "id": "demo-009",
+    "briefDescription": "3D 数字人 产品介绍 15 秒,科技产品发布会风格",
+    "deliverableDescription": "科技产品 3D 介绍",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo009/600/400"],
+    "creatorNote": "未来感 3D 渲染",
+    "humanScores": { "l1": 0.85, "l2": 0.88, "l4": 0.78 },
+    "note": "A+ 级,技术好但商业略抽象"
+  },
+  {
+    "id": "demo-010",
+    "briefDescription": "低质量测试样片:模糊、过曝、抖动",
+    "deliverableDescription": "模糊低质量样片",
+    "deliverableUrls": ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4"],
+    "thumbnailUrls": ["https://picsum.photos/seed/demo010/600/400"],
+    "creatorNote": "测试用低质样本",
+    "humanScores": { "l1": 0.35, "l2": 0.42, "l4": 0.30 },
+    "note": "C 级,应被闸门打回"
+  }
+]
