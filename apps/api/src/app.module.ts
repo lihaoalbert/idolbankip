@@ -39,6 +39,9 @@ import { EmailModule } from './email/email.module';
 import { WechatModule } from './wechat/wechat.module';
 import { BriefPushModule } from './brief-push/brief-push.module';
 import { QualityEvalModule } from './quality-eval/quality-eval.module';
+import { SmsModule } from './sms/sms.module';
+import { AuthPhoneModule } from './auth-phone/auth-phone.module';
+import { AuthWechatModule } from './auth-wechat/auth-wechat.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -87,6 +90,9 @@ import { configValidationSchema } from './config/config.validation';
     WechatModule,
     BriefPushModule,
     QualityEvalModule,
+    SmsModule,
+    AuthPhoneModule,
+    AuthWechatModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

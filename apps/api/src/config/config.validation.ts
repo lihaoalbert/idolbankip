@@ -55,6 +55,30 @@ export const configValidationSchema = Joi.object({
   WECHAT_TEMPLATE_ID_BRIEF_PUBLISHED: Joi.string().allow('').default(''),
   WECHAT_TEMPLATE_ID_BRIEF_BUMPED: Joi.string().allow('').default(''),
 
+  // W3 W1: 多通道登录 — 短信 (阿里云 dysmsapi)
+  // 凭据未配齐时 SmsService 进入 mock 模式 — 后端日志输出 code
+  SMS_DRIVER: Joi.string().valid('mock', 'aliyun').default('mock'),
+  SMS_LOG_CODE: Joi.boolean().default(false), // dev only — 日志打印明文 code
+  SMS_CODE_TTL_SECONDS: Joi.number().default(300),
+  SMS_CODE_LENGTH: Joi.number().default(6),
+  SMS_THROTTLE_SECONDS: Joi.number().default(60),  // 同号最小发送间隔
+  SMS_MAX_DAILY_PER_PHONE: Joi.number().default(10),
+  SMS_MAX_ATTEMPTS: Joi.number().default(5),  // 单码最大错试次数
+  ALIYUN_SMS_ACCESS_KEY_ID: Joi.string().allow('').default(''),
+  ALIYUN_SMS_ACCESS_KEY_SECRET: Joi.string().allow('').default(''),
+  ALIYUN_SMS_SIGN_NAME: Joi.string().default('ibi.ren'),
+  ALIYUN_SMS_TEMPLATE_CODE_LOGIN: Joi.string().allow('').default(''),
+
+  // W3 W1: 多通道登录 — 微信开放平台 OAuth (网站应用, snsapi_login)
+  // 真 driver 需 ICP 备案完成 + redirect_uri 已在开放平台后台配置
+  WECHAT_OAUTH_DRIVER: Joi.string().valid('mock', 'real').default('mock'),
+  WECHAT_OAUTH_APP_ID: Joi.string().allow('').default(''),
+  WECHAT_OAUTH_APP_SECRET: Joi.string().allow('').default(''),
+  WECHAT_OAUTH_REDIRECT_URI: Joi.string().uri().default('https://ibi.ren/api/v1/auth/wechat/callback'),
+
+  // W3 W1: 多通道登录 — 手机号格式
+  PHONE_REGEX: Joi.string().default('^1[3-9]\\d{9}$'),
+
   // DashScope (阿里云百炼) — image gen + vision
   // 之前 imageGen 静默读 env 无 Joi 校验(隐藏坑),Track B 补上
   DASHSCOPE_API_KEY: Joi.string().allow('').default(''),

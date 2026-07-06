@@ -217,6 +217,37 @@ model RefreshToken {
   @@index([userId])
 }
 
+// ===================== W3 W1: 多通道登录 =====================
+
+// 手机验证码 (短信登录/绑定微信时的二次校验)。MVP 不 hash code (本地 dev 看得到),
+// 生产应切 bcrypt 或 HMAC。attempts 防爆破;usedAt 幂等。
+model PhoneVerifyCode {
+  id        String    @id @default(cuid())
+  phone     String
+  code      String
+  purpose   String    @default("LOGIN") // LOGIN | BIND_WECHAT
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// 微信开放平台 OAuth state (防 CSRF + BIND/LOGIN 区分)。callback 后 openid 写回,
+// LOGIN 流程拿到 openid 再去查/建 user;BIND 流程 userId 已存,callback 后直接绑。
+model WechatOAuthState {
+  state     String   @id
+  purpose   String   @default("LOGIN") // LOGIN | BIND | BIND_PENDING
+  userId    String?  // BIND 时必填
+  openid    String?  // callback 成功后写回
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 // ===================== IP 资产 =====================
 
 model IpAsset {

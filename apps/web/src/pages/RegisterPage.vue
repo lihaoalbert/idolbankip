@@ -1,16 +1,27 @@
 <script setup lang="ts">
+/**
+ * RegisterPage — W3 W1 D3 Tab 框架
+ * 3 Tab: [邮箱密码] [手机验证码] (D4 接入) [微信扫码] (D5 接入,新用户走补手机号)
+ * 01 IDENTITY 身份勾选对所有 Tab 通用;02 CREDENTIAL 凭证按 Tab 切换
+ */
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore, type UserRole } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
 
+type Tab = 'email' | 'phone' | 'wechat';
+
 const router = useRouter();
 const auth = useAuthStore();
 const toast = useToast();
 
+const tab = ref<Tab>('email');
+
 const form = ref({
   email: '',
   password: '',
+  phone: '',
+  phoneCode: '',
   displayName: '',
   roles: { CREATOR: false, BUYER: true },
   companyName: '',
@@ -35,6 +46,17 @@ async function submit() {
     error.value = '请至少勾选一个身份 (捏者 / 采购方)';
     return;
   }
+  if (tab.value === 'phone') {
+    // D4 接入, D3 占位
+    error.value = '手机号注册将在 D4 上线';
+    toast.error(error.value);
+    return;
+  }
+  if (tab.value === 'wechat') {
+    error.value = '微信扫码注册走 D5 流程, 请到登录页扫码';
+    toast.error(error.value);
+    return;
+  }
   error.value = '';
   loading.value = true;
   try {
@@ -55,6 +77,12 @@ async function submit() {
     toast.error(error.value);
   } finally { loading.value = false; }
 }
+
+const tabLabel: Record<Tab, string> = {
+  email: 'EMAIL · 邮箱',
+  phone: 'PHONE · 手机',
+  wechat: 'WECHAT · 微信',
+};
 </script>
 
 <template>
@@ -79,8 +107,7 @@ async function submit() {
             新入<span class="font-display-italic text-gold">馆</span>登记
           </h1>
           <p class="mt-5 text-sm text-ink/60 leading-relaxed max-w-sm">
-            填写以下表单, 即可在 ibi.ren 档案库登记新条目 ·
-            可同时勾选 A + B 两端身份, 一个账号完整流转。
+            任选一种登记方式, 可同时勾选 A + B 两端身份, 一个账号完整流转。
           </p>
         </div>
 
@@ -128,7 +155,24 @@ async function submit() {
             <div class="stamp text-gold bg-cream">ENROLMENT FORM</div>
           </div>
 
-          <!-- 步骤 · 01 身份选择 -->
+          <!-- W3 W1 D3: 凭证方式 Tab -->
+          <div class="grid grid-cols-3 gap-1 mb-8 border-0.5 border-line bg-cream/50 p-1">
+            <button
+              v-for="(t, idx) in (['email', 'phone', 'wechat'] as Tab[])"
+              :key="t"
+              type="button"
+              @click="tab = t"
+              :data-testid="`register-tab-${t}`"
+              class="py-2.5 px-2 font-mono text-[10px] tracking-widest uppercase transition border-0.5"
+              :class="tab === t
+                ? 'bg-ink text-cream border-ink'
+                : 'bg-transparent text-ink/60 border-transparent hover:text-ink hover:bg-cream'"
+            >
+              {{ String(idx + 1).padStart(2, '0') }} · {{ tabLabel[t] }}
+            </button>
+          </div>
+
+          <!-- 步骤 · 01 身份选择 (三 Tab 通用) -->
           <div class="mb-8">
             <div class="flex items-baseline justify-between mb-4">
               <div class="catalog-no text-ink/60">— 01 — IDENTITY · 身份</div>
@@ -165,10 +209,12 @@ async function submit() {
             </div>
           </div>
 
-          <!-- 步骤 · 02 凭证 -->
+          <!-- 步骤 · 02 凭证 (按 Tab 切换) -->
           <div class="hairline-t border-line pt-8">
             <div class="catalog-no text-ink/60 mb-4">— 02 — CREDENTIAL · 凭证</div>
-            <form @submit.prevent="submit" class="space-y-5">
+
+            <!-- 02-A: 邮箱密码 (现有功能) -->
+            <form v-if="tab === 'email'" @submit.prevent="submit" class="space-y-5">
               <div>
                 <label class="catalog-no text-ink/60 block mb-2">EMAIL · 邮箱</label>
                 <input v-model="form.email" type="email" required autocomplete="email"
@@ -189,7 +235,6 @@ async function submit() {
                 <input v-model="form.companyName"
                   class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm" />
               </div>
-
               <div class="hairline-t border-line pt-6">
                 <label class="flex items-start gap-3 text-xs text-ink/60 cursor-pointer">
                   <input v-model="form.agree" type="checkbox" class="mt-0.5 accent-gold" />
@@ -217,6 +262,70 @@ async function submit() {
                 <span class="font-display-italic">→</span>
               </button>
             </form>
+
+            <!-- 02-B: 手机验证码 (D4 接入) -->
+            <form v-else-if="tab === 'phone'" @submit.prevent="submit" class="space-y-5">
+              <div>
+                <label class="catalog-no text-ink/60 block mb-2">PHONE · 手机号</label>
+                <input v-model="form.phone" type="tel" pattern="^1[3-9]\d{9}$" placeholder="11 位国内手机号"
+                  class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm" />
+              </div>
+              <div>
+                <label class="catalog-no text-ink/60 block mb-2">CODE · 6 位验证码 (D4 接入)</label>
+                <div class="flex gap-2">
+                  <input v-model="form.phoneCode" type="text" inputmode="numeric" maxlength="6" placeholder="D4 启用"
+                    class="flex-1 px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm" />
+                  <button type="button" disabled
+                    class="px-4 py-3 border-0.5 border-line bg-cream text-ink/40 cursor-not-allowed text-xs catalog-no">
+                    D4 待启用
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="catalog-no text-ink/60 block mb-2">DISPLAY NAME · 显示名</label>
+                <input v-model="form.displayName"
+                  class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm" />
+              </div>
+              <div class="hairline-t border-line pt-6">
+                <label class="flex items-start gap-3 text-xs text-ink/60 cursor-pointer">
+                  <input v-model="form.agree" type="checkbox" class="mt-0.5 accent-gold" />
+                  <span>
+                    我已阅读并同意
+                    <a href="#" class="text-gold hover:underline">《用户协议》</a>
+                    <a href="#" class="text-gold hover:underline">《隐私政策》</a>
+                    <a href="#" class="text-gold hover:underline">《AI 形象版权声明》</a>
+                  </span>
+                </label>
+              </div>
+
+              <div v-if="error" class="p-3 border-0.5 border-danger/40 bg-danger/5 text-danger text-sm">
+                <span class="catalog-no text-danger mr-2">ERROR</span>
+                {{ error }}
+              </div>
+
+              <button
+                type="submit"
+                :disabled="loading"
+                class="w-full py-4 bg-ink text-cream hover:bg-gold transition font-display text-base tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+              >
+                <span class="catalog-no text-cream/70 group-hover:text-ink/70 text-[10px]">FILE ENTRY</span>
+                <span>{{ loading ? '提交中…' : '登记并入馆' }}</span>
+                <span class="font-display-italic">→</span>
+              </button>
+            </form>
+
+            <!-- 02-C: 微信扫码 (D5 接入) -->
+            <div v-else class="space-y-5">
+              <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
+                <div class="catalog-no text-gold mb-2">D5 · COMING SOON</div>
+                <p class="text-sm">微信扫码注册在 D5 接入</p>
+                <p class="text-xs mt-2">首次扫码 → 引导补手机号 → 选身份 → 入馆</p>
+              </div>
+              <div class="text-xs text-ink/40 space-y-1 px-2">
+                <div>· 完成 01 步骤身份勾选后, 在登录页扫码触发</div>
+                <div>· 同手机号 = 同账号, 已有账号直接合并</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

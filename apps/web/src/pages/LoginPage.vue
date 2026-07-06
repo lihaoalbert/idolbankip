@@ -1,20 +1,29 @@
 <script setup lang="ts">
+/**
+ * LoginPage — W3 W1 D3 Tab 框架
+ * 3 Tab: [邮箱密码] [手机验证码] [微信扫码]
+ * 邮箱密码保持原功能;手机/微信 D4/D5 接入, D3 阶段显示"开发中"
+ */
 import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
+
+type Tab = 'email' | 'phone' | 'wechat';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const toast = useToast();
 
+const tab = ref<Tab>('email');
+
 const email = ref('');
 const password = ref('');
 const error = ref('');
 const loading = ref(false);
 
-async function submit() {
+async function submitEmail() {
   error.value = '';
   loading.value = true;
   try {
@@ -32,6 +41,12 @@ function fillDemo(role: 'CREATOR' | 'BUYER') {
   email.value = role === 'CREATOR' ? 'creator@ibi.ren' : 'buyer@ibi.ren';
   password.value = 'demo1234';
 }
+
+const tabLabel: Record<Tab, string> = {
+  email: 'EMAIL · 邮箱',
+  phone: 'PHONE · 手机',
+  wechat: 'WECHAT · 微信',
+};
 </script>
 
 <template>
@@ -56,7 +71,7 @@ function fillDemo(role: 'CREATOR' | 'BUYER') {
             入馆<span class="font-display-italic text-gold">凭</span>证
           </h1>
           <p class="mt-5 text-sm text-ink/60 leading-relaxed max-w-sm">
-            凭档案登记的邮箱与密钥, 即可调取您的形象库、订单、已购资产与捏者工作台。
+            任选一种登记方式入馆：邮箱密钥、手机验证码、微信扫码。首次入馆即开档。
           </p>
         </div>
 
@@ -101,12 +116,30 @@ function fillDemo(role: 'CREATOR' | 'BUYER') {
           </div>
 
           <!-- 元数据 -->
-          <div class="flex items-baseline justify-between mb-8 pb-4 hairline-b border-line">
+          <div class="flex items-baseline justify-between mb-6 pb-4 hairline-b border-line">
             <div class="catalog-no text-ink/50">CREDENTIAL FORM · 入馆登记</div>
-            <div class="catalog-no text-ink/30">№ 027-A</div>
+            <div class="catalog-no text-ink/30">№ 027-{{ tab === 'email' ? 'A' : tab === 'phone' ? 'B' : 'C' }}</div>
           </div>
 
-          <form @submit.prevent="submit" class="space-y-6">
+          <!-- W3 W1 D3: Tab 切换 (邮箱/手机/微信) -->
+          <div class="grid grid-cols-3 gap-1 mb-8 border-0.5 border-line bg-cream/50 p-1">
+            <button
+              v-for="(t, idx) in (['email', 'phone', 'wechat'] as Tab[])"
+              :key="t"
+              type="button"
+              @click="tab = t"
+              :data-testid="`login-tab-${t}`"
+              class="py-2.5 px-2 font-mono text-[10px] tracking-widest uppercase transition border-0.5"
+              :class="tab === t
+                ? 'bg-ink text-cream border-ink'
+                : 'bg-transparent text-ink/60 border-transparent hover:text-ink hover:bg-cream'"
+            >
+              {{ String(idx + 1).padStart(2, '0') }} · {{ tabLabel[t] }}
+            </button>
+          </div>
+
+          <!-- Tab: 邮箱密码 (现有功能, 不变) -->
+          <form v-if="tab === 'email'" @submit.prevent="submitEmail" class="space-y-6">
             <div>
               <label class="catalog-no text-ink/60 block mb-2">EMAIL · 登记邮箱</label>
               <input
@@ -143,20 +176,46 @@ function fillDemo(role: 'CREATOR' | 'BUYER') {
               <span>{{ loading ? '验证中…' : '入馆' }}</span>
               <span class="font-display-italic">→</span>
             </button>
-
-            <div class="hairline-t border-line pt-6 flex items-center justify-between text-xs">
-              <p class="text-ink/60">
-                还没有档案？
-                <RouterLink to="/register" class="text-gold hover:underline ml-1">立即登记 →</RouterLink>
-              </p>
-              <RouterLink to="/contact" class="text-ink/40 hover:text-gold transition catalog-no">
-                FORGOT KEY
-              </RouterLink>
-            </div>
           </form>
 
-          <!-- Demo 填充 -->
-          <div class="mt-8 pt-6 hairline-t border-line">
+          <!-- Tab: 手机验证码 (D4 接入) -->
+          <div v-else-if="tab === 'phone'" class="space-y-4">
+            <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
+              <div class="catalog-no text-gold mb-2">D4 · COMING SOON</div>
+              <p class="text-sm">手机验证码登录将在 D4 接入<br>（短信 driver mock / aliyun 可切换）</p>
+            </div>
+            <div class="text-xs text-ink/40 space-y-1">
+              <div>· 6 位数字码 · 5 分钟过期</div>
+              <div>· 同号 60s 1 条 + 日 10 条上限</div>
+              <div>· 错 5 次强制重发</div>
+            </div>
+          </div>
+
+          <!-- Tab: 微信扫码 (D5 接入) -->
+          <div v-else class="space-y-4">
+            <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
+              <div class="catalog-no text-gold mb-2">D5 · COMING SOON</div>
+              <p class="text-sm">微信扫码登录将在 D5 接入<br>（开放平台 OAuth · PC 端扫码）</p>
+            </div>
+            <div class="text-xs text-ink/40 space-y-1">
+              <div>· 开放平台网站应用 AppID</div>
+              <div>· 首次扫码引导补手机号</div>
+              <div>· 同手机号 = 同账号</div>
+            </div>
+          </div>
+
+          <div class="hairline-t border-line pt-6 mt-8 flex items-center justify-between text-xs">
+            <p class="text-ink/60">
+              还没有档案？
+              <RouterLink to="/register" class="text-gold hover:underline ml-1">立即登记 →</RouterLink>
+            </p>
+            <RouterLink to="/contact" class="text-ink/40 hover:text-gold transition catalog-no">
+              FORGOT KEY
+            </RouterLink>
+          </div>
+
+          <!-- Demo 填充 (仅邮箱 Tab 可见) -->
+          <div v-if="tab === 'email'" class="mt-8 pt-6 hairline-t border-line">
             <div class="catalog-no text-ink/40 mb-3">DEMO KEYS · 试阅账号</div>
             <div class="grid grid-cols-2 gap-3">
               <button

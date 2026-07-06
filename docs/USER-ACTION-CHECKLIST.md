@@ -167,6 +167,69 @@
 - dispute 复审期间 Claude 自动跑申诉统计 + 周报
 - 平台 A/B 切流 50/50(原 1.0 vs 新 2.0)由 admin 一键开关,无需 Claude 介入
 
+### W2.5 部署进度 (2026-07-03)
+
+| # | 状态 | 备注 |
+|---|------|------|
+| 13 | ⏳ 未做 | 阿里云增强版未开通, L3 跑 mock |
+| 14 | ✅ 已就绪 | admin `/settings/llm` 已配 Claude Sonnet 4.6 |
+| 15 | ⏳ 未做 | 词表未买, L3 走基础词表 fallback |
+| 16 | ✅ 草案已上 | `/legal/ai-disclaimer` 页面已上线 (草案状态), 待法务签字 |
+
+**W2.5 已部署上线 (commit 08d03f4)**, 4 个 D 任务全完成:
+- D6-D7: QualityEval 落库 + 申诉 + 法务 disclaimer 页 (cea7cb3)
+- D8-D9: admin 质量评审 + 买家 bid 列表 accept (1cc498d)
+- D10-D12: 校准脚本 + Demo Manifest + 方法论 (0e677ba)
+- D13-D14: A/B 切流 50/50 + admin UI (08d03f4)
+
+**当前 A/B 配置**: mode=off (线上验证后已回滚到 off, 等攒人评后切 shadow)
+
+**法务签字**: 在 admin 后台 draft 状态显示, 法务签字后改 v0.2 正式版 + 移除"草案"字样
+
+---
+
+## 六、W3 W1 多通道登录卡点(#17-#24)— 优先级 🟠 高(D4-D5 上线前必须)
+
+> **关联文档**:`~/.claude/plans/cryptic-humming-harp.md`(2026-07-06 拍板)
+> **方案**: 微信开放平台 OAuth(PC 扫码)+ 阿里云短信验证码 + Mock 先行
+> **责任**: Claude 负责所有代码 + ECS 部署 + smoke;用户负责云服务开通 + 资质审核 + 法务签字。
+
+| # | 任务 | 截止 | 工时估算 | 备注 |
+|---|---|---|---|---|
+| 17 | **微信开放平台注册**(open.weixin.qq.com) | +7d | 1h | 主体=北京光屿,需营业执照。**这是 D5 真 OAuth 的前置**。 |
+| 18 | **网站应用申请**(拿 AppID/AppSecret) | +14d | 2h | 填写 `redirect_uri=https://ibi.ren/api/v1/auth/wechat/callback`。审批严,1-2 周。 |
+| 19 | **微信开放平台开发者认证**(¥300/年) | +14d | 1h | 不认证拿不到用户昵称头像,扫码后只显示 "openid" 占位。 |
+| 20 | **ICP 备案确认**(ibi.ren) | 外部依赖 +30d | — | 备案未完真 OAuth 跑不通(redirect_uri 必须 HTTPS)。当前先 mock 跑通。 |
+| 21 | **阿里云短信服务开通 + 签名 `ibi.ren` 备案** | +10d | 2h | 签名审核 1-2 工作日。**这是 D4 真短信的前置**。 |
+| 22 | **阿里云短信模板 `LOGIN_CODE` 申请** | +10d | 1h | 模板内容:`您的验证码是${code},5 分钟内有效。`。变量名必须是 `code`。 |
+| 23 | **阿里云 RAM 子账号**(只授 `dysms:SendSms`) | +10d | 0.5h | 用子 AK 不给 root key,Claude 写入 ECS `/opt/ibiren/.env`(`ALIYUN_SMS_ACCESS_KEY_ID/SECRET`)。 |
+| 24 | **隐私政策 v2 第三条法务审核签字** | 外部依赖 +14d | — | 已有 v2 草稿(`docs/legal/2026-privacy-policy-v2.md:46` 列"微信 OpenID/UnionID + 手机号"收集),需签字版才能上线真通道。 |
+
+### W3 W1 触发条件
+
+- **D3 完成** ✅ (2026-07-06) — Schema + module 骨架 + 前端 Tab 框架已 commit
+- **D4 进行中** — 手机验证码全链路(mock 跑通端到端)
+- **D5 待开** — 微信扫码全链路(mock 跑通端到端)
+- **D6 待开** — smoke-auth + e2e + ECS 部署
+- **D7+ 待办** — 用户 #17-#24 凭据到位后,改 `scripts/deploy.env` 切真 driver,`bash scripts/deploy.sh` 部署
+
+### W3 W1 部署进度 (2026-07-06)
+
+| # | 状态 | 备注 |
+|---|------|------|
+| 17 | ⏳ 未做 | 开放平台未注册 |
+| 18 | ⏳ 未做 | 网站应用未申请 |
+| 19 | ⏳ 未做 | 开发者未认证 |
+| 20 | ⏳ 外部依赖 | ICP 备案进行中(7-2 起) |
+| 21 | ⏳ 未做 | 短信服务未开通 |
+| 22 | ⏳ 未做 | 短信模板未申请 |
+| 23 | ⏳ 未做 | RAM 子账号未创建 |
+| 24 | ⏳ 外部依赖 | 隐私政策 v2 签字版待法务 |
+
+**当前 driver 状态**:
+- `SMS_DRIVER=mock` — 后端日志打印 `[sms-mock] code=123456`(需 `SMS_LOG_CODE=true`)
+- `WECHAT_OAUTH_DRIVER=mock` — 前端用 mock 跑通扫码 UI,真凭据到位后改 env 切真
+
 ---
 
 > 本清单由 Claude 自动整理,任何事项如有疑问,可直接问 Claude 复核。
