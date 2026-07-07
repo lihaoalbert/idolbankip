@@ -2,11 +2,12 @@ import { Module, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SmsService } from './sms.service';
 import { MockSmsDriver } from './sms.mock.driver';
+import { AliyunDysmsDriver } from './sms.aliyun-dysms.driver';
 import { SMS_DRIVER } from './sms-driver.token';
 
 /**
- * SmsModule — W3 W1 D3 骨架
- * 真阿里云 driver (sms.aliyun-dysms.driver.ts) 留到 D4 后切真 driver 时补
+ * SmsModule — W3 W1 D4
+ * 按 SMS_DRIVER env 注入 driver: mock | aliyun
  */
 @Module({
   imports: [ConfigModule],
@@ -18,13 +19,14 @@ import { SMS_DRIVER } from './sms-driver.token';
         const driver = config.get<string>('SMS_DRIVER', 'mock');
         const log = new Logger('SmsModule');
         if (driver === 'mock') {
-          log.log('SMS_DRIVER=mock (开发模式)');
+          log.log('SMS_DRIVER=mock (开发模式, 日志输出 code)');
           return new MockSmsDriver(config);
         }
-        // aliyun driver 留到 D4 后再写 — 现在 hard fail 而不是 silently mock
-        throw new Error(
-          `SMS_DRIVER=${driver} 暂未实现, D4 后会接入 (@alicloud/dysmsapi-20170525)`,
-        );
+        if (driver === 'aliyun') {
+          log.log('SMS_DRIVER=aliyun (真驱动)');
+          return new AliyunDysmsDriver(config);
+        }
+        throw new Error(`SMS_DRIVER=${driver} 未知, 期望 mock|aliyun`);
       },
     },
     SmsService,

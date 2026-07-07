@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
- * LoginPage — W3 W1 D3 Tab 框架
- * 3 Tab: [邮箱密码] [手机验证码] [微信扫码]
- * 邮箱密码保持原功能;手机/微信 D4/D5 接入, D3 阶段显示"开发中"
+ * LoginPage — W3 W1 D4 多通道登录
+ * 3 Tab: [邮箱密码] [手机验证码] (D4 接通) [微信扫码] (D5 待开)
+ * 邮箱密码保持原功能;手机 Tab 调 api/auth-phone.ts;微信 Tab 占位
  */
-import { ref } from 'vue';
+import { computed, ref, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
+import { sendPhoneCode, phoneLogin } from '@/api/auth-phone';
 
 type Tab = 'email' | 'phone' | 'wechat';
 
@@ -23,6 +24,13 @@ const password = ref('');
 const error = ref('');
 const loading = ref(false);
 
+const phone = ref('');
+const code = ref('');
+const phoneError = ref('');
+const phoneLoading = ref(false);
+const countdown = ref(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
 async function submitEmail() {
   error.value = '';
   loading.value = true;
@@ -36,6 +44,55 @@ async function submitEmail() {
     toast.error(error.value);
   } finally { loading.value = false; }
 }
+
+const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value));
+const codeValid = computed(() => /^\d{4,8}$/.test(code.value));
+const phoneCanSubmit = computed(() => phoneValid.value && codeValid.value && !phoneLoading.value);
+
+async function sendCode() {
+  if (!phoneValid.value) { phoneError.value = '手机号格式不对'; return; }
+  phoneError.value = '';
+  try {
+    const r = await sendPhoneCode(phone.value);
+    toast.success(`验证码已发送, ${r.ttlSec} 秒内有效`);
+    countdown.value = 60;
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1;
+      if (countdown.value <= 0 && countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }, 1000);
+  } catch (e: any) {
+    phoneError.value = e?.response?.data?.message || '发送失败';
+    toast.error(phoneError.value);
+  }
+}
+
+async function submitPhone() {
+  if (!phoneCanSubmit.value) return;
+  phoneError.value = '';
+  phoneLoading.value = true;
+  try {
+    const r = await phoneLogin(phone.value, code.value);
+    if (r.needRegister) {
+      // 未注册 — 跳注册页,带手机号 + 码
+      toast.info('未找到账号, 请完成注册');
+      router.push({ path: '/register', query: { tab: 'phone', phone: phone.value, code: code.value } });
+      return;
+    }
+    await auth.fetchMe();
+    toast.success(`欢迎, ${auth.user?.displayName || auth.user?.phone}`);
+    const redirect = (route.query.redirect as string) || '/';
+    router.push(redirect);
+  } catch (e: any) {
+    phoneError.value = e?.response?.data?.message || '登录失败';
+    toast.error(phoneError.value);
+  } finally { phoneLoading.value = false; }
+}
+
+onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
 
 function fillDemo(role: 'CREATOR' | 'BUYER') {
   email.value = role === 'CREATOR' ? 'creator@ibi.ren' : 'buyer@ibi.ren';
@@ -121,7 +178,7 @@ const tabLabel: Record<Tab, string> = {
             <div class="catalog-no text-ink/30">№ 027-{{ tab === 'email' ? 'A' : tab === 'phone' ? 'B' : 'C' }}</div>
           </div>
 
-          <!-- W3 W1 D3: Tab 切换 (邮箱/手机/微信) -->
+          <!-- W3 W1 D4: Tab 切换 (邮箱/手机/微信) -->
           <div class="grid grid-cols-3 gap-1 mb-8 border-0.5 border-line bg-cream/50 p-1">
             <button
               v-for="(t, idx) in (['email', 'phone', 'wechat'] as Tab[])"
@@ -178,18 +235,60 @@ const tabLabel: Record<Tab, string> = {
             </button>
           </form>
 
-          <!-- Tab: 手机验证码 (D4 接入) -->
-          <div v-else-if="tab === 'phone'" class="space-y-4">
-            <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
-              <div class="catalog-no text-gold mb-2">D4 · COMING SOON</div>
-              <p class="text-sm">手机验证码登录将在 D4 接入<br>（短信 driver mock / aliyun 可切换）</p>
+          <!-- Tab: 手机验证码 (D4 接通) -->
+          <form v-else-if="tab === 'phone'" @submit.prevent="submitPhone" class="space-y-6">
+            <div>
+              <label class="catalog-no text-ink/60 block mb-2">PHONE · 手机号</label>
+              <input
+                v-model="phone"
+                type="tel"
+                inputmode="numeric"
+                maxlength="11"
+                placeholder="11 位国内手机号"
+                autocomplete="tel"
+                :data-testid="'login-phone-input'"
+                class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm"
+              />
             </div>
-            <div class="text-xs text-ink/40 space-y-1">
-              <div>· 6 位数字码 · 5 分钟过期</div>
-              <div>· 同号 60s 1 条 + 日 10 条上限</div>
-              <div>· 错 5 次强制重发</div>
+            <div>
+              <label class="catalog-no text-ink/60 block mb-2">CODE · 6 位验证码</label>
+              <div class="flex gap-2">
+                <input
+                  v-model="code"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  placeholder="6 位码"
+                  :data-testid="'login-phone-code-input'"
+                  class="flex-1 px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm tracking-widest"
+                />
+                <button
+                  type="button"
+                  @click="sendCode"
+                  :disabled="!phoneValid || countdown > 0"
+                  :data-testid="'login-phone-send-code'"
+                  class="px-4 py-3 border-0.5 border-ink bg-ink text-cream text-xs catalog-no disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold hover:border-gold transition"
+                >
+                  {{ countdown > 0 ? `${countdown}s 后重发` : '发送验证码' }}
+                </button>
+              </div>
             </div>
-          </div>
+
+            <div v-if="phoneError" class="p-3 border-0.5 border-danger/40 bg-danger/5 text-danger text-sm">
+              <span class="catalog-no text-danger mr-2">ERROR</span>
+              {{ phoneError }}
+            </div>
+
+            <button
+              type="submit"
+              :disabled="!phoneCanSubmit"
+              class="w-full py-4 bg-ink text-cream hover:bg-gold transition font-display text-base tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+            >
+              <span class="catalog-no text-cream/70 group-hover:text-ink/70 text-[10px]">SIGN IN</span>
+              <span>{{ phoneLoading ? '验证中…' : '入馆' }}</span>
+              <span class="font-display-italic">→</span>
+            </button>
+          </form>
 
           <!-- Tab: 微信扫码 (D5 接入) -->
           <div v-else class="space-y-4">

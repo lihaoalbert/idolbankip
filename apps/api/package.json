@@ -28,6 +28,7 @@
   "dependencies": {
     "@alicloud/cloudauth20190307": "^3.13.3",
     "@alicloud/dm20151123": "^1.10.2",
+    "@alicloud/dysmsapi-2017-05-25": "^1.0.1",
     "@alicloud/green20220302": "^3.3.0",
     "@alicloud/ocr20191230": "^4.0.2",
     "@alicloud/openapi-client": "^0.4.15",

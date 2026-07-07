@@ -74,17 +74,20 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('邮箱或密码错误');
 
-    const tokens = await this.issueTokens(user, userAgent);
+    return this.loginOrThrow(user, userAgent);
+  }
 
-    // 荣誉流水 — 每日登录 +5 + 更新连续天数 + 里程碑发奖
-    // 同步等: 让前端 /honor/me 第一次拉就能看到流水, 不需要前端 sleep 后再拉
+  /**
+   * W3 W1 D4 共用入口 — 给 phone / wechat 登录复用
+   * 颁发 token + 写荣誉流水, honor 失败不阻塞主流程
+   */
+  async loginOrThrow(user: User, userAgent: string): Promise<{ user: User; tokens: TokenPair }> {
+    const tokens = await this.issueTokens(user, userAgent);
     try {
       await this.recordLoginHonor(user.id);
     } catch (e: any) {
-      // 荣誉写入失败不影响登录主流程
       this.logger.warn(`honor recordLoginHonor failed: ${e?.message ?? e}`);
     }
-
     return { user, tokens };
   }
 

@@ -15,6 +15,11 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  // W3 W1 D4: 手机号查 user
+  findByPhone(phone: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { phone } });
+  }
+
   async create(params: {
     email: string;
     passwordHash: string;

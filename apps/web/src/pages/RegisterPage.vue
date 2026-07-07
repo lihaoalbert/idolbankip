@@ -1,17 +1,20 @@
 <script setup lang="ts">
 /**
- * RegisterPage — W3 W1 D3 Tab 框架
- * 3 Tab: [邮箱密码] [手机验证码] (D4 接入) [微信扫码] (D5 接入,新用户走补手机号)
+ * RegisterPage — W3 W1 D4 手机号注册全链路
+ * 3 Tab: [邮箱密码] [手机验证码] [微信扫码] (D5)
  * 01 IDENTITY 身份勾选对所有 Tab 通用;02 CREDENTIAL 凭证按 Tab 切换
+ * 手机 Tab:从 ?tab=phone&phone=&code= query 预填(LoginPage needRegister 重定向)
  */
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore, type UserRole } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
+import { sendPhoneCode } from '@/api/auth-phone';
 
 type Tab = 'email' | 'phone' | 'wechat';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const toast = useToast();
 
@@ -30,6 +33,49 @@ const form = ref({
 const error = ref('');
 const loading = ref(false);
 
+// 手机号验证码 — D4
+const phoneError = ref('');
+const countdown = ref(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  // 从 LoginPage needRegister 重定向过来: ?tab=phone&phone=...&code=...
+  const qTab = route.query.tab as string | undefined;
+  const qPhone = route.query.phone as string | undefined;
+  const qCode = route.query.code as string | undefined;
+  if (qTab === 'phone' && qPhone) {
+    tab.value = 'phone';
+    form.value.phone = qPhone;
+    if (qCode) form.value.phoneCode = qCode;
+  }
+});
+
+const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(form.value.phone));
+const phoneCanSubmit = computed(() =>
+  phoneValid.value && /^\d{4,8}$/.test(form.value.phoneCode) && form.value.displayName.trim().length > 0 && !loading.value,
+);
+
+async function sendCode() {
+  if (!phoneValid.value) { phoneError.value = '手机号格式不对'; return; }
+  phoneError.value = '';
+  try {
+    const r = await sendPhoneCode(form.value.phone);
+    toast.success(`验证码已发送, ${r.ttlSec} 秒内有效`);
+    countdown.value = 60;
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1;
+      if (countdown.value <= 0 && countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }, 1000);
+  } catch (e: any) {
+    phoneError.value = e?.response?.data?.message || '发送失败';
+    toast.error(phoneError.value);
+  }
+}
+
 const selectedRoles = computed<UserRole[]>(() => {
   const out: UserRole[] = [];
   if (form.value.roles.CREATOR) out.push('CREATOR');
@@ -46,10 +92,51 @@ async function submit() {
     error.value = '请至少勾选一个身份 (捏者 / 采购方)';
     return;
   }
+  error.value = '';
+  if (tab.value === 'email') {
+    loading.value = true;
+    try {
+      await auth.register({
+        email: form.value.email,
+        password: form.value.password,
+        roles: selectedRoles.value,
+        displayName: form.value.displayName,
+        companyName: isBuyer.value ? form.value.companyName : undefined,
+      });
+      toast.success('登记成功, 欢迎加入 ibi.ren');
+      if (isCreator.value) router.push('/creator');
+      else router.push('/');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      error.value = Array.isArray(msg) ? msg.join('; ') : (msg || '注册失败');
+      toast.error(error.value);
+    } finally { loading.value = false; }
+    return;
+  }
   if (tab.value === 'phone') {
-    // D4 接入, D3 占位
-    error.value = '手机号注册将在 D4 上线';
-    toast.error(error.value);
+    if (!phoneCanSubmit.value) {
+      error.value = '请填写完整的手机号 + 验证码 + 显示名';
+      return;
+    }
+    loading.value = true;
+    try {
+      const r = await auth.loginWithPhone(form.value.phone, form.value.phoneCode, {
+        role: selectedRoles.value[0], // 后端目前接受单个 role
+        displayName: form.value.displayName.trim(),
+      });
+      if (r.needRegister) {
+        toast.info('验证码已通过, 请填写完整身份信息后提交');
+        error.value = '';
+        return;
+      }
+      toast.success('登记成功, 欢迎加入 ibi.ren');
+      if (isCreator.value) router.push('/creator');
+      else router.push('/');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      error.value = Array.isArray(msg) ? msg.join('; ') : (msg || '注册失败');
+      toast.error(error.value);
+    } finally { loading.value = false; }
     return;
   }
   if (tab.value === 'wechat') {
@@ -57,26 +144,9 @@ async function submit() {
     toast.error(error.value);
     return;
   }
-  error.value = '';
-  loading.value = true;
-  try {
-    await auth.register({
-      email: form.value.email,
-      password: form.value.password,
-      roles: selectedRoles.value,
-      displayName: form.value.displayName,
-      companyName: isBuyer.value ? form.value.companyName : undefined,
-    });
-    toast.success('登记成功, 欢迎加入 ibi.ren');
-    if (selectedRoles.value.length > 1) router.push('/');
-    else if (isCreator.value) router.push('/creator');
-    else router.push('/');
-  } catch (e: any) {
-    const msg = e?.response?.data?.message;
-    error.value = Array.isArray(msg) ? msg.join('; ') : (msg || '注册失败');
-    toast.error(error.value);
-  } finally { loading.value = false; }
 }
+
+onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
 
 const tabLabel: Record<Tab, string> = {
   email: 'EMAIL · 邮箱',
@@ -263,27 +333,55 @@ const tabLabel: Record<Tab, string> = {
               </button>
             </form>
 
-            <!-- 02-B: 手机验证码 (D4 接入) -->
+            <!-- 02-B: 手机验证码 (D4) -->
             <form v-else-if="tab === 'phone'" @submit.prevent="submit" class="space-y-5">
               <div>
                 <label class="catalog-no text-ink/60 block mb-2">PHONE · 手机号</label>
-                <input v-model="form.phone" type="tel" pattern="^1[3-9]\d{9}$" placeholder="11 位国内手机号"
-                  class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm" />
+                <input
+                  v-model="form.phone"
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="11"
+                  placeholder="11 位国内手机号"
+                  :data-testid="'register-phone-input'"
+                  class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm"
+                />
               </div>
               <div>
-                <label class="catalog-no text-ink/60 block mb-2">CODE · 6 位验证码 (D4 接入)</label>
+                <label class="catalog-no text-ink/60 block mb-2">CODE · 6 位验证码</label>
                 <div class="flex gap-2">
-                  <input v-model="form.phoneCode" type="text" inputmode="numeric" maxlength="6" placeholder="D4 启用"
-                    class="flex-1 px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm" />
-                  <button type="button" disabled
-                    class="px-4 py-3 border-0.5 border-line bg-cream text-ink/40 cursor-not-allowed text-xs catalog-no">
-                    D4 待启用
+                  <input
+                    v-model="form.phoneCode"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="6"
+                    placeholder="6 位码"
+                    :data-testid="'register-phone-code-input'"
+                    class="flex-1 px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-mono text-sm tracking-widest"
+                  />
+                  <button
+                    type="button"
+                    @click="sendCode"
+                    :disabled="!phoneValid || countdown > 0"
+                    :data-testid="'register-phone-send-code'"
+                    class="px-4 py-3 border-0.5 border-ink bg-ink text-cream text-xs catalog-no disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold hover:border-gold transition"
+                  >
+                    {{ countdown > 0 ? `${countdown}s 后重发` : '发送验证码' }}
                   </button>
                 </div>
               </div>
               <div>
                 <label class="catalog-no text-ink/60 block mb-2">DISPLAY NAME · 显示名</label>
-                <input v-model="form.displayName"
+                <input
+                  v-model="form.displayName"
+                  :data-testid="'register-display-name'"
+                  placeholder="在 ibi.ren 展示的名字"
+                  class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm"
+                />
+              </div>
+              <div v-if="isBuyer">
+                <label class="catalog-no text-ink/60 block mb-2">COMPANY · 公司名称 <span class="text-ink/30">(选填)</span></label>
+                <input v-model="form.companyName"
                   class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm" />
               </div>
               <div class="hairline-t border-line pt-6">
@@ -302,10 +400,14 @@ const tabLabel: Record<Tab, string> = {
                 <span class="catalog-no text-danger mr-2">ERROR</span>
                 {{ error }}
               </div>
+              <div v-else-if="phoneError" class="p-3 border-0.5 border-danger/40 bg-danger/5 text-danger text-sm">
+                <span class="catalog-no text-danger mr-2">ERROR</span>
+                {{ phoneError }}
+              </div>
 
               <button
                 type="submit"
-                :disabled="loading"
+                :disabled="!phoneCanSubmit || loading"
                 class="w-full py-4 bg-ink text-cream hover:bg-gold transition font-display text-base tracking-wide disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
               >
                 <span class="catalog-no text-cream/70 group-hover:text-ink/70 text-[10px]">FILE ENTRY</span>
