@@ -20,12 +20,18 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { phone } });
   }
 
+  // W3 W1 D5: 微信 openid 查 user
+  findByWechatOpenId(wechatOpenId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { wechatOpenId } });
+  }
+
   async create(params: {
     email: string;
     passwordHash: string;
     roles: Prisma.InputJsonValue;
     displayName: string;
     phone?: string;
+    wechatOpenId?: string;
     companyName?: string;
   }): Promise<User> {
     return this.prisma.user.create({ data: params });

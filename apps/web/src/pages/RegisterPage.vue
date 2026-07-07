@@ -416,16 +416,16 @@ const tabLabel: Record<Tab, string> = {
               </button>
             </form>
 
-            <!-- 02-C: 微信扫码 (D5 接入) -->
+            <!-- 02-C: 微信扫码 (D5) -->
             <div v-else class="space-y-5">
-              <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
-                <div class="catalog-no text-gold mb-2">D5 · COMING SOON</div>
-                <p class="text-sm">微信扫码注册在 D5 接入</p>
-                <p class="text-xs mt-2">首次扫码 → 引导补手机号 → 选身份 → 入馆</p>
+              <div class="p-6 border-0.5 border-line bg-cream/50 text-center">
+                <div class="catalog-no text-gold mb-2">№ 028-C · WECHAT FLOW</div>
+                <p class="text-sm text-ink/70">微信扫码注册请到 <RouterLink to="/login" class="text-gold hover:underline">登录页扫码</RouterLink></p>
+                <p class="text-xs text-ink/50 mt-3 leading-relaxed">首次扫码 → 自动跳到此页 → 补手机号 + 选身份 → 入馆<br>同手机号 = 同账号, 已有账号直接合并</p>
               </div>
               <div class="text-xs text-ink/40 space-y-1 px-2">
-                <div>· 完成 01 步骤身份勾选后, 在登录页扫码触发</div>
-                <div>· 同手机号 = 同账号, 已有账号直接合并</div>
+                <div>· 01 身份勾选在补手机号页进行, 不用在此处选</div>
+                <div>· 微信开放平台 OAuth · PC 端扫码</div>
               </div>
             </div>
           </div>

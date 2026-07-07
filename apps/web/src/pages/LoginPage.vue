@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /**
- * LoginPage — W3 W1 D4 多通道登录
- * 3 Tab: [邮箱密码] [手机验证码] (D4 接通) [微信扫码] (D5 待开)
- * 邮箱密码保持原功能;手机 Tab 调 api/auth-phone.ts;微信 Tab 占位
+ * LoginPage — W3 W1 D5 多通道登录
+ * 3 Tab: [邮箱密码] [手机验证码] [微信扫码]
+ * 邮箱密码保持原功能;手机 Tab 调 api/auth-phone.ts;微信 Tab 调 api/auth-wechat.ts
  */
-import { computed, ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import QRCode from 'qrcode';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
 import { sendPhoneCode, phoneLogin } from '@/api/auth-phone';
+import { getQrUrl, pollState, exchange as exchangeWechat } from '@/api/auth-wechat';
 
 type Tab = 'email' | 'phone' | 'wechat';
 
@@ -93,6 +95,104 @@ async function submitPhone() {
 }
 
 onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
+
+// 微信扫码状态
+const wechatQrUrl = ref('');
+const wechatQrDataUrl = ref('');
+const wechatState = ref('');
+const wechatLoading = ref(false);
+const wechatError = ref('');
+const wechatHint = ref('请用微信扫一扫');
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function startWechat() {
+  if (wechatQrUrl.value) return; // 已生成不重复
+  wechatLoading.value = true;
+  wechatError.value = '';
+  try {
+    const r = await getQrUrl();
+    wechatQrUrl.value = r.url;
+    wechatState.value = r.state;
+    wechatQrDataUrl.value = await QRCode.toDataURL(r.url, { width: 220, margin: 1 });
+    wechatHint.value = '请用微信扫一扫';
+    // 开始轮询
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => pollWechatOnce(r.state), 2000);
+  } catch (e: any) {
+    wechatError.value = e?.response?.data?.message || '生成二维码失败';
+  } finally { wechatLoading.value = false; }
+}
+
+async function pollWechatOnce(state: string) {
+  try {
+    const r = await pollState(state);
+    if (r.status === 'waiting' || r.status === 'expired') return;
+    if (r.status === 'ok') {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (r.needBindPhone) {
+        // 跳到补手机号页
+        toast.info('首次扫码, 请补一个手机号');
+        router.push({ path: '/auth/bind-phone', query: { state } });
+        return;
+      }
+      if (r.user && r.token) {
+        auth.user = r.user;
+        auth.accessToken = r.token;
+        // 简化: 写本地存储
+        localStorage.setItem('ibi.auth', JSON.stringify({ user: r.user, accessToken: r.token, refreshToken: '' }));
+        toast.success(`欢迎, ${r.user.displayName || r.user.email}`);
+        const redirect = (route.query.redirect as string) || '/';
+        router.push(redirect);
+      }
+    }
+  } catch (e: any) {
+    // 静默: poll 失败不打扰用户
+  }
+}
+
+// 简化: 给 BindPhonePage 走 wechat callback 流程, 直接调 exchange
+async function mockWechatScan() {
+  if (!wechatState.value) return;
+  try {
+    const r = await exchangeWechat('mock', wechatState.value);
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (r.needBindPhone && r.bindToken) {
+      toast.info('首次扫码, 请补一个手机号');
+      router.push({ path: '/auth/bind-phone', query: { state: wechatState.value, wechatCode: 'mock' } });
+      return;
+    }
+    if (r.user && r.tokens) {
+      auth.user = r.user;
+      auth.accessToken = r.tokens.accessToken;
+      auth.refreshToken = r.tokens.refreshToken;
+      localStorage.setItem('ibi.auth', JSON.stringify({
+        user: r.user,
+        accessToken: r.tokens.accessToken,
+        refreshToken: r.tokens.refreshToken,
+      }));
+      toast.success(`欢迎, ${r.user.displayName || r.user.email}`);
+      const redirect = (route.query.redirect as string) || '/';
+      router.push(redirect);
+    }
+  } catch (e: any) {
+    wechatError.value = e?.response?.data?.message || '扫码失败';
+    toast.error(wechatError.value);
+  }
+}
+
+watch(tab, async (v) => {
+  if (v === 'wechat') {
+    await nextTick();
+    await startWechat();
+  } else {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    wechatQrUrl.value = '';
+    wechatQrDataUrl.value = '';
+    wechatState.value = '';
+  }
+});
+
+onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 
 function fillDemo(role: 'CREATOR' | 'BUYER') {
   email.value = role === 'CREATOR' ? 'creator@ibi.ren' : 'buyer@ibi.ren';
@@ -290,16 +390,46 @@ const tabLabel: Record<Tab, string> = {
             </button>
           </form>
 
-          <!-- Tab: 微信扫码 (D5 接入) -->
-          <div v-else class="space-y-4">
-            <div class="p-6 border-0.5 border-dashed border-line text-center text-ink/50">
-              <div class="catalog-no text-gold mb-2">D5 · COMING SOON</div>
-              <p class="text-sm">微信扫码登录将在 D5 接入<br>（开放平台 OAuth · PC 端扫码）</p>
+          <!-- Tab: 微信扫码 (D5) -->
+          <div v-else class="space-y-5">
+            <div class="text-center">
+              <div class="catalog-no text-ink/50 mb-4">№ 027-C · WECHAT SCAN</div>
+              <div v-if="wechatLoading" class="p-8 border-0.5 border-line bg-cream/50">
+                <div class="catalog-no text-ink/40 animate-pulse">生成二维码中…</div>
+              </div>
+              <div v-else-if="wechatError" class="p-6 border-0.5 border-danger/40 bg-danger/5 text-danger text-sm">
+                {{ wechatError }}
+                <button @click="wechatQrUrl = ''; startWechat()" class="block mx-auto mt-3 catalog-no text-gold hover:underline">重试</button>
+              </div>
+              <div v-else class="inline-block p-4 border-0.5 border-ink bg-cream">
+                <img
+                  v-if="wechatQrDataUrl"
+                  :src="wechatQrDataUrl"
+                  alt="WeChat QR"
+                  class="w-[220px] h-[220px]"
+                  :data-testid="'wechat-qr-img'"
+                />
+                <div class="catalog-no text-ink/50 mt-3 text-[10px]">{{ wechatHint }}</div>
+                <div class="font-mono text-[10px] text-ink/30 mt-1 break-all">state: {{ wechatState.slice(0, 16) }}…</div>
+              </div>
             </div>
-            <div class="text-xs text-ink/40 space-y-1">
-              <div>· 开放平台网站应用 AppID</div>
-              <div>· 首次扫码引导补手机号</div>
-              <div>· 同手机号 = 同账号</div>
+
+            <!-- Mock 模式快捷按钮: 等同"已扫码" -->
+            <div class="text-center">
+              <button
+                type="button"
+                @click="mockWechatScan"
+                :data-testid="'wechat-mock-scan'"
+                class="catalog-no text-xs text-ink/40 hover:text-gold transition"
+              >
+                · MOCK 扫码完成 (开发用) ·
+              </button>
+            </div>
+
+            <div class="hairline-t border-line pt-5 space-y-1.5 text-xs text-ink/50">
+              <div>· 开放平台 OAuth · PC 端扫码</div>
+              <div>· 首次扫码会引导你补一个手机号</div>
+              <div>· 同手机号 = 同账号, 已注册直接合并</div>
             </div>
           </div>
 
