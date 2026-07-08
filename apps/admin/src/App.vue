@@ -11,7 +11,7 @@ onMounted(() => auth.bootstrap());
     <header v-if="auth.isAuthenticated" class="bg-ink text-cream">
       <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-6">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-lg">
-          <img src="/logo.png" alt="ibi.ren" class="w-7 h-7 brightness-0 invert" />
+          <img src="/logo.svg" alt="ibi.ren" class="w-7 h-7 brightness-0 invert" />
           <span>ibi.ren <span class="text-gold">·</span> Admin</span>
         </RouterLink>
         <nav class="flex items-center gap-1 text-sm">
