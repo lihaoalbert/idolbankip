@@ -88,10 +88,16 @@ p.phoneVerifyCode.findFirst({ where: { phone: '$phone' }, orderBy: { createdAt: 
   .then(r => { console.log(r?.code || ''); return p.\$disconnect(); });
 " 2>/dev/null )
   else
-    # prod: ssh 到 ECS 调 mysql
+    # prod: ssh 到 ECS 调 node + prisma 直连 RDS
+    # 走 prisma 而不是 mysql client: ECS 上没有 -h 远程 RDS 入口,prisma 读 .env 即可
     ssh -i "${SSH_KEY_PATH}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "root@${ECS_IP}" \
-      "mysql -u ibi_ren -p'Focus_2026!' ibi_ren -sN -e \"SELECT code FROM PhoneVerifyCode WHERE phone='$phone' ORDER BY createdAt DESC LIMIT 1\"" 2>/dev/null
+      "cd /opt/ibiren/apps/api && node -e \"
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+p.phoneVerifyCode.findFirst({ where: { phone: '$phone' }, orderBy: { createdAt: 'desc' } })
+  .then(r => { process.stdout.write(r?.code || ''); return p.\\\$disconnect(); });
+\"" 2>/dev/null
   fi
 }
 
@@ -120,17 +126,23 @@ const p = new PrismaClient();
 })();
 " 2>/dev/null )
   else
+    # prod: ssh 到 ECS 调 node + prisma (同 local-node 手法, ECS .env 里有真 DATABASE_URL)
     ssh -i "${SSH_KEY_PATH}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "root@${ECS_IP}" \
-      "mysql -u ibi_ren -p'Focus_2026!' ibi_ren -e \"
-        SET @uid = (SELECT id FROM User WHERE phone='$phone' LIMIT 1);
-        DELETE FROM RefreshToken WHERE userId=@uid;
-        DELETE FROM HonorEvent WHERE userId=@uid;
-        DELETE FROM User WHERE id=@uid;
-        DELETE FROM PhoneVerifyCode WHERE phone='$phone';
-        UPDATE User SET wechatOpenId=NULL WHERE wechatOpenId='mock_openid_001';
-        DELETE FROM WechatOAuthState;
-      \"" 2>/dev/null
+      "cd /opt/ibiren/apps/api && node -e \"
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+(async () => {
+  await p.\\\$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+  const u = await p.user.findFirst({ where: { phone: '$phone' } });
+  if (u) await p.\\\$executeRawUnsafe('DELETE FROM User WHERE id = ?', u.id);
+  await p.\\\$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+  await p.\\\$executeRawUnsafe(\\\"UPDATE User SET wechatOpenId = NULL WHERE wechatOpenId = 'mock_openid_001'\\\");
+  await p.phoneVerifyCode.deleteMany({ where: { phone: '$phone' } });
+  await p.wechatOAuthState.deleteMany({});
+  await p.\\\$disconnect();
+})();
+\"" 2>/dev/null
   fi
 }
 
