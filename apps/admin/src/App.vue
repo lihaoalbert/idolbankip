@@ -10,7 +10,10 @@ onMounted(() => auth.bootstrap());
   <div class="min-h-screen flex flex-col">
     <header v-if="auth.isAuthenticated" class="bg-ink text-cream">
       <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-6">
-        <RouterLink to="/" class="font-display text-lg">ibi.ren <span class="text-gold">·</span> Admin</RouterLink>
+        <RouterLink to="/" class="flex items-center gap-2 font-display text-lg">
+          <img src="/logo.png" alt="ibi.ren" class="w-7 h-7 brightness-0 invert" />
+          <span>ibi.ren <span class="text-gold">·</span> Admin</span>
+        </RouterLink>
         <nav class="flex items-center gap-1 text-sm">
           <RouterLink to="/" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">仪表盘</RouterLink>
           <RouterLink to="/ips/queue" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">IP 审核</RouterLink>

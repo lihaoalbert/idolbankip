@@ -35,7 +35,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
     <header class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40 print:hidden">
       <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-xl">
-          <span class="inline-block w-7 h-7 rounded-full bg-ink"></span>
+          <img src="/logo.png" alt="ibi.ren" class="w-8 h-8" />
           <span>ibi<span class="text-gold">.ren</span></span>
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
