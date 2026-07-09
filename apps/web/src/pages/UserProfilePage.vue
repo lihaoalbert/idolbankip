@@ -62,7 +62,7 @@ function shortId(id: string, len = 8): string {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE PORTRAIT</div>
+        <div class="catalog-no text-ink/50">IBIren · ARCHIVE PORTRAIT</div>
         <div class="catalog-no text-ink/40">VOL. I — CREATOR DOSSIER</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>

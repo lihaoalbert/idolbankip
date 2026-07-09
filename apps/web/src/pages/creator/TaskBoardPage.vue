@@ -120,7 +120,7 @@ onMounted(() => {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · TASK BOARD</div>
+        <div class="catalog-no text-ink/50">IBIren · TASK BOARD</div>
         <div class="catalog-no text-ink/40">VOL. I — COMMISSIONS</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>

@@ -83,7 +83,7 @@ async function submit() {
         accessToken: r.tokens.accessToken,
         refreshToken: r.tokens.refreshToken,
       }));
-      toast.success('绑定成功, 欢迎加入 ibi.ren');
+      toast.success('绑定成功, 欢迎加入 IBIren');
       router.replace(role.value === 'CREATOR' ? '/creator' : '/');
     } else {
       // 仅绑定 (已登录用户 BIND 流程)
@@ -103,7 +103,7 @@ onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
   <div class="min-h-[88vh] bg-cream paper-grain relative">
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · WECHAT BIND</div>
+        <div class="catalog-no text-ink/50">IBIren · WECHAT BIND</div>
         <div class="catalog-no text-ink/40">VOL. I — SUPPLEMENT</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -166,7 +166,7 @@ onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
             <input
               v-model="displayName"
               :data-testid="'bindphone-displayname'"
-              placeholder="在 ibi.ren 展示的名字"
+              placeholder="在 IBIren 展示的名字"
               class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm"
             />
           </div>

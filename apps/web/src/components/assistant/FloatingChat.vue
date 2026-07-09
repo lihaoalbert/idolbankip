@@ -177,7 +177,7 @@ function handleAction(href: string) {
         <!-- 空状态 -->
         <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-center px-4 py-8">
           <div class="text-3xl mb-2">👋</div>
-          <p class="text-sm text-ink/70 mb-3">你好, 我是 ibi.ren 的 AI 助手</p>
+          <p class="text-sm text-ink/70 mb-3">你好, 我是 IBIren 的 AI 助手</p>
           <p class="text-xs text-ink/40 mb-5 leading-relaxed">
             我能帮你解读状态、查订单进度、指路到对应页面。<br />
             但不能代替你操作(下单/签约/退款都不行)。

@@ -65,7 +65,7 @@ const contact = {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE REQUEST</div>
+        <div class="catalog-no text-ink/50">IBIren · ARCHIVE REQUEST</div>
         <div class="catalog-no text-ink/40">VOL. I — DIRECTORY</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -86,7 +86,7 @@ const contact = {
         </h1>
         <p class="mt-6 text-base md:text-lg text-ink/60 max-w-2xl leading-relaxed">
           留下您的需求和联系方式 ·
-          <span class="font-display-italic">ibi.ren 商务团队 1 个工作日内主动回复。</span>
+          <span class="font-display-italic">IBIren 商务团队 1 个工作日内主动回复。</span>
           已是注册用户也可走自动化下单流程, 两条路并行。
         </p>
       </div>

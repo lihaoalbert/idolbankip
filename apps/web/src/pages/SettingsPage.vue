@@ -117,7 +117,7 @@ async function onChangePassword() {
 
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · PERSONAL DOSSIER</div>
+        <div class="catalog-no text-ink/50">IBIren · PERSONAL DOSSIER</div>
         <div class="catalog-no text-ink/40">VOL. II — SETTINGS</div>
         <div class="catalog-no text-ink/30">{{ today }}</div>
       </div>

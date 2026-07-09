@@ -258,7 +258,7 @@ onMounted(load);
     <!-- 说明 -->
     <div class="card-base bg-cream/50 text-sm text-ink/70 space-y-2">
       <div class="font-medium text-ink">💡 用途</div>
-      <p>管理 ibi.ren 平台 AI 服务所用的 LLM provider 配置 (Claude / GPT / 通义等). API key AES-256-GCM 加密存 DB, 切换配置不需发版.</p>
+      <p>管理 IBIren 平台 AI 服务所用的 LLM provider 配置 (Claude / GPT / 通义等). API key AES-256-GCM 加密存 DB, 切换配置不需发版.</p>
       <p>当前 <strong class="text-ink">{{ activeRow ? activeRow.displayName : '无 active 配置' }}</strong> 被 <code class="font-mono text-xs">AiService</code> 使用, 创作者 AI 识别 / 任务建议 / 反推特征 / 说明书生成都走它.</p>
       <p class="text-xs text-ink/50">⚠ 切换 active 时, 正在进行的 LLM 请求会继续用旧 key 完成 (in-flight 不中断); 之后新请求走新 key.</p>
     </div>

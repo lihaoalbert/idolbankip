@@ -92,7 +92,7 @@ onMounted(fetchIp);
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ACQUISITION FORM</div>
+        <div class="catalog-no text-ink/50">IBIren · ACQUISITION FORM</div>
         <div class="catalog-no text-ink/40">VOL. I — CHECK-OUT</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -189,7 +189,7 @@ onMounted(fetchIp);
                 <div class="text-ink/70">
                   该 IP 版权正在权威机构登记中 ·
                   在版权正式下发前, 如发生第三方主张权利的纠纷,
-                  ibi.ren 平台有权提供
+                  IBIren 平台有权提供
                   <span class="text-gold">全额退款</span>
                   或
                   <span class="text-gold">免费更换等值 IP</span>

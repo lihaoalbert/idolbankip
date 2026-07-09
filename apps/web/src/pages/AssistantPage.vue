@@ -125,7 +125,7 @@ function autosize(e: Event) {
           <!-- 空状态 -->
           <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-center py-12">
             <div class="text-5xl mb-3">💬</div>
-            <h2 class="text-lg font-medium mb-2">你好, 我是 ibi.ren 的 AI 助手</h2>
+            <h2 class="text-lg font-medium mb-2">你好, 我是 IBIren 的 AI 助手</h2>
             <p class="text-sm text-ink/60 mb-2 max-w-md leading-relaxed">
               我能帮你解读订单/合同状态、指路到对应页面、解释常见卡点。
             </p>

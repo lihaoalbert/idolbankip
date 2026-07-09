@@ -9,7 +9,7 @@ const route = useRoute();
     <!-- 顶部条 · 像图录的书脊 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE DEPT.</div>
+        <div class="catalog-no text-ink/50">IBIren · ARCHIVE DEPT.</div>
         <div class="catalog-no text-ink/40">VOL. I — ERROR · EXHIBIT</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -43,7 +43,7 @@ const route = useRoute();
 
           <p class="mt-5 text-base text-ink/60 max-w-lg leading-relaxed">
             您访问的路径 <span class="font-mono text-sm bg-surface px-2 py-0.5 border-0.5 border-line">{{ route.fullPath }}</span>
-            在 ibi.ren 档案库中找不到对应条目。
+            在 IBIren 档案库中找不到对应条目。
             可能的原因:链接已过期、作品已下架,或您输错了编号。
           </p>
 

@@ -35,7 +35,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
     <header class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40 print:hidden">
       <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-xl">
-          <img src="/logo.svg" alt="ibi.ren" class="w-8 h-8" />
+          <img src="/logo.svg" alt="IBIren" class="w-8 h-8" />
           <span>ibi<span class="text-gold">.ren</span></span>
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
@@ -200,7 +200,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
         </div>
       </div>
       <div class="max-w-7xl mx-auto px-6 mt-8 pt-6 border-t border-line text-center text-xs text-ink/40 space-y-1">
-        <div>© 2026 ibi.ren · Idol Bank IP</div>
+        <div>© 2026 IBIren</div>
         <div>
           <a
             href="https://beian.miit.gov.cn/"

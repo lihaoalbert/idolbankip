@@ -7,7 +7,7 @@ import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
  * 首页 — MUSEUM ARCHIVE / 美术馆图录
  * 视觉语言: 拍卖图录封面 × 美术馆展墙 × 摄影集画册
  * 字体: Cormorant Garamond (display swash) + Inter Tight (body) + JetBrains Mono (元数据)
- * 业务承诺: 买家痛点 → ibi.ren 解决方案 → 精选展品 → 鉴定流程 → 资产包三层 → 商务档案
+ * 业务承诺: 买家痛点 → IBIren 解决方案 → 精选展品 → 鉴定流程 → 资产包三层 → 商务档案
  */
 
 const featured = ref<any[]>([]);
@@ -121,7 +121,7 @@ const tickerItems = [
           <span class="catalog-no">VOL. I · 2026</span>
         </div>
         <div class="text-center">
-          <span class="font-display italic text-base md:text-lg text-ink/70">Idol Bank · IP Catalogue</span>
+          <span class="font-display italic text-base md:text-lg text-ink/70">IBIren · IP Catalogue</span>
         </div>
         <div class="text-right catalog-no">EST. 2026 / CN</div>
       </div>
@@ -163,7 +163,7 @@ const tickerItems = [
           </div>
 
           <p class="md:col-span-6 font-display text-2xl md:text-3xl lg:text-[2.5rem] leading-[1.1] text-ink/85 swash">
-            ibi.ren 让每个 IP<br />
+            IBIren 让每个 IP<br />
             都带<span class="text-gold italic">版权证书</span>。
           </p>
 
@@ -202,7 +202,7 @@ const tickerItems = [
           <div class="col-span-3 catalog-no">FIG. A — 风险图谱</div>
           <div class="col-span-3 catalog-no">FIG. B — 鉴定流程</div>
           <div class="col-span-3 catalog-no">FIG. C — 资产交付</div>
-          <div class="col-span-3 catalog-no text-right">© 2026 ibi.ren</div>
+          <div class="col-span-3 catalog-no text-right">© 2026 IBIren</div>
         </div>
       </div>
 
@@ -539,7 +539,7 @@ const tickerItems = [
             Set in Cormorant Garamond, Inter Tight & JetBrains Mono.
             Designed as a digital archive of AI human IP rights — every plate notarised, every certificate signed, every transfer on-chain.
           </div>
-          <div class="col-span-3 col-start-10 text-right catalog-no text-cream/40">© 2026 ibi.ren</div>
+          <div class="col-span-3 col-start-10 text-right catalog-no text-cream/40">© 2026 IBIren</div>
         </div>
       </div>
     </section>

@@ -11,8 +11,8 @@ onMounted(() => auth.bootstrap());
     <header v-if="auth.isAuthenticated" class="bg-ink text-cream">
       <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-6">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-lg">
-          <img src="/logo.svg" alt="ibi.ren" class="w-7 h-7 brightness-0 invert" />
-          <span>ibi.ren <span class="text-gold">·</span> Admin</span>
+          <img src="/logo.svg" alt="IBIren" class="w-7 h-7 brightness-0 invert" />
+          <span>IBIren <span class="text-gold">·</span> Admin</span>
         </RouterLink>
         <nav class="flex items-center gap-1 text-sm">
           <RouterLink to="/" class="px-3 py-1.5 rounded-full hover:bg-white/10" active-class="bg-white/10">仪表盘</RouterLink>
@@ -33,7 +33,7 @@ onMounted(() => auth.bootstrap());
       <RouterView />
     </main>
     <footer v-if="auth.isAuthenticated" class="border-t border-line py-4 text-center text-xs text-ink/40">
-      <div>© 2026 ibi.ren · Admin</div>
+      <div>© 2026 IBIren · Admin</div>
       <div class="mt-1">
         <a
           href="https://beian.miit.gov.cn/"

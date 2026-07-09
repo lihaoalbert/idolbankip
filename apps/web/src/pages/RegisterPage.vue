@@ -103,7 +103,7 @@ async function submit() {
         displayName: form.value.displayName,
         companyName: isBuyer.value ? form.value.companyName : undefined,
       });
-      toast.success('登记成功, 欢迎加入 ibi.ren');
+      toast.success('登记成功, 欢迎加入 IBIren');
       if (isCreator.value) router.push('/creator');
       else router.push('/');
     } catch (e: any) {
@@ -129,7 +129,7 @@ async function submit() {
         error.value = '';
         return;
       }
-      toast.success('登记成功, 欢迎加入 ibi.ren');
+      toast.success('登记成功, 欢迎加入 IBIren');
       if (isCreator.value) router.push('/creator');
       else router.push('/');
     } catch (e: any) {
@@ -161,7 +161,7 @@ const tabLabel: Record<Tab, string> = {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · NEW ENTRY</div>
+        <div class="catalog-no text-ink/50">IBIren · NEW ENTRY</div>
         <div class="catalog-no text-ink/40">VOL. I — ENROLMENT</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -375,7 +375,7 @@ const tabLabel: Record<Tab, string> = {
                 <input
                   v-model="form.displayName"
                   :data-testid="'register-display-name'"
-                  placeholder="在 ibi.ren 展示的名字"
+                  placeholder="在 IBIren 展示的名字"
                   class="w-full px-4 py-3 bg-cream border-0.5 border-line focus:border-ink focus:outline-none transition font-sans text-sm"
                 />
               </div>

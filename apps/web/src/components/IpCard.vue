@@ -68,7 +68,7 @@ const ageLabel = computed(() => ({
       <div v-else class="w-full h-full bg-line flex items-center justify-center text-ink/30">
         无图
       </div>
-      <WatermarkOverlay :text="watermarkText || `ibi.ren · ${ip.code} · guest`" density="medium" />
+      <WatermarkOverlay :text="watermarkText || `IBIren · ${ip.code} · guest`" density="medium" />
 
       <!-- 状态标签 -->
       <div class="absolute top-3 right-3 flex flex-col gap-1 items-end">

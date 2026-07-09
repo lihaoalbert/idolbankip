@@ -376,7 +376,7 @@ const toc = [
     <!-- 顶部条 -->
     <header class="hairline-b border-line sticky top-0 bg-cream/95 backdrop-blur z-30 no-print">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · FACE PROMPT MANUAL</div>
+        <div class="catalog-no text-ink/50">IBIren · FACE PROMPT MANUAL</div>
         <div class="catalog-no text-ink/40">VOL. I — PROMPTING</div>
         <div class="catalog-no text-ink/30">VERSION {{ version }}</div>
       </div>

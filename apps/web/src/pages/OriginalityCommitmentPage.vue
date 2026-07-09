@@ -60,7 +60,7 @@ const clauses = [
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · LEGAL ARCHIVE</div>
+        <div class="catalog-no text-ink/50">IBIren · LEGAL ARCHIVE</div>
         <div class="catalog-no text-ink/40">VOL. I — DECLARATION</div>
         <div class="catalog-no text-ink/30">VERSION {{ version }}</div>
       </div>
@@ -109,7 +109,7 @@ const clauses = [
         <section class="pb-8 hairline-b border-line">
           <div class="catalog-no text-ink/50 mb-4">PREAMBLE · 引言</div>
           <p class="font-display-italic text-lg text-ink/80 leading-relaxed">
-            本人 (以下称"承诺人") 拟通过 ibi.ren 平台
+            本人 (以下称"承诺人") 拟通过 IBIren 平台
             (下称"平台", 运营主体: 杭州某某科技有限公司)
             上架虚拟人 / 数字人 / AI 生成形象等作品
             (下称"作品"), 在勾选确认本承诺书之前,
@@ -152,7 +152,7 @@ const clauses = [
         <div class="md:col-span-7">
           <p class="font-display-italic text-ink/60 leading-relaxed">
             勾选即代表您已仔细阅读并同意上述全部条款 ·
-            ibi.ren 将以此作为后续取证之依据。
+            IBIren 将以此作为后续取证之依据。
           </p>
         </div>
         <div class="md:col-span-5 md:text-right space-y-3">

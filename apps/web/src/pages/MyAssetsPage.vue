@@ -47,7 +47,7 @@ onMounted(fetchOrders);
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · PRIVATE COLLECTION</div>
+        <div class="catalog-no text-ink/50">IBIren · PRIVATE COLLECTION</div>
         <div class="catalog-no text-ink/40">VOL. I — ASSETS</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -84,7 +84,7 @@ onMounted(fetchOrders);
               <span class="text-gold font-mono text-xs">DWT-SVD</span>
               隐水印 (含您的用户 ID + 时间戳) ·
               文件即使被裁剪、压缩、调色, 平台仍可通过
-              <code class="font-mono text-gold">ibi.ren/verify</code>
+              <code class="font-mono text-gold">IBIren/verify</code>
               提取水印取证 ·
               请勿外传, 以免被追溯至您的账户。
             </p>

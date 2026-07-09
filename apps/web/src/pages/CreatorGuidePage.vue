@@ -153,7 +153,7 @@ const faqs = [
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · CREATOR MANUAL</div>
+        <div class="catalog-no text-ink/50">IBIren · CREATOR MANUAL</div>
         <div class="catalog-no text-ink/40">VOL. I — ONBOARDING</div>
         <div class="catalog-no text-ink/30">VERSION {{ version }}</div>
       </div>
@@ -174,7 +174,7 @@ const faqs = [
 
         <p class="mt-6 font-display-italic text-lg text-ink/70 leading-relaxed max-w-2xl">
           从注册账号到登记版权的完整操作流程 ·
-          给准备在 ibi.ren 平台创作并上架 IP 的捏脸师看。
+          给准备在 IBIren 平台创作并上架 IP 的捏脸师看。
         </p>
 
         <div class="mt-8 flex flex-wrap items-center gap-6 text-sm text-ink/60">

@@ -48,7 +48,7 @@ const sort = ref<'newest' | 'popular'>(((route.query.sort as string) || 'newest'
 const SIZE = 24;
 
 const watermarkText = computed(() =>
-  auth.user?.email ? `ibi.ren · ${auth.user.email}` : 'ibi.ren · guest'
+  auth.user?.email ? `IBIren · ${auth.user.email}` : 'IBIren · guest'
 );
 
 // Chip filter 选项 — #32 enum 值大写, 与后端 1:1
@@ -381,7 +381,7 @@ onMounted(fetchList);
           <!-- Colophon · 底部档案签名 -->
           <div v-if="items.length > 0" class="mt-12 grid grid-cols-12 gap-4 catalog-no text-ink/40">
             <div class="col-span-3">CAT. NF-26</div>
-            <div class="col-span-6 col-start-4">CATALOGUED BY ibi.ren ARCHIVE DEPT.</div>
+            <div class="col-span-6 col-start-4">CATALOGUED BY IBIren ARCHIVE DEPT.</div>
             <div class="col-span-3 col-start-10 text-right">© 2026</div>
           </div>
         </div>

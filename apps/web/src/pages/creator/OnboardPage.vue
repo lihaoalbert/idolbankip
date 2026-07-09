@@ -95,7 +95,7 @@ onMounted(fetchStatus);
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE ONBOARDING</div>
+        <div class="catalog-no text-ink/50">IBIren · ARCHIVE ONBOARDING</div>
         <div class="catalog-no text-ink/40">VOL. I — KYC</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -110,7 +110,7 @@ onMounted(fetchStatus);
           升级为<span class="font-display-italic text-gold">捏</span>脸师
         </h1>
         <p class="mt-5 text-base md:text-lg text-ink/60 max-w-xl leading-relaxed">
-          想把自己创造的虚拟形象上架到 ibi.ren?
+          想把自己创造的虚拟形象上架到 IBIren?
           <span class="font-display-italic text-ink">完成 KYC 认证即可开通捏者权限</span>
           —— 通常 1-2 个工作日审核完成。
         </p>
@@ -299,7 +299,7 @@ onMounted(fetchStatus);
           <div class="catalog-no text-ink/40 mb-2">CURATOR'S NOTE</div>
           <p class="font-display-italic text-base text-ink/60 leading-relaxed max-w-2xl">
             实名信息仅用于版权登记与税务结算 · 平台不向任何第三方披露 ·
-            ibi.ren 一切交易记录均经区块链时间戳校验, 不可篡改。
+            IBIren 一切交易记录均经区块链时间戳校验, 不可篡改。
           </p>
         </div>
       </template>

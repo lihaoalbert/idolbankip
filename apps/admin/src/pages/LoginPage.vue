@@ -28,7 +28,7 @@ async function submit() {
   <div class="min-h-screen flex items-center justify-center bg-cream p-6">
     <form @submit.prevent="submit" class="w-full max-w-sm bg-white border border-line rounded-2xl p-8">
       <div class="text-center mb-6">
-        <div class="font-display text-2xl">ibi.ren</div>
+        <div class="font-display text-2xl">IBIren</div>
         <div class="text-xs text-ink/50 mt-1">运营控制台 · 仅限管理员</div>
       </div>
       <div class="space-y-3">

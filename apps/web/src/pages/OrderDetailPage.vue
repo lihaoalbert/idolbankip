@@ -133,7 +133,7 @@ onMounted(async () => {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ORDER DOSSIER</div>
+        <div class="catalog-no text-ink/50">IBIren · ORDER DOSSIER</div>
         <div class="catalog-no text-ink/40">VOL. I — {{ shortId(orderId) }}</div>
         <div class="catalog-no text-ink/30">{{ fmtDate(order?.createdAt).split(' ')[0] }}</div>
       </div>
@@ -321,7 +321,7 @@ onMounted(async () => {
                 <div class="font-display text-base text-ink mb-1">下载即溯源</div>
                 每个文件均嵌入 DWT-SVD 隐水印 (含您的用户 ID + 时间戳)。
                 文件即使被裁剪、压缩、调色, 平台仍可通过
-                <code class="font-mono text-gold">ibi.ren/verify</code>
+                <code class="font-mono text-gold">IBIren/verify</code>
                 提取水印取证。请勿外传, 以免被追溯至您的账户。
               </div>
             </div>

@@ -101,7 +101,7 @@ onMounted(fetch);
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · AGENT KEYS</div>
+        <div class="catalog-no text-ink/50">IBIren · AGENT KEYS</div>
         <div class="catalog-no text-ink/40">VOL. I — API ACCESS</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -174,7 +174,7 @@ onMounted(fetch);
             <div class="text-sm text-ink/70 leading-relaxed">
               请立即保存到密码管理器 · 关闭此面板后将
               <span class="text-danger font-medium">无法再次查看</span>
-              · ibi.ren 不存储明文副本。
+              · IBIren 不存储明文副本。
             </div>
           </div>
         </div>

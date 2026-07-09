@@ -23,7 +23,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 const watermarkText = computed(() =>
-  auth.user?.email ? `ibi.ren · ${auth.user.email} · ${code.value}` : `ibi.ren · ${code.value}`
+  auth.user?.email ? `IBIren · ${auth.user.email} · ${code.value}` : `IBIren · ${code.value}`
 );
 
 // 4 个核心素材必填, 与 ips.service.validatePackCompleteness 对齐
@@ -1020,7 +1020,7 @@ onMounted(async () => {
               <span class="text-ink/80">裁剪、压缩、调色后仍可提取</span>, 用于盗版溯源。
             </p>
             <p class="text-xs text-ink/65 leading-relaxed mt-3">
-              上传图片至 <code class="font-mono text-gold">ibi.ren/verify</code> 可一键验证。
+              上传图片至 <code class="font-mono text-gold">IBIren/verify</code> 可一键验证。
             </p>
           </div>
         </div>
@@ -1133,7 +1133,7 @@ onMounted(async () => {
         <div class="col-span-3 catalog-no text-ink/40">PLATE · {{ ip.code }}</div>
         <div class="col-span-6 col-start-4 text-ink/50 text-xs leading-relaxed">
           Set in Cormorant Garamond, Inter Tight & JetBrains Mono.
-          Catalogued by ibi.ren Archive Department. © 2026 ibi.ren · All rights reserved.
+          Catalogued by IBIren Archive Department. © 2026 IBIren · All rights reserved.
         </div>
         <div class="col-span-3 col-start-10 text-right catalog-no text-ink/40">END · FIN</div>
       </div>

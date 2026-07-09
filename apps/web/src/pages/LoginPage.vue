@@ -212,7 +212,7 @@ const tabLabel: Record<Tab, string> = {
     <!-- 顶部条 -->
     <header class="hairline-b border-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">ibi.ren · ARCHIVE ACCESS</div>
+        <div class="catalog-no text-ink/50">IBIren · ARCHIVE ACCESS</div>
         <div class="catalog-no text-ink/40">VOL. I — LOG-IN</div>
         <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
@@ -257,7 +257,7 @@ const tabLabel: Record<Tab, string> = {
         <div class="hairline-t border-line pt-6">
           <div class="catalog-no text-ink/50 mb-3">CURATOR'S NOTE</div>
           <p class="font-display-italic text-sm text-ink/60 leading-relaxed">
-            ibi.ren 一切凭证均经区块链时间戳校验 ·
+            IBIren 一切凭证均经区块链时间戳校验 ·
             入馆即视为同意《用户协议》《隐私政策》。
           </p>
         </div>
