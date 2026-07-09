@@ -175,7 +175,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
         <div>
           <div class="flex items-center gap-2 font-display text-lg mb-2">
             <span class="inline-block w-6 h-6 rounded-full bg-ink"></span>
-            <span>ibi<span class="text-gold">.ren</span></span>
+            <span>IBI<span class="text-gold">.ren</span></span>
           </div>
           <p class="text-xs text-ink/50 leading-relaxed">中国首个 AI 虚拟人资产银行 · 把 AI 创造的虚拟形象, 变成可确权、可授权、可交易的标准化数字资产。</p>
         </div>
