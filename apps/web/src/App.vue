@@ -36,7 +36,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
       <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-xl font-medium tracking-[0.04em] leading-none">
           <img src="/logo.svg" alt="IBIren" class="w-8 h-8" />
-          <span>IBI<span class="text-gold">.ren</span></span>
+          <span>IBI<span class="text-gold tracking-[-0.02em]">.ren</span></span>
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
@@ -174,8 +174,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
       <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-sm">
         <div>
           <div class="flex items-center gap-2 font-display text-xl font-medium tracking-[0.04em] leading-none mb-2">
-            <span class="inline-block w-6 h-6 rounded-full bg-ink"></span>
-            <span>IBI<span class="text-gold">.ren</span></span>
+            <img src="/logo.svg" alt="IBIren" class="w-6 h-6" />
+            <span>IBI<span class="text-gold tracking-[-0.02em]">.ren</span></span>
           </div>
           <p class="text-xs text-ink/50 leading-relaxed">中国首个 AI 虚拟人资产银行 · 把 AI 创造的虚拟形象, 变成可确权、可授权、可交易的标准化数字资产。</p>
         </div>
