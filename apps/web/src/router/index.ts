@@ -150,6 +150,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/buyer/BriefDetailPage.vue'),
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
+  // W4 D4 — 买家工作台,跨 workspace 集中处理创作者交付
+  {
+    path: '/buyer/workbench',
+    name: 'buyer-workbench',
+    component: () => import('@/pages/buyer/BuyerWorkbenchPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
   {
     path: '/creator/briefs',
     name: 'creator-briefs',
