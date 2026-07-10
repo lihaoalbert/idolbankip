@@ -160,6 +160,8 @@ model User {
   workspacesAsCreator Workspace[]         @relation("CreatorWorkspaces")
   workspaceMessages WorkspaceMessage[]    @relation("WorkspaceMessageFrom")
   creatorAssets     CreatorAsset[]       @relation("CreatorAssets")
+  submissionsAsCreator WorkspaceSubmission[]  @relation("SubmissionCreator")
+  submissionComments SubmissionComment[]     @relation("SubmissionCommentFrom")
   creatorSkills     CreatorSkill[]
   creatorProfile    CreatorProfile?
   reviewsFrom       Review[]              @relation("ReviewFrom")
@@ -1284,6 +1286,7 @@ model Workspace {
 
   generations  AIGenerationRecord[]
   messages     WorkspaceMessage[]
+  submissions  WorkspaceSubmission[]
 
   @@index([creatorId, status])
 }
@@ -1363,6 +1366,49 @@ model CreatorAsset {
 
   @@index([creatorId, type])
   @@index([creatorId, createdAt])
+}
+
+// ===================== 8.6 WorkspaceSubmission 中间稿 (D5) =====================
+// 创作者在 workspace 里上传的过程稿,买家可评论
+model WorkspaceSubmission {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User     @relation("SubmissionCreator", fields: [creatorId], references: [id])
+
+  // 同一 workspace 内的版本号,从 1 开始递增
+  version     Int
+
+  // 中间稿文件 OSS key(可能多个,JSON 数组)
+  ossKeys     Json
+  // 创作者备注
+  notes       String?  @db.Text
+
+  // pending / approved / rejected / superseded
+  status      String   @default("pending")
+
+  createdAt   DateTime @default(now())
+
+  comments    SubmissionComment[]
+
+  @@unique([workspaceId, version])
+  @@index([workspaceId, createdAt])
+  @@index([creatorId])
+}
+
+// ===================== 8.7 SubmissionComment 中间稿评论 (D5) =====================
+model SubmissionComment {
+  id            String   @id @default(cuid())
+  submissionId  String
+  submission    WorkspaceSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fromUserId    String
+  from          User     @relation("SubmissionCommentFrom", fields: [fromUserId], references: [id])
+
+  content       String   @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([submissionId, createdAt])
 }
 
 // ===================== 9. Deliverable 成片交付 =====================
