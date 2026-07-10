@@ -163,6 +163,21 @@ const routes: RouteRecordRaw[] = [
     props: true,
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
+  // W3 W2 D1 Workspace 详情 — 创作者和买家共用页,内部按 role 分支显示
+  {
+    path: '/workspaces/:id',
+    name: 'workspace-detail',
+    component: () => import('@/pages/WorkspaceDetailPage.vue'),
+    props: true,
+    meta: { requiresAuth: true },
+  },
+  // W3 W2 D4 我的资产
+  {
+    path: '/creator/assets',
+    name: 'creator-assets',
+    component: () => import('@/pages/creator/CreatorAssetsPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
   // AI 助手 — 整页对话入口,浮动气泡在 AppLayout 常驻
   {
     path: '/assistant',

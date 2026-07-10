@@ -42,6 +42,10 @@ import { QualityEvalModule } from './quality-eval/quality-eval.module';
 import { SmsModule } from './sms/sms.module';
 import { AuthPhoneModule } from './auth-phone/auth-phone.module';
 import { AuthWechatModule } from './auth-wechat/auth-wechat.module';
+import { WorkspaceModule } from './workspace/workspace.module';
+import { AiToolsModule } from './ai-tools/ai-tools.module';
+import { CreatorAssetsModule } from './creator-assets/creator-assets.module';
+import { SubmissionsModule } from './submissions/submissions.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -93,6 +97,10 @@ import { configValidationSchema } from './config/config.validation';
     SmsModule,
     AuthPhoneModule,
     AuthWechatModule,
+    WorkspaceModule,
+    AiToolsModule,
+    CreatorAssetsModule,
+    SubmissionsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

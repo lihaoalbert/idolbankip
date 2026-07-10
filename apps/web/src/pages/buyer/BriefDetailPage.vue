@@ -224,8 +224,14 @@ async function acceptBid(bid: Bid) {
   if (!confirm(`确认接受 ${bid.creator.displayName} 的报价 ¥${Number(bid.price).toLocaleString('zh-CN')}?其他报价将自动拒绝。`)) return;
   actingBidId.value = bid.id;
   try {
-    await apiClient.post(`/buyer/briefs/${brief.value.id}/bids/${bid.id}/accept`);
-    toast.success('已中标,创作者获得工作区');
+    const { data } = await apiClient.post<{ workspaceId: string }>(
+      `/buyer/briefs/${brief.value.id}/bids/${bid.id}/accept`,
+    );
+    toast.success('已中标,跳转到工作台');
+    if (data.workspaceId) {
+      router.push({ name: 'workspace-detail', params: { id: data.workspaceId } });
+      return;
+    }
     await Promise.all([loadBrief(), loadBids()]);
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '接受失败');

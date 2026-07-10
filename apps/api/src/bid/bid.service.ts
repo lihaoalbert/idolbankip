@@ -8,12 +8,16 @@ import {
 } from '@nestjs/common';
 import { Bid, Brief } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceService } from '../workspace/workspace.service';
 
 @Injectable()
 export class BidService {
   private readonly logger = new Logger(BidService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workspaces: WorkspaceService,
+  ) {}
 
   /**
    * 创作者对 brief 报价
@@ -107,16 +111,13 @@ export class BidService {
       });
 
       // 4. 创建 Workspace(创作者工作台)
-      const workspace = await tx.workspace.create({
-        data: {
-          briefId,
-          creatorId: bid.creatorId,
-          toolchain: {},
-          status: 'active',
-        },
-      });
+      const workspace = await this.workspaces.createForAcceptedBid(
+        tx,
+        briefId,
+        bid.creatorId,
+      );
 
-      return { bid: accepted, brief: updatedBrief, workspace };
+      return { bid: accepted, brief: updatedBrief, workspaceId: workspace.id };
     });
   }
 
