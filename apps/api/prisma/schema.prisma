@@ -159,6 +159,7 @@ model User {
   bidsAsCreator     Bid[]                 @relation("CreatorBids")
   workspacesAsCreator Workspace[]         @relation("CreatorWorkspaces")
   workspaceMessages WorkspaceMessage[]    @relation("WorkspaceMessageFrom")
+  creatorAssets     CreatorAsset[]       @relation("CreatorAssets")
   creatorSkills     CreatorSkill[]
   creatorProfile    CreatorProfile?
   reviewsFrom       Review[]              @relation("ReviewFrom")
@@ -1330,6 +1331,38 @@ model AIGenerationRecord {
 
   @@index([workspaceId])
   @@index([toolName, createdAt])
+}
+
+// ===================== 8.5 CreatorAsset 我的资产 (D4) =====================
+// 创作者自有数字人模型 + Prompt 模板,可在 workspace 的 scripts 里引用
+model CreatorAsset {
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     User     @relation("CreatorAssets", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  // model(自有数字人模型文件) / prompt_template(Prompt 模板文本)
+  type        String
+
+  // 模型类型: model3d / lora / voice;prompt_template 无此字段
+  // 通用名: 创作者起的别名,workspace 引用时显示这个
+  name        String
+
+  // 模型文件 OSS key;prompt_template 留空
+  ossKey      String?
+  fileSize    Int?
+  mimeType    String?
+
+  // prompt 模板正文(纯文本或 JSON);model 留空
+  content     String?  @db.Text
+
+  // 标签(便于检索): "网红脸, 高级感"
+  tags        Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([creatorId, type])
+  @@index([creatorId, createdAt])
 }
 
 // ===================== 9. Deliverable 成片交付 =====================
