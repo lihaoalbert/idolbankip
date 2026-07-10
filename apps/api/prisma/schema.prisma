@@ -1287,6 +1287,7 @@ model Workspace {
   generations  AIGenerationRecord[]
   messages     WorkspaceMessage[]
   submissions  WorkspaceSubmission[]
+  deliverables Deliverable[]
 
   @@index([creatorId, status])
 }
@@ -1417,6 +1418,7 @@ model Deliverable {
   briefId     String
   brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
   workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   // video / image / copy
   type        String

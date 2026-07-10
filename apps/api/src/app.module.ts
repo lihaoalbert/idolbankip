@@ -46,6 +46,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
 import { AiToolsModule } from './ai-tools/ai-tools.module';
 import { CreatorAssetsModule } from './creator-assets/creator-assets.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { DeliverableModule } from './deliverable/deliverable.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -101,6 +102,7 @@ import { configValidationSchema } from './config/config.validation';
     AiToolsModule,
     CreatorAssetsModule,
     SubmissionsModule,
+    DeliverableModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
