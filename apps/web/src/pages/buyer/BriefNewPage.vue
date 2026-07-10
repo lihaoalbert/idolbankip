@@ -129,6 +129,73 @@ const aiResult = ref<{
   suggestedTier?: string;
   checklistHint?: string;
 } | null>(null);
+
+// W5 E1 — AI 3 档报价推荐
+interface PricingTier {
+  price: number;
+  rationale: string;
+}
+interface PricingEstimate {
+  essential: PricingTier;
+  standard: PricingTier;
+  premium: PricingTier;
+  recommend: 'essential' | 'standard' | 'premium';
+  reasoning: string;
+}
+const aiEstimating = ref(false);
+const aiPricing = ref<PricingEstimate | null>(null);
+
+async function aiEstimate() {
+  if (!form.value.title) {
+    toast.error('请先填标题');
+    return;
+  }
+  aiEstimating.value = true;
+  try {
+    // 1) 先拆解拿 spec (复用 aiResult 里的归类)
+    const declaredCategory = aiResult.value?.declaredCategory ?? form.value.category;
+    const { data: specData } = await apiClient.post('/pricing/decompose', {
+      title: form.value.title,
+      description: form.value.description || undefined,
+      declaredCategory,
+    });
+    // 2) 拿当前预算作为 hint
+    const budgetHint =
+      form.value.budgetMin && form.value.budgetMax
+        ? { min: Number(form.value.budgetMin), max: Number(form.value.budgetMax) }
+        : undefined;
+    // 3) 调 /pricing/estimate
+    const { data: estData } = await apiClient.post('/pricing/estimate', {
+      spec: specData?.spec ?? {},
+      budgetHint,
+    });
+    aiPricing.value = estData?.pricing ?? null;
+    if (aiPricing.value) {
+      toast.success(`AI 推荐 ${tierLabel(aiPricing.value.recommend)} 套餐 ¥${aiPricing.value[aiPricing.value.recommend].price}`);
+    }
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || 'AI 估价失败');
+  } finally {
+    aiEstimating.value = false;
+  }
+}
+
+function tierLabel(tier: 'essential' | 'standard' | 'premium' | string): string {
+  return { essential: '精简', standard: '标准', premium: '旗舰' }[tier] ?? tier;
+}
+
+function applyRecommendedTier() {
+  if (!aiPricing.value) return;
+  const tier = aiPricing.value.recommend;
+  form.value.packageTier = tier;
+  // 同步预算范围到推荐档位
+  const t = aiPricing.value[tier];
+  if (t?.price) {
+    form.value.budgetMin = Math.max(100, Math.round(t.price * 0.8));
+    form.value.budgetMax = Math.round(t.price * 1.2);
+  }
+  toast.success(`已套用 ${tierLabel(tier)} 套餐 + 预算 ¥${form.value.budgetMin}-${form.value.budgetMax}`);
+}
 async function aiDecompose() {
   if (!form.value.title) {
     toast.error('请先填标题');
@@ -389,6 +456,53 @@ async function submit(action: 'draft' | 'publish') {
         <!-- 5. 套餐 + 预算 -->
         <section>
           <div class="catalog-no mb-3">05 · 套餐</div>
+
+          <!-- W5 E1 — AI 3 档报价推荐 -->
+          <div class="mb-4 p-4 border-0.5 border-gold/40 bg-gold/5 rounded">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs text-ink/70">
+                <span class="font-display text-sm text-stamp-red mr-2">AI 估价</span>
+                基于 brief 内容推荐 3 档价格 + 推荐套餐
+              </div>
+              <button
+                type="button"
+                class="px-3 py-1.5 bg-stamp-red text-white text-xs rounded hover:bg-stamp-red/90 disabled:opacity-50"
+                :disabled="aiEstimating"
+                @click="aiEstimate"
+              >
+                {{ aiEstimating ? '估价中…' : '✦ AI 估价' }}
+              </button>
+            </div>
+            <div v-if="aiPricing" class="mt-3">
+              <div class="grid grid-cols-3 gap-2 mb-3">
+                <div
+                  v-for="tier in (['essential','standard','premium'] as const)"
+                  :key="tier"
+                  :class="['p-3 border-0.5 rounded cursor-pointer transition',
+                    aiPricing.recommend === tier ? 'border-stamp-red bg-cream' : 'border-line bg-surface hover:border-ink/40']"
+                  @click="form.packageTier = tier; applyRecommendedTier()"
+                >
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-display">{{ tierLabel(tier) }}</span>
+                    <span v-if="aiPricing.recommend === tier" class="text-[10px] px-1.5 py-0.5 bg-stamp-red text-white rounded">推荐</span>
+                  </div>
+                  <div class="text-lg font-mono text-ink">¥{{ aiPricing[tier].price }}</div>
+                  <div class="text-xs text-ink/60 mt-1 line-clamp-2">{{ aiPricing[tier].rationale }}</div>
+                </div>
+              </div>
+              <div class="text-xs text-ink/60 italic">
+                💡 {{ aiPricing.reasoning }}
+              </div>
+              <button
+                type="button"
+                class="mt-2 px-3 py-1.5 bg-ink text-white text-xs rounded hover:bg-ink/90"
+                @click="applyRecommendedTier"
+              >
+                ⚡ 一键套用推荐档位 + 预算
+              </button>
+            </div>
+          </div>
+
           <div class="grid md:grid-cols-3 gap-3">
             <button
               v-for="pkg in PACKAGES"
