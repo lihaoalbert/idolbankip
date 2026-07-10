@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import {
   BuyerDeliverableController,
   BuyerDeliverableItemController,
@@ -7,8 +8,16 @@ import {
   CreatorDeliverableItemController,
 } from './deliverable.controller';
 import { DeliverableService } from './deliverable.service';
+import {
+  DouyinPublisher,
+  PublisherFactory,
+  PublisherService,
+  WechatPublisher,
+  XiaohongshuPublisher,
+} from './publishers/base.publisher';
 
 @Module({
+  imports: [ConfigModule],
   controllers: [
     CreatorDeliverableController,
     CreatorDeliverableItemController,
@@ -16,7 +25,14 @@ import { DeliverableService } from './deliverable.service';
     BuyerDeliverableItemController,
     BuyerWorkbenchController,
   ],
-  providers: [DeliverableService],
-  exports: [DeliverableService],
+  providers: [
+    DeliverableService,
+    DouyinPublisher,
+    WechatPublisher,
+    XiaohongshuPublisher,
+    PublisherFactory,
+    PublisherService,
+  ],
+  exports: [DeliverableService, PublisherService],
 })
 export class DeliverableModule {}

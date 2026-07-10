@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Deliverable, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PublisherService } from './publishers/base.publisher';
 
 // W4 Deliverable 状态机
 // pending → approved → published (终态)
@@ -49,7 +50,10 @@ export const SUPPORTED_DELIVERABLE_TYPES = ['video', 'image', 'copy'] as const;
 export class DeliverableService {
   private readonly logger = new Logger(DeliverableService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly publisher: PublisherService,
+  ) {}
 
   /**
    * 创作者提交交付 — 仅在 workspace 已 approved 之后才能创建
@@ -215,22 +219,26 @@ export class DeliverableService {
   }
 
   /**
-   * 创作者标记已发布 — approved/rejected → published
+   * 创作者发布 — approved/rejected → published
    * 真实场景: 调多平台 publisher adapter (W4 D3 实现),成功后回填 publishedUrl + publishedAt
-   * D1 阶段: 仅做状态机,publishedUrl 由后续 publish 端点回填
+   * 失败: 状态保持原状,抛 ServiceUnavailableException,前端提示重试
    */
-  async markPublished(
-    deliverableId: string,
-    creatorId: string,
-    publishedUrl: string,
-  ): Promise<Deliverable> {
+  async publish(deliverableId: string, creatorId: string): Promise<Deliverable> {
     const d = await this.findById(deliverableId, creatorId);
-    if (d.workspace?.creatorId !== creatorId) {
-      throw new ForbiddenException('只有创作者可标记发布');
+    if (d.workspace.creatorId !== creatorId) {
+      throw new ForbiddenException('只有创作者可发布');
     }
+    // 调 publisher adapter — 拿平台 URL
+    const result = await this.publisher.publish(d.platform, {
+      videoUrl: d.url,
+      title: `deliverable-${d.id}`,
+    });
+    this.logger.log(
+      `published deliverable=${d.id} platform=${d.platform} → ${result.platformUrl}`,
+    );
     return this.transition(d.id, DELIVERABLE_STATUS.PUBLISHED, {
-      publishedAt: new Date(),
-      publishedUrl,
+      publishedAt: result.publishedAt,
+      publishedUrl: result.platformUrl,
     });
   }
 

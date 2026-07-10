@@ -50,7 +50,9 @@ class ReviewDto {
 }
 
 class PublishDto {
-  @IsString() @IsUrl({ require_tld: false }) publishedUrl!: string;
+  // D3 后端自动调 publisher adapter,publishedUrl 不再需要前端传
+  // 保留 DTO 以兼容 (D1 API 兼容性),字段可选
+  @IsOptional() @IsString() @IsUrl({ require_tld: false }) publishedUrl?: string;
 }
 
 @ApiTags('deliverable')
@@ -91,12 +93,12 @@ export class CreatorDeliverableItemController {
 
   @Roles(UserRole.CREATOR)
   @Post(':id/publish')
-  async markPublished(
+  async publish(
     @CurrentUser() u: JwtUser,
     @Param('id') id: string,
-    @Body() body: PublishDto,
+    @Body() _body: PublishDto,
   ) {
-    const d = await this.deliverable.markPublished(id, u.id, body.publishedUrl);
+    const d = await this.deliverable.publish(id, u.id);
     return { deliverable: d };
   }
 }
