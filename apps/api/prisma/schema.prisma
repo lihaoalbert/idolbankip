@@ -1087,7 +1087,7 @@ model Brief {
   bids          Bid[]
   workspace     Workspace?
   deliverables  Deliverable[]
-  review        Review?
+  reviews       Review[]             @relation("ReviewBrief")
   dispute       Dispute?
   platformJudgments PlatformJudgment[]
   qualityEvals  QualityEval[]
@@ -1450,14 +1450,14 @@ model Deliverable {
 // ===================== 10. Review 评价 =====================
 model Review {
   id          String   @id @default(cuid())
-  briefId     String   @unique
-  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  briefId     String
+  brief       Brief    @relation("ReviewBrief", fields: [briefId], references: [id], onDelete: Cascade)
   fromUserId  String
   from        User     @relation("ReviewFrom", fields: [fromUserId], references: [id])
   toUserId    String
   to          User     @relation("ReviewTo", fields: [toUserId], references: [id])
 
-  // buyer_to_creator / creator_to_buyer
+  // buyer_to_creator / creator_to_buyer — 同一 brief 双方各评一次
   role        String
   rating      Int      // 1-5
   content     String   @db.Text
@@ -1465,7 +1465,9 @@ model Review {
 
   createdAt   DateTime @default(now())
 
+  @@unique([briefId, role])
   @@index([toUserId])
+  @@index([fromUserId])
 }
 
 // ===================== 11. Dispute 仲裁 =====================

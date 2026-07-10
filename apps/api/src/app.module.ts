@@ -48,6 +48,7 @@ import { CreatorAssetsModule } from './creator-assets/creator-assets.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { DeliverableModule } from './deliverable/deliverable.module';
 import { MediaModule } from './media/media.module';
+import { ReviewModule } from './review/review.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -105,6 +106,7 @@ import { configValidationSchema } from './config/config.validation';
     SubmissionsModule,
     DeliverableModule,
     MediaModule,
+    ReviewModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
