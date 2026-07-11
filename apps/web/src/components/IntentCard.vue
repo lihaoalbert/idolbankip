@@ -161,20 +161,82 @@ async function onConfirmCaptureErr() {
       <p class="mt-1.5 text-[10px] text-ink/40">直接在下方输入框回复, 我会继续追问或执行。</p>
     </template>
 
-    <!-- LIST_BRIEFS (R2 不在这里执行, 引导看侧栏 /buyer) -->
+    <!-- LIST_BRIEFS (R2 不在这里执行, 引导看侧栏 /buyer 或任务板 /creator/tasks) -->
     <template v-else-if="message.intent === 'LIST_BRIEFS'">
-      <p class="text-ink/70">打开右侧 "我的发包" 标签查看完整列表, 或点下方按钮跳转到买家控制台。</p>
-      <button
-        class="mt-2 text-[10px] px-2 py-1 rounded-full border border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
-        @click="router.push('/buyer')"
-      >
-        打开买家控制台 →
-      </button>
+      <p class="text-ink/70">点击下方按钮打开可接发包列表或买家控制台。</p>
+      <div class="mt-2 flex gap-2">
+        <button
+          class="text-[10px] px-2 py-1 rounded-full border border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
+          @click="router.push('/buyer')"
+        >
+          买家控制台 →
+        </button>
+        <button
+          class="text-[10px] px-2 py-1 rounded-full border border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
+          @click="router.push('/creator/briefs')"
+        >
+          可接发包 →
+        </button>
+      </div>
     </template>
 
     <!-- 其它只读 (SHOW_BID / OPEN_WORKSPACE / SHOW_WORKSPACE_STATUS) -->
     <template v-else-if="['SHOW_BID', 'OPEN_WORKSPACE', 'SHOW_WORKSPACE_STATUS'].includes(message.intent)">
       <p class="text-ink/60">点上方 suggested action 按钮查看详情。</p>
+    </template>
+
+    <!-- R3 Creator: PLACE_BID (投标) -->
+    <template v-else-if="message.intent === 'PLACE_BID'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
+        <div class="text-ink/50">报价</div><div class="font-medium">¥{{ pickNumber(params.price) || '0' }}</div>
+        <div class="text-ink/50">交付天数</div><div>{{ pickNumber(params.deliveryDays) || '—' }} 天</div>
+        <div class="text-ink/50">提案摘要</div>
+        <div class="whitespace-pre-wrap break-words line-clamp-3">{{ pickString(params.proposal) || '—' }}</div>
+      </div>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 投标已提交, 等待买家反馈
+      </div>
+    </template>
+
+    <!-- R3 Creator: UPLOAD_DELIVERABLE -->
+    <template v-else-if="message.intent === 'UPLOAD_DELIVERABLE'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.workspaceId) || '—' }}</div>
+        <div class="text-ink/50">类型</div><div>{{ pickString(params.type) || '—' }}</div>
+        <div class="text-ink/50">平台</div><div>{{ pickString(params.platform) || '—' }}</div>
+        <div class="text-ink/50">链接</div>
+        <a v-if="pickString(params.url)" :href="pickString(params.url)" target="_blank" rel="noopener" class="text-blue-600 dark:text-blue-400 hover:underline break-all text-[11px]">
+          {{ pickString(params.url).slice(0, 48) }}{{ pickString(params.url).length > 48 ? '...' : '' }}
+        </a>
+        <div v-else class="text-ink/30">—</div>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/50">提交后将进入买家审批 (pending → approved / rejected)。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 交付物已上传, 等待买家审批
+      </div>
+    </template>
+
+    <!-- R3 Creator: CREATE_REVIEW (creator_to_buyer) -->
+    <template v-else-if="message.intent === 'CREATE_REVIEW'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
+        <div class="text-ink/50">评分</div>
+        <div class="flex items-center gap-0.5">
+          <span v-for="n in 5" :key="n" :class="n <= Number(pickNumber(params.rating) || 0) ? 'text-amber-500' : 'text-ink/20'">★</span>
+          <span class="ml-1.5 text-[10px] text-ink/50">{{ pickNumber(params.rating) || '—' }}/5</span>
+        </div>
+        <div class="text-ink/50">评价</div>
+        <div class="whitespace-pre-wrap break-words">{{ pickString(params.content) || '—' }}</div>
+        <div v-if="pickStringArray(params.tags).length > 0" class="text-ink/50">标签</div>
+        <div v-if="pickStringArray(params.tags).length > 0" class="flex flex-wrap gap-1">
+          <span v-for="t in pickStringArray(params.tags)" :key="t" class="px-1.5 py-0.5 rounded bg-line/40">{{ t }}</span>
+        </div>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/50">评价将公开挂在你和买家主页。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 评价已写入, 影响对方信用分
+      </div>
     </template>
 
     <!-- 其它写 (creator-only 或 R3 处理) -->

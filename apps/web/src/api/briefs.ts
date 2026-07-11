@@ -68,8 +68,10 @@ export const buyerBriefsApi = {
     return r.data;
   },
 
-  /** 列发包 (GET /buyer/briefs?status=open|all) */
-  async list(params?: { status?: 'open' | 'all'; page?: number; size?: number }): Promise<{
+  /** 列发包 (GET /buyer/briefs?status=bidding|draft|...)
+ * 注: 这是**买家自己**的发包 (mypurchases) — 状态机枚举值
+ */
+  async list(params?: { status?: string; page?: number; size?: number }): Promise<{
     items: BriefSummary[];
     total: number;
     page: number;
@@ -104,5 +106,36 @@ export const buyerBriefsApi = {
       `/buyer/briefs/${briefId}/bids/${bidId}/accept`,
     );
     return r.data;
+  },
+
+  // ============ Creator 侧 ============
+
+  /** 创作者浏览可抢单的 brief (GET /creator/briefs) */
+  async listOpen(params?: { category?: string; page?: number; size?: number }): Promise<{
+    items: BriefSummary[];
+    total: number;
+    page: number;
+    size: number;
+  }> {
+    const r = await apiClient.get<{
+      items: BriefSummary[];
+      total: number;
+      page: number;
+      size: number;
+    }>('/creator/briefs', { params });
+    return r.data;
+  },
+
+  /** 创作者投标 (POST /creator/briefs/:briefId/bids) */
+  async placeBid(
+    briefId: string,
+    body: { price: number; deliveryDays: number; proposal: string },
+  ): Promise<BidSummary> {
+    const r = await apiClient.post<{ bid?: BidSummary } | BidSummary>(
+      `/creator/briefs/${briefId}/bids`,
+      body,
+    );
+    const data: any = r.data;
+    return data?.bid ?? data;
   },
 };

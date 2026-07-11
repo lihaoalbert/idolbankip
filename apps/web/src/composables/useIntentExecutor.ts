@@ -20,18 +20,29 @@
  */
 
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import { buyerBriefsApi } from '@/api/briefs';
+import { creatorDeliverableApi } from '@/api/deliverables';
+import { reviewApi } from '@/api/reviews';
 import { useAssistant } from '@/composables/useAssistant';
 import type { IntentType } from '@/api/assistant';
 
 export type ExecuteOutcome =
-  | { kind: 'success'; briefId?: string; workspaceId?: string }
+  | {
+      kind: 'success';
+      briefId?: string;
+      workspaceId?: string;
+      bidId?: string;
+      deliverableId?: string;
+      reviewId?: string;
+    }
   | { kind: 'cancelled' }
   | { kind: 'no-op' }
   | { kind: 'error'; reason: string };
 
 export function useIntentExecutor() {
   const router = useRouter();
+  const auth = useAuthStore();
   const { setIntentStatus } = useAssistant();
 
   function pickNumber(v: unknown): number | undefined {
@@ -55,6 +66,7 @@ export function useIntentExecutor() {
 
     try {
       switch (intent) {
+        // ============ Buyer 写 (R2) ============
         case 'CREATE_BRIEF': {
           const title = pickString(params?.title);
           const category = pickString(params?.category);
@@ -102,6 +114,71 @@ export function useIntentExecutor() {
           return { kind: 'success', briefId, workspaceId: out.workspaceId };
         }
 
+        // ============ Creator 写 (R3) ============
+        case 'PLACE_BID': {
+          const briefId = pickString(params?.briefId);
+          const price = pickNumber(params?.price);
+          const deliveryDays = pickNumber(params?.deliveryDays);
+          const proposal = pickString(params?.proposal);
+
+          if (!briefId || !price || !deliveryDays || !proposal) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'params 缺失 (briefId/price/deliveryDays/proposal)' };
+          }
+
+          const bid = await buyerBriefsApi.placeBid(briefId, { price, deliveryDays, proposal });
+          setIntentStatus(messageId, 'success', { briefId });
+          return { kind: 'success', briefId, bidId: bid.id };
+        }
+
+        case 'UPLOAD_DELIVERABLE': {
+          const workspaceId = pickString(params?.workspaceId);
+          const type = pickString(params?.type);
+          const platform = pickString(params?.platform);
+          const url = pickString(params?.url);
+          const thumbnailUrl = pickString(params?.thumbnailUrl);
+
+          if (!workspaceId || !type || !platform || !url) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'params 缺失 (workspaceId/type/platform/url)' };
+          }
+
+          const d = await creatorDeliverableApi.create({
+            workspaceId,
+            type: type as any,
+            platform,
+            url,
+            thumbnailUrl,
+            spec: {},
+          });
+          setIntentStatus(messageId, 'success', { workspaceId });
+          return { kind: 'success', workspaceId, deliverableId: d.id };
+        }
+
+        case 'CREATE_REVIEW': {
+          const briefId = pickString(params?.briefId);
+          const rating = pickNumber(params?.rating);
+          const content = pickString(params?.content);
+          const tags = pickStringArray(params?.tags);
+
+          if (!briefId || !rating || !content) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'params 缺失 (briefId/rating/content)' };
+          }
+
+          // role 由调用方角色决定 — buyer 时 buyer_to_creator, creator 时 creator_to_buyer
+          const role = auth.user?.roles?.includes('CREATOR') ? 'creator_to_buyer' : 'buyer_to_creator';
+          if (role === 'buyer_to_creator' && !auth.user?.roles?.includes('BUYER')) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: '当前角色无法写 buyer 评价' };
+          }
+
+          const r = await reviewApi.create({ briefId, role, rating, content, tags });
+          setIntentStatus(messageId, 'success', { briefId });
+          return { kind: 'success', briefId, reviewId: r.id };
+        }
+
+        // ============ 只读 + 导航 (R2) ============
         case 'NAVIGATE': {
           const route = pickString(params?.route);
           if (!route) {
@@ -126,13 +203,10 @@ export function useIntentExecutor() {
           setIntentStatus(messageId, 'cancelled');
           return { kind: 'no-op' };
 
-        case 'PLACE_BID':
-        case 'UPLOAD_DELIVERABLE':
-        case 'CREATE_REVIEW':
+        // ============ 其它 — 既不是 buyer 也不是 creator 该处理的 ============
         case 'UPLOAD_IP':
         case 'KYC_SUBMIT':
-          // R3 creator 才接 (PLACE_BID/UPLOAD_DELIVERABLE/CREATE_REVIEW/UPLOAD_IP/KYC_SUBMIT),
-          // 在 buyer chat 里碰到这些 intent → 角色不匹配, 视为 cancelled
+          // 这俩是 creator 路径上的 (R3 后期接), 但通常在 buyer chat 不应出现
           setIntentStatus(messageId, 'cancelled');
           return { kind: 'no-op' };
 

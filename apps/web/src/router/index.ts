@@ -72,7 +72,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/creator',
     name: 'creator-dashboard',
-    component: () => import('@/pages/creator/CreatorDashboard.vue'),
+    component: () => import('@/pages/creator/CreatorChatPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  {
+    path: '/creator/chat',
+    name: 'creator-chat',
+    component: () => import('@/pages/creator/CreatorChatPage.vue'),
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
