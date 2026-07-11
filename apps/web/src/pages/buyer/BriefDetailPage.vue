@@ -73,6 +73,20 @@ interface Brief {
   bumpHistory: Array<{ at: string; fromPrice: number; toPrice: number; percent: number; by: string }> | null;
   createdAt: string;
   updatedAt: string;
+  workspace: { id: string; status: string; creatorId: string } | null;
+}
+
+interface ReviewItem {
+  id: string;
+  briefId: string;
+  fromUserId: string;
+  toUserId: string;
+  role: 'buyer_to_creator' | 'creator_to_buyer';
+  rating: number;
+  content: string;
+  tags: string[] | null;
+  createdAt: string;
+  from?: { id: string; displayName: string; avatarUrl: string | null };
 }
 
 const brief = ref<Brief | null>(null);
@@ -143,6 +157,7 @@ onMounted(async () => {
   }
   await loadBrief();
   await loadBids();
+  await loadReviews();
 });
 
 async function loadBrief() {
@@ -256,6 +271,64 @@ async function rejectBid(bid: Bid) {
 }
 
 const formatPrice = (n: number | string) => `¥${Number(n).toLocaleString('zh-CN')}`;
+
+// W5 E2 — 评价 (buyer → creator)
+const reviews = ref<ReviewItem[]>([]);
+const reviewsLoading = ref(false);
+const submitting = ref(false);
+const myReview = ref<ReviewItem | null>(null);
+const reviewForm = ref({ rating: 5, content: '', tags: '' });
+const reviewFormOpen = ref(false);
+
+const canReview = computed(() => brief.value?.workspace?.status === 'approved');
+const hasReviewed = computed(() => reviews.value.some((r) => r.role === 'buyer_to_creator'));
+
+async function loadReviews() {
+  if (!brief.value) return;
+  reviewsLoading.value = true;
+  try {
+    const { data } = await apiClient.get<{ items: ReviewItem[] }>(
+      `/briefs/${brief.value.id}/reviews`,
+    );
+    reviews.value = data.items;
+    const mine = data.items.find((r) => r.fromUserId === auth.user?.id);
+    myReview.value = mine ?? null;
+  } catch (e: any) {
+    reviews.value = [];
+  } finally {
+    reviewsLoading.value = false;
+  }
+}
+
+async function submitReview() {
+  if (!brief.value) return;
+  if (!reviewForm.value.content || reviewForm.value.content.length < 5) {
+    toast.error('评价至少 5 字');
+    return;
+  }
+  submitting.value = true;
+  try {
+    const tags = reviewForm.value.tags
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+    await apiClient.post(`/briefs/${brief.value.id}/reviews`, {
+      role: 'buyer_to_creator',
+      rating: reviewForm.value.rating,
+      content: reviewForm.value.content,
+      tags,
+    });
+    toast.success('评价已提交');
+    reviewFormOpen.value = false;
+    reviewForm.value = { rating: 5, content: '', tags: '' };
+    await loadReviews();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '提交失败');
+  } finally {
+    submitting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -490,6 +563,136 @@ const formatPrice = (n: number | string) => `¥${Number(n).toLocaleString('zh-CN
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- W5 E2 — 评价 (buyer → creator, 仅 workspace.approved 后才可评) -->
+        <section class="plate p-6">
+          <div class="flex items-center justify-between mb-3">
+            <div class="catalog-no">REVIEW · 双向评价 · {{ reviews.length }}</div>
+            <span v-if="canReview && !hasReviewed" class="text-[10px] text-stamp-red">
+              订单已结案,可对创作者评价
+            </span>
+            <span v-else-if="hasReviewed" class="text-[10px] text-ink/50">
+              已评价
+            </span>
+            <span v-else class="text-[10px] text-ink/40">
+              订单结束后开放评价
+            </span>
+          </div>
+
+          <div v-if="reviewsLoading" class="text-center text-ink/40 py-6 text-xs">加载评价中…</div>
+
+          <div v-else-if="reviews.length === 0" class="text-center text-ink/40 py-6 text-xs">
+            暂无评价
+          </div>
+
+          <div v-else class="space-y-3">
+            <div
+              v-for="r in reviews"
+              :key="r.id"
+              class="border-0.5 border-line p-4 bg-surface/30"
+            >
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="r.from?.avatarUrl"
+                    :src="r.from.avatarUrl"
+                    :alt="r.from.displayName"
+                    class="w-8 h-8 rounded-full object-cover"
+                  />
+                  <div
+                    v-else
+                    class="w-8 h-8 rounded-full bg-ink/10 flex items-center justify-center text-xs text-ink/40"
+                  >
+                    {{ r.from?.displayName?.charAt(0) || '?' }}
+                  </div>
+                  <div>
+                    <div class="text-xs font-medium">{{ r.from?.displayName || r.fromUserId }}</div>
+                    <div class="text-[10px] text-ink/40">
+                      {{ r.role === 'buyer_to_creator' ? '买家评价创作者' : '创作者评价买家' }}
+                      · {{ new Date(r.createdAt).toLocaleString('zh-CN') }}
+                    </div>
+                  </div>
+                </div>
+                <div class="text-stamp-red text-sm font-mono">
+                  <span v-for="i in 5" :key="i" :class="i <= r.rating ? 'text-stamp-red' : 'text-ink/15'">★</span>
+                </div>
+              </div>
+              <div class="text-xs text-ink/80 leading-relaxed mb-2 whitespace-pre-line">{{ r.content }}</div>
+              <div v-if="r.tags && r.tags.length" class="flex flex-wrap gap-1">
+                <span
+                  v-for="t in r.tags"
+                  :key="t"
+                  class="text-[10px] px-2 py-0.5 bg-ink/5 text-ink/60"
+                >#{{ t }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 提交评价 (仅买家本人 + 已结案 + 未评过) -->
+          <div
+            v-if="canReview && !hasReviewed && !reviewFormOpen"
+            class="mt-4 pt-4 border-t border-line"
+          >
+            <button
+              @click="reviewFormOpen = true"
+              class="w-full py-3 bg-stamp-red text-cream text-xs font-medium tracking-widest uppercase hover:bg-ink"
+            >
+              评价创作者 →
+            </button>
+          </div>
+
+          <div
+            v-if="reviewFormOpen"
+            class="mt-4 pt-4 border-t border-line space-y-3"
+          >
+            <div>
+              <div class="text-xs text-ink/60 mb-2">评分</div>
+              <div class="flex gap-2">
+                <button
+                  v-for="n in [1, 2, 3, 4, 5]"
+                  :key="n"
+                  @click="reviewForm.rating = n"
+                  class="text-2xl"
+                  :class="n <= reviewForm.rating ? 'text-stamp-red' : 'text-ink/15 hover:text-ink/40'"
+                >★</button>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-ink/60 mb-1">评价内容 (≥ 5 字)</div>
+              <textarea
+                v-model="reviewForm.content"
+                rows="4"
+                maxlength="1000"
+                placeholder="说说合作感受,例如交付质量 / 沟通态度 / 时间观念等"
+                class="w-full px-3 py-2 border-0.5 border-line bg-cream text-xs focus:outline-none focus:border-stamp-red"
+              />
+              <div class="text-[10px] text-ink/40 mt-1 text-right">
+                {{ reviewForm.content.length }} / 1000
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-ink/60 mb-1">标签 (逗号分隔,最多 10 个)</div>
+              <input
+                v-model="reviewForm.tags"
+                placeholder="如:守时,专业,有创意"
+                class="w-full px-3 py-2 border-0.5 border-line bg-cream text-xs focus:outline-none focus:border-stamp-red"
+              />
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button
+                @click="reviewFormOpen = false"
+                class="px-4 py-2 border-0.5 border-ink/30 text-xs"
+              >取消</button>
+              <button
+                @click="submitReview"
+                :disabled="submitting"
+                class="px-5 py-2 bg-stamp-red text-cream text-xs font-medium tracking-widest uppercase hover:bg-ink disabled:opacity-50"
+              >
+                {{ submitting ? '提交中…' : '提交评价 →' }}
+              </button>
             </div>
           </div>
         </section>

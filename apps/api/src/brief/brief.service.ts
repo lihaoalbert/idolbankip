@@ -250,8 +250,14 @@ export class BriefService {
   /**
    * 买家查自己的 brief 详情(所有权校验)
    */
-  async getById(id: string, buyerId: string): Promise<Brief> {
-    const brief = await this.getByIdInternal(id);
+  async getById(id: string, buyerId: string) {
+    const brief = await this.prisma.brief.findUnique({
+      where: { id },
+      include: {
+        workspace: { select: { id: true, status: true, creatorId: true } },
+      },
+    });
+    if (!brief) throw new NotFoundException('brief 不存在');
     if (brief.buyerId !== buyerId) {
       throw new ForbiddenException('无权查看该 brief');
     }
@@ -262,14 +268,20 @@ export class BriefService {
    * 创作者查公开 brief 详情(只能看 bidding 状态)
    * 3 道软护栏之三:创作者端只显示 currentPrice,不显示 bumpHistory(避免歧视老买家 vs 加价老买家)
    */
-  async getPublicById(id: string): Promise<Brief> {
-    const brief = await this.getByIdInternal(id);
+  async getPublicById(id: string) {
+    const brief = await this.prisma.brief.findUnique({
+      where: { id },
+      include: {
+        workspace: { select: { id: true, status: true, creatorId: true } },
+      },
+    });
+    if (!brief) throw new NotFoundException('brief 不存在');
     if (brief.status !== 'bidding') {
       throw new ForbiddenException('该 brief 不可接单');
     }
     // 脱敏:剥离 bumpHistory,创作者端只看到当前价
     const { bumpHistory: _omit, ...sanitized } = brief;
-    return sanitized as Brief;
+    return sanitized;
   }
 
   /**
