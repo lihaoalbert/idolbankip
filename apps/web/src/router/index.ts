@@ -169,11 +169,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/buyer/BuyerChatPage.vue'),
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
-  // W4 D4 — 买家工作台,跨 workspace 集中处理创作者交付
+  // W6-R4: /buyer/workbench (W4 D4 跨 workspace 集中审批页) → /buyer (chat 默认入口)
+  // 老路由 302 上线 — 书签/旧链接自动跳到三分屏买家 chat
   {
     path: '/buyer/workbench',
-    name: 'buyer-workbench',
-    component: () => import('@/pages/buyer/BuyerWorkbenchPage.vue'),
+    redirect: '/buyer',
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
   {
