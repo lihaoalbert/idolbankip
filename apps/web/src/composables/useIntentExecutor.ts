@@ -114,6 +114,18 @@ export function useIntentExecutor() {
           return { kind: 'success', briefId, workspaceId: out.workspaceId };
         }
 
+        case 'CLOSE_BRIEF': {
+          // W6-R5: 买家撤回/关闭发包
+          const briefId = pickString(params?.briefId);
+          if (!briefId) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'briefId 缺失 — 需要告诉我哪个发包要关闭' };
+          }
+          await buyerBriefsApi.close(briefId);
+          setIntentStatus(messageId, 'success', { briefId });
+          return { kind: 'success', briefId };
+        }
+
         // ============ Creator 写 (R3) ============
         case 'PLACE_BID': {
           const briefId = pickString(params?.briefId);

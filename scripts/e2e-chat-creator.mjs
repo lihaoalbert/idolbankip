@@ -87,33 +87,28 @@ async function main() {
     ok('buyer login');
   } catch (e) { bad('buyer login', e.message); return finish(); }
 
-  // ===== 3. 创作者列可接发包 (LIST_BRIEFS 底层) =====
+  // ===== 3. 创作者列可接发包 (LIST_BRIEFS 底层) — 每次跑都新建一个 fresh brief,
+// 避免多次测试后 creator_001 已对该 brief 投过标 (status=409) =====
   const openList = await http('GET', '/creator/briefs', { token: creatorToken });
   assert2xx(openList.status, 'GET /creator/briefs (可接发包)');
-  let briefId;
   if (openList.status === 200) {
     const items = openList.data?.items ?? openList.data ?? [];
     assert(Array.isArray(items), `items 是数组 (count=${items.length})`);
-    if (items.length === 0) {
-      // 没公开发包 → 走 buyer 新建一个再 publish,创作者再列
-      const dl = new Date(Date.now() + 7 * 86400_000).toISOString();
-      const c = await http('POST', '/buyer/briefs', { token: buyerToken, body: {
-        title: `W6-R3 ${Date.now()}`, category: 'shortvideo', platformSet: ['douyin'],
-        ipIds: [], budgetMin: 1000, budgetMax: 2000, packageTier: 'standard', deadlineAt: dl,
-      }});
-      const obj = c.data?.brief ?? c.data?.data ?? c.data;
-      briefId = obj?.id;
-      if (briefId) await http('POST', `/buyer/briefs/${briefId}/publish`, { token: buyerToken });
-      const retry = await http('GET', '/creator/briefs', { token: creatorToken });
-      const its = retry.data?.items ?? retry.data ?? [];
-      briefId = briefId || its[0]?.id;
-    } else {
-      briefId = items[0]?.id;
-    }
   }
 
+  // 走 buyer 新建一个 fresh brief + publish
+  const dl = new Date(Date.now() + 7 * 86400_000).toISOString();
+  const c = await http('POST', '/buyer/briefs', { token: buyerToken, body: {
+    title: `W6-R3 ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    category: 'shortvideo', platformSet: ['douyin'],
+    ipIds: [], budgetMin: 1000, budgetMax: 2000, packageTier: 'standard', deadlineAt: dl,
+  }});
+  const obj = c.data?.brief ?? c.data?.data ?? c.data;
+  let briefId = obj?.id;
+  if (briefId) await http('POST', `/buyer/briefs/${briefId}/publish`, { token: buyerToken });
+
   // ===== 4. 创作者投标 (PLACE_BID 底层) =====
-  assert(typeof briefId === 'string' && briefId.length > 0, '有 brief id 可用', `id=${briefId}`);
+  assert(typeof briefId === 'string' && briefId.length > 0, '有 fresh brief id 可用', `id=${briefId}`);
   if (!briefId) return finish();
   const bidPayload = { price: 1200, deliveryDays: 5, proposal: `W6-R3 E2E 创作者投标测试 ${Date.now()}` };
   const bidRes = await http('POST', `/creator/briefs/${briefId}/bids`, {

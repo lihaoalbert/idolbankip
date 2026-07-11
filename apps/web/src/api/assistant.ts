@@ -35,6 +35,7 @@ export interface SuggestedAction {
 export type IntentType =
   | 'LIST_BRIEFS'
   | 'CREATE_BRIEF'
+  | 'CLOSE_BRIEF'
   | 'SHOW_BID'
   | 'PLACE_BID'
   | 'ACCEPT_BID'
@@ -50,7 +51,7 @@ export type IntentType =
 export interface ChatResponse {
   reply: string;
   suggestedActions: SuggestedAction[];
-  /** 12 个之一 / null(无意图) / undefined(FAQ 命中走老路) */
+  /** 14 个之一 / null(无意图) / undefined(FAQ 命中走老路) */
   intent?: IntentType | null;
   /** Zod 校验通过的 params (例如 PLACE_BID 的 {briefId, price, deliveryDays, proposal}) */
   intentParams?: Record<string, unknown>;

@@ -185,6 +185,21 @@ async function onConfirmCaptureErr() {
       <p class="text-ink/60">点上方 suggested action 按钮查看详情。</p>
     </template>
 
+    <!-- W6-R5: CLOSE_BRIEF — 买家撤回/关闭发包 -->
+    <template v-else-if="message.intent === 'CLOSE_BRIEF'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
+        <div v-if="pickString(params.reason)" class="text-ink/50">原因</div>
+        <div v-if="pickString(params.reason)" class="whitespace-pre-wrap break-words">{{ pickString(params.reason) }}</div>
+      </div>
+      <p class="mt-2 text-[10px] text-red-600 dark:text-red-400 font-medium">
+        ⚠ 关闭后无法恢复, 已投标的创作者会收到通知。
+      </p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 发包已关闭
+      </div>
+    </template>
+
     <!-- R3 Creator: PLACE_BID (投标) -->
     <template v-else-if="message.intent === 'PLACE_BID'">
       <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">

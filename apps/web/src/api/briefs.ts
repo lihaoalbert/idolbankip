@@ -108,6 +108,19 @@ export const buyerBriefsApi = {
     return r.data;
   },
 
+  /**
+   * 关闭/撤回发包 (POST /buyer/briefs/:id/close)
+   * W6-R5: 买家聊天意图 CLOSE_BRIEF 的执行入口
+   * 服务端允许 draft/bidding/in_progress 状态关闭, 关闭后无法恢复
+   */
+  async close(id: string): Promise<{ id: string; status: string }> {
+    const r = await apiClient.post<{ brief?: { id: string; status: string }; id?: string; status?: string }>(
+      `/buyer/briefs/${id}/close`,
+    );
+    const data: any = r.data;
+    return data?.brief ?? data;
+  },
+
   // ============ Creator 侧 ============
 
   /** 创作者浏览可抢单的 brief (GET /creator/briefs) */

@@ -32,6 +32,7 @@ import {
 export type IntentType =
   | 'LIST_BRIEFS'
   | 'CREATE_BRIEF'
+  | 'CLOSE_BRIEF'
   | 'SHOW_BID'
   | 'PLACE_BID'
   | 'ACCEPT_BID'
@@ -47,6 +48,7 @@ export type IntentType =
 export const INTENT_TYPES = [
   'LIST_BRIEFS',
   'CREATE_BRIEF',
+  'CLOSE_BRIEF',
   'SHOW_BID',
   'PLACE_BID',
   'ACCEPT_BID',
@@ -64,6 +66,7 @@ export const INTENT_TYPES = [
 export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
   LIST_BRIEFS: false,
   CREATE_BRIEF: true,
+  CLOSE_BRIEF: true,
   SHOW_BID: false,
   PLACE_BID: true,
   ACCEPT_BID: true,
@@ -81,6 +84,7 @@ export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
 export const INTENT_LABELS: Record<IntentType, string> = {
   LIST_BRIEFS: '列出可接发包',
   CREATE_BRIEF: '创建发包',
+  CLOSE_BRIEF: '关闭/撤回发包',
   SHOW_BID: '查看投标详情',
   PLACE_BID: '提交投标',
   ACCEPT_BID: '接受投标',
@@ -137,6 +141,18 @@ export class CreateBriefParams {
 
   @IsOptional() @IsArray() @IsString({ each: true })
   attachments?: string[];
+}
+
+/** W6-R5: 买家撤回/关闭已发的 brief。
+ * briefId 必填 (用户口头提"撤回我刚发的 brief 标题 XX" → LLM 需要 ID 或 ASK_CLARIFICATION 追问);
+ * reason 可选, 仅用于审计/后续设计跟进, 不强制落库。
+ */
+export class CloseBriefParams {
+  @IsString() @MaxLength(64)
+  briefId!: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  reason?: string;
 }
 
 export class IdOnlyParams {
@@ -244,6 +260,7 @@ export class AskClarificationParams {
 const SCHEMA_BY_INTENT: Record<IntentType, any> = {
   LIST_BRIEFS: ListBriefsParams,
   CREATE_BRIEF: CreateBriefParams,
+  CLOSE_BRIEF: CloseBriefParams,
   SHOW_BID: ShowBidParams,
   PLACE_BID: PlaceBidParams,
   ACCEPT_BID: AcceptBidParams,
@@ -373,6 +390,7 @@ export function tryParseLlmJson(text: string): any {
 const WRITE_VERBS = [
   '投标', '发包', '接单', '接受', '上传', '写评价', '写好评', '写个评价',
   '提交 KYC', '提交KYC', '提交实名', '付款', '退款', '签合同',
+  '撤回', '撤回发包', '关闭发包', '关闭任务', '撤回任务', '取消发包',
 ];
 const INTENT_PREFIX = ['我要', '帮我', '帮我把', '请帮我', '能否帮我', '可以帮我', '麻烦帮我'];
 
