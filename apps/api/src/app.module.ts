@@ -49,6 +49,7 @@ import { SubmissionsModule } from './submissions/submissions.module';
 import { DeliverableModule } from './deliverable/deliverable.module';
 import { MediaModule } from './media/media.module';
 import { ReviewModule } from './review/review.module';
+import { CreditModule } from './credit/credit.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -107,6 +108,7 @@ import { configValidationSchema } from './config/config.validation';
     DeliverableModule,
     MediaModule,
     ReviewModule,
+    CreditModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

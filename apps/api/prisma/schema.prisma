@@ -973,6 +973,30 @@ model HonorLedger {
   @@index([refType, refId])
 }
 
+// ===================== #30.7.11 W5 E3 信用分规则 =====================
+// 业务规则表 (config-driven), 通过 seed-credit.ts 维护
+// 公式:score = Σ(rule.weight × normalized_metric) × 100
+//   - weight: Decimal (-1~1, 负=扣分; e.g. 投诉)
+//   - normalized_metric: [0,1] 由 evaluator 返回
+//   - 启用 version 机制:加新版本通过种子里改 version, 旧版自然淘汰
+//   - evaluator 注册在 credit/evaluators.ts (pure function, 无副作用)
+//   - metrics 输入缓存(评 1 次 / 5 分钟) 防止短时间内重复计算
+model CreditScoreRule {
+  id          String   @id @default(cuid())
+  dimension   String   // "rating_avg" / "rating_count" / "completed_count" / "dispute_count" / "response_rate" ...
+  role        String   // "creator" / "buyer" / "any" (三维规则各自权重不同)
+  weight      Decimal  @db.Decimal(5, 4) // 0.0000 ~ 9.9999
+  /// JSON 配置 (e.g. { saturate: 10 } — 该指标饱和阈值, sigmoid 化到 0-1)
+  configJson  Json?
+  enabled     Boolean  @default(true)
+  version     Int      // 当前生效版本,seed 写入,旧版自然淘汰
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dimension, role, version])
+  @@index([version, enabled])
+}
+
 // ===================== AI 助手调用日志 =====================
 // 第一版只读型助手 — 每次 POST /assistant/chat 落一行, 含 prompt/response 全文 + 元数据。
 // 用途: (1) 审计: 谁问了什么, 助手答了什么; (2) 后续做 prompt 调优; (3) 算 token 成本(配合 model 字段)。

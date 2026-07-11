@@ -18,6 +18,7 @@ import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
 import { useCountdown } from '@/composables/useCountdown';
+import CreditScoreBadge from '@/components/CreditScoreBadge.vue';
 
 interface BidCreatorProfile {
   level: string;
@@ -529,6 +530,8 @@ async function submitReview() {
                         响应率 {{ Math.round(b.creator.creatorProfile.responseRate * 100) }}%
                       </span>
                     </div>
+                    <!-- W5 E3 — 信用分 (实时计算, 5min cache) -->
+                    <CreditScoreBadge :user-id="b.creator.id" as-role="creator" compact class="mt-1" />
                     <div v-if="b.message" class="text-xs text-ink/70 whitespace-pre-line leading-relaxed">
                       {{ b.message }}
                     </div>

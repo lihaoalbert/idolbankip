@@ -20,6 +20,7 @@
     "seed:users": "ts-node -r tsconfig-paths/register ../../scripts/seed-users.ts",
     "seed:all": "ts-node -r tsconfig-paths/register ../../scripts/seed-all.ts",
     "seed:honor": "tsx ../../scripts/seed-honor.ts",
+    "seed:credit": "tsx ../../scripts/seed-credit.ts",
     "seed:catalog": "tsx ../../scripts/seed-catalog.ts",
     "seed:llm-config": "tsx ../../scripts/seed-llm-config.ts",
     "gen:images": "ts-node -r tsconfig-paths/register ../../scripts/lib/generate-placeholder-image.ts",
