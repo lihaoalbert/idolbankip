@@ -7,6 +7,7 @@
 #   bash scripts/seed-deploy.sh gen-images        # 生成占位图
 #   bash scripts/seed-deploy.sh upload-thumbs     # 缩略图上传 OSS
 #   bash scripts/seed-deploy.sh honor             # 荣誉系统规则 (HonorRule/HonorLevel/HonorBadge)
+#   bash scripts/seed-deploy.sh credit            # 信用分规则 (CreditScoreRule 9 条, config-driven 信用分公式)
 #   bash scripts/seed-deploy.sh llm-config        # LLM provider 配置 (env MINIMAX_* → DB 加密入库)
 #   bash scripts/seed-deploy.sh catalog           # W2 #28: 15 SKU + 5 验收模板 (先 db-push 再跑这个)
 #   bash scripts/seed-deploy.sh import-feishu-dry # 飞书多维表格 → IpAsset 导入 (dry-run)
@@ -127,6 +128,14 @@ case "$CMD" in
     warn_idempotent "seed-honor: 荣誉系统规则 (HonorRule 23 + HonorLevel 24 + HonorBadge 35)"
     run_ecs_seed "pnpm exec tsx ../../scripts/seed-honor.ts"
     ;;
+  credit)
+    # W5 E3 信用分规则 — CreditScoreRule 9 条 (5 creator + 4 buyer)。
+    # 是 config-driven 数据,改了 seed-credit.ts 后跑这个就能改公式权重,无需发版。
+    # 注意:需要 ECS 上已有 CreditScoreRule 表(deploy.sh 现在会自动 db push,无需再单独 db-push)
+    warn_idempotent "seed-credit: 信用分规则 (CreditScoreRule v1, 9 条)"
+    ssh "${SSH_BASE[@]}" "$SSH_TARGET" "test -f $ECS_PROJECT_DIR/scripts/seed-credit.ts || { echo '❌ 缺 scripts/seed-credit.ts on ECS,先跑 deploy.sh sync 让它推到 ECS'; exit 1; }"
+    run_ecs_seed "pnpm run seed:credit"
+    ;;
   llm-config)
     # #30.6.26 LLM 配置种子 — 把 ECS /opt/ibiren/.env 里的 MINIMAX_* 加密后入库.
     # 跑前要求: ECS /opt/ibiren/.env 含 LLM_KEY_ENCRYPTION_KEY (deploy.sh 已同步) + MINIMAX_API_KEY 真值.
@@ -210,7 +219,7 @@ case "$CMD" in
        \" 2>&1 | tail -10"
     ;;
   *)
-    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|honor|llm-config|catalog|import-feishu-dry|import-feishu|db-push|clean-ips|status}"
+    echo "用法: $0 {users|ips|all|gen-images|upload-thumbs|honor|credit|llm-config|catalog|import-feishu-dry|import-feishu|db-push|clean-ips|status}"
     exit 1
     ;;
 esac

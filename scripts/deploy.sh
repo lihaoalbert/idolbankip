@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # scripts/deploy.sh — 一键部署 ibi.ren 到阿里云 ECS
 # 用法:
-#   bash scripts/deploy.sh              # 默认部署 (build + sync + restart + smoke)
+#   bash scripts/deploy.sh              # 默认部署 (build + sync + db-push + restart + smoke)
 #   bash scripts/deploy.sh build        # 只 build, 不上传
 #   bash scripts/deploy.sh sync         # 只 sync dist 到 ECS, 不 restart
+#   bash scripts/deploy.sh sync --skip-db  # sync 但跳过 db push
 #   bash scripts/deploy.sh restart      # 只 restart + smoke
 #   bash scripts/deploy.sh smoke        # 只 smoke (不改动 ECS)
 #   bash scripts/deploy.sh rollback     # 回滚到上一个 backup
@@ -11,6 +12,11 @@
 # 凭据走 scripts/deploy.env (gitignored),首次使用:
 #   cp scripts/deploy.env.example scripts/deploy.env
 #   # 编辑 deploy.env 填 ECS_IP 和 SSH_KEY_PATH
+#
+# 自动同步 (2026-07-11 之后):
+#   - 顶层 scripts/*.ts (让 seed-deploy.sh credit 等能在 ECS 上跑)
+#   - apps/api/prisma/schema.prisma → prisma db push (含 --accept-data-loss)
+#   - FK 重命名变更碰到 unique index 时,db push 会失败 → 见 sync_to_ecs() 内报错指引
 #
 # 参考:
 #   - AGENTS.md §3.5 (部署命令)
@@ -229,8 +235,13 @@ build_local() {
 }
 
 sync_to_ecs() {
-  echo "==== [2/4] 同步 dist 到 ECS (tar 走 ssh, 避免 rsync 路径空格问题) ===="
+  echo "==== [2/5] 同步 dist + scripts + schema 到 ECS ===="
   cd "$PROJECT_ROOT"
+
+  # --skip-db 跳过 db-push 与 generate (应急用,例如只改文案不涉及 schema)
+  local SKIP_DB=0
+  if [[ "${1:-}" == "--skip-db" ]]; then SKIP_DB=1; fi
+
   for app in $DEPLOY_TARGETS; do
     echo "  → sync apps/$app/dist"
     (
@@ -263,16 +274,53 @@ sync_to_ecs() {
   echo "  → pnpm install --frozen-lockfile (on ECS)"
   ssh_run "cd $ECS_PROJECT_DIR && pnpm install --frozen-lockfile 2>&1 | tail -5"
 
-  # 同步 prisma/schema.prisma (改了 schema 必须传,否则 db push 拿不到新字段)
-  # §5.X 类坑: 不传的话 prisma db push 会 "already in sync",但 prisma client 还是旧的 → 字段 Unknown
-  echo "  → sync apps/api/prisma/schema.prisma"
-  ssh_run "mkdir -p $ECS_PROJECT_DIR/apps/api/prisma"
-  scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no \
-    "$PROJECT_ROOT/apps/api/prisma/schema.prisma" "$SSH_TARGET:$ECS_PROJECT_DIR/apps/api/prisma/schema.prisma"
+  # 同步顶层 scripts/ (2026-07-11 之前 deploy.sh 不在脚本里同步 scripts/,要手工 tar 推)
+  # 现在 seed-deploy credit / honor / catalog / import-feishu 等都用 $ECS_PROJECT_DIR/scripts/
+  if [[ -d "$PROJECT_ROOT/scripts" ]]; then
+    echo "  → sync scripts/ (顶层 scripts/*.ts 让 ECS seed-deploy 能跑)"
+    ssh_run "mkdir -p $ECS_PROJECT_DIR/scripts"
+    (cd "$PROJECT_ROOT/scripts" && tar czf - .) | ssh_run "(cd $ECS_PROJECT_DIR/scripts && tar xzf -)"
+  fi
 
-  # ECS 上重新生成 prisma client (schema 改了必须重 generate,否则运行时拿不到新字段)
-  echo "  → prisma generate (on ECS, schema 同步后)"
-  ssh_run "cd $ECS_PROJECT_DIR/apps/api && set -a && source $ECS_PROJECT_DIR/.env && set +a && pnpm exec prisma generate 2>&1 | tail -3"
+  if [[ "$SKIP_DB" -eq 0 ]]; then
+    # 同步 prisma/schema.prisma (改了 schema 必须传,否则 db push 拿不到新字段)
+    # §5.X 类坑: 不传的话 prisma db push 会 "already in sync",但 prisma client 还是旧的 → 字段 Unknown
+    echo "  → sync apps/api/prisma/schema.prisma"
+    ssh_run "mkdir -p $ECS_PROJECT_DIR/apps/api/prisma"
+    scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no \
+      "$PROJECT_ROOT/apps/api/prisma/schema.prisma" "$SSH_TARGET:$ECS_PROJECT_DIR/apps/api/prisma/schema.prisma"
+
+    # ECS 上重新生成 prisma client (schema 改了必须重 generate,否则运行时拿不到新字段)
+    echo "  → prisma generate (on ECS, schema 同步后)"
+    ssh_run "cd $ECS_PROJECT_DIR/apps/api && set -a && source $ECS_PROJECT_DIR/.env && set +a && pnpm exec prisma generate 2>&1 | tail -3"
+
+    # ECS 上跑 prisma db push — schema 同步到生产 MySQL
+    # --accept-data-loss 用于新增 nullable / unique 列(生产安全,因为 MySQL 视 NULL != NULL)
+    # 若某个 schema 变更碰 FK 引用中的 unique index,db push 会失败,
+    # 错误信息里会有 prisma 自己生成的迁移步骤,手动跑 SQL 后再 deploy
+    echo "  → prisma db push (ECS MySQL schema 同步)"
+    if ! ssh_run "cd $ECS_PROJECT_DIR/apps/api && set -a && source $ECS_PROJECT_DIR/.env && set +a && pnpm exec prisma db push --skip-generate --accept-data-loss 2>&1 | tail -10"; then
+      cat <<'EOF'
+
+  ❌ prisma db push 失败 — 通常是 FK + unique index 互相绑定导致
+     (例: Review 表 briefId @unique → @@unique([briefId, role]) 这种改动)
+
+     解法 — 连 ECS RDS MySQL 后手工迁移,然后重跑 deploy:
+       # 1. SSH 到 ECS
+       ssh -i $KEY root@$ECS_IP
+       # 2. 用 .env 里的 DATABASE_URL 拼 mysql 命令
+       MYSQL_CMD="mysql -h\$(echo \$DATABASE_URL | sed -E 's|.*@([^/]+)/.*|\1|') \\
+                  -u\$(echo \$DATABASE_URL | sed -E 's|.*://([^:]+):.*|\1|') \\
+                  -p\$(echo \$DATABASE_URL | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')"
+       # 3. 跑 prisma 自己生成的迁移 SQL(看上面报错信息)
+       # 4. 重跑: bash scripts/deploy.sh sync --skip-db && bash scripts/deploy.sh restart
+
+EOF
+      exit 1
+    fi
+  else
+    echo "  ⏭️  跳过 schema 同步 (--skip-db)"
+  fi
 
   # api 的 CJK 字体 (nest build 不打包非 TS 资源,合同 PDF 需要) — apps/api/assets/fonts/
   # 同步到 ECS 的 apps/api/assets/fonts/,否则 onModuleInit 找不到字体,合同 PDF 中文 tofu
@@ -304,7 +352,7 @@ sync_to_ecs() {
 }
 
 restart_ecs() {
-  echo "==== [3/4] 重启 ECS 服务 ===="
+  echo "==== [3/5] 重启 ECS 服务 ===="
   ssh_run "systemctl restart $ECS_API_SERVICE && nginx -s reload"
 
   # 等 API 真正起来 — NestJS 启动 + DB/OSS 握手约 6-8s,直接 smoke 会 502
@@ -320,9 +368,26 @@ restart_ecs() {
 }
 
 smoke_ecs() {
-  echo "==== [4/4] 三端 smoke ===="
+  echo "==== [4/5] 三端 smoke ===="
   # Track B Round 1 收尾:smoke 改走 prod 域名(nginx 443),不再打 8080/8081
   bash "$SCRIPT_DIR/smoke.sh" prod
+}
+
+# 部署后提示 — 让用户知道 config-driven 数据要再跑 seed
+post_deploy_hint() {
+  local hint_seeds=""
+  # 检查 ECS 上是否已有对应表数据来决定要不要提示
+  if ssh_run "cd $ECS_PROJECT_DIR/apps/api && set -a && source $ECS_PROJECT_DIR/.env && set +a && pnpm exec tsx -e \"import { PrismaClient } from '@prisma/client'; const p = new PrismaClient(); p.creditScoreRule.count().then((n) => { console.log('credit:', n); return p.\\\$disconnect(); });\"" 2>/dev/null | grep -q "credit: 0"; then
+    hint_seeds="$hint_seeds seed:credit"
+  fi
+  if [[ -n "$hint_seeds" ]]; then
+    echo ""
+    echo "💡 检测到 config-driven 表为空,建议跑 (idempotent 可重复):"
+    for s in $hint_seeds; do
+      echo "    bash scripts/seed-deploy.sh $s"
+    done
+    echo ""
+  fi
 }
 
 rollback_ecs() {
@@ -364,9 +429,10 @@ case "$CMD" in
     build_local
     verify
     make_backup
-    sync_to_ecs
+    sync_to_ecs "${2:-}"
     restart_ecs
     smoke_ecs
+    post_deploy_hint
     ;;
   restart)
     restart_ecs
@@ -386,14 +452,15 @@ case "$CMD" in
     build_local
     verify
     make_backup
-    sync_to_ecs
+    sync_to_ecs "${2:-}"
     restart_ecs
     smoke_ecs
+    post_deploy_hint
     echo ""
     echo "✅ 部署完成"
     ;;
   *)
-    echo "用法: $0 {preflight|build|verify|sync|restart|smoke|rollback|backup|all}"
+    echo "用法: $0 {preflight|build|verify|sync|restart|smoke|rollback|backup|all} [--skip-db]"
     exit 1
     ;;
 esac
