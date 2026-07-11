@@ -12,7 +12,7 @@ import { useAssistant, type AssistantMessage } from '@/composables/useAssistant'
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
-const { messages, loading, error, canSend, sendMessage, clearMessages, goToAction } = useAssistant();
+const { messages, loading, error, canSend, sendMessage, clearMessages, goToAction, lastIntent } = useAssistant();
 
 const open = ref(false);
 const input = ref('');
@@ -102,6 +102,31 @@ function handleAction(href: string) {
   goToAction(href);
   open.value = false; // 跳转后关闭抽屉
 }
+
+/**
+ * W6-R1 Intent Router — chip 显示
+ * 当 lastIntent 有值 (说明 LLM 选出了意图), 抽屉 header 下显示"下一步: X"
+ * R1 只显示不触发; R2 会把 requiresConfirmation=true 的 intent 渲染为 UI 卡片
+ */
+const INTENT_LABELS: Record<string, string> = {
+  LIST_BRIEFS: '列出发包',
+  SHOW_BID: '查看投标详情',
+  PLACE_BID: '提交投标',
+  ACCEPT_BID: '接受投标',
+  OPEN_WORKSPACE: '打开工作区',
+  SHOW_WORKSPACE_STATUS: '查看工作区状态',
+  UPLOAD_DELIVERABLE: '上传交付物',
+  CREATE_REVIEW: '写评价',
+  UPLOAD_IP: '上传 IP',
+  KYC_SUBMIT: '提交实名',
+  NAVIGATE: '跳转页面',
+  ASK_CLARIFICATION: '追问',
+};
+const chipLabel = computed(() => {
+  if (!lastIntent.value) return null;
+  const base = INTENT_LABELS[lastIntent.value.intent] ?? lastIntent.value.intent;
+  return lastIntent.value.requiresConfirmation ? `${base}（待确认）` : base;
+});
 </script>
 
 <template>
@@ -141,7 +166,7 @@ function handleAction(href: string) {
           <div>
             <div class="text-sm font-medium leading-none">AI 助手</div>
             <div class="text-[10px] text-ink/50 leading-none mt-0.5">
-              问答 + 指路 · 不代替您操作
+              问答 + 指路 · 可帮你操作（写操作需确认）
             </div>
           </div>
         </div>
@@ -174,13 +199,18 @@ function handleAction(href: string) {
 
       <!-- messages -->
       <div ref="scrollRef" class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <!-- W6-R1: intent chip — 抽屉顶部小标签, 只显示不触发 (R2 接管执行) -->
+        <div v-if="chipLabel" class="flex items-center gap-1.5 text-[10px] text-gold bg-gold/10 px-2 py-1 rounded-full border border-gold/30">
+          <span class="w-1.5 h-1.5 rounded-full bg-gold animate-pulse"></span>
+          <span>下一步: {{ chipLabel }}</span>
+        </div>
         <!-- 空状态 -->
         <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-center px-4 py-8">
           <div class="text-3xl mb-2">👋</div>
           <p class="text-sm text-ink/70 mb-3">你好, 我是 IBIren 的 AI 助手</p>
           <p class="text-xs text-ink/40 mb-5 leading-relaxed">
             我能帮你解读状态、查订单进度、指路到对应页面。<br />
-            但不能代替你操作(下单/签约/退款都不行)。
+            写操作(发包/投标/上传/评价) 我会先出方案, 等你点头再真做。
           </p>
           <div class="w-full space-y-2">
             <button

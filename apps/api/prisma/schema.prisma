@@ -1024,10 +1024,16 @@ model AssistantCallLog {
   model        String   // 实际模型名, e.g. "claude-sonnet-4-6"
   latencyMs    Int      @default(0)
 
+  // W6-R1 Intent Router — LLM 选出的意图 + 是否需要 confirm
+  // 为 null 时表示 FAQ 命中或 LLM 没产出意图; 不存 rawParams (params 可能含敏感 ID)
+  intent       String?  // IntentType 字面量之一
+  requiresConfirmation Boolean? @default(false)
+
   createdAt    DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([createdAt])
+  @@index([userId, intent])
 }
 
 // =================================================================

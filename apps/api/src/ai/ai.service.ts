@@ -536,6 +536,12 @@ ${ip.description}
     systemPrompt: string;
     messages: Array<{ role: 'user' | 'assistant'; content: string }>;
     maxTokens?: number;
+    /**
+     * 温度 (0-1)。不传 = Anthropic 默认 (1.0)。
+     * - 主对话 assistant.chat() 不传, 用默认更自然
+     * - W6-R1 intent classifier 传 0 让分类稳定
+     */
+    temperature?: number;
   }): Promise<{ text: string; model: string; latencyMs: number }> {
     const { client, model } = await this.getClient();
     const t0 = Date.now();
@@ -543,6 +549,7 @@ ${ip.description}
       const resp = await client.messages.create({
         model,
         max_tokens: opts.maxTokens ?? 1024,
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
         system: opts.systemPrompt,
         messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
       });

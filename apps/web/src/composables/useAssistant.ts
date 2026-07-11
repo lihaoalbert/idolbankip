@@ -15,7 +15,7 @@
 
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { chatAssistant, type ChatHistoryItem, type SuggestedAction } from '@/api/assistant';
+import { chatAssistant, type ChatHistoryItem, type IntentType, type SuggestedAction } from '@/api/assistant';
 import { useAuthStore } from '@/stores/auth';
 
 export interface AssistantMessage {
@@ -26,6 +26,17 @@ export interface AssistantMessage {
   createdAt: number; // Date.now()
   /** 用于 UI 显示: 是否是降级响应(model=fallback) */
   fallback?: boolean;
+  /** W6-R1: LLM 选出的 intent (R2 弹卡片用) */
+  intent?: IntentType | null;
+  /** W6-R1: 写操作意图必须 UI 卡片确认 */
+  requiresConfirmation?: boolean;
+}
+
+/** W6-R1: 最后一次 chat 返回的 intent + params + confirm — 共享状态, FloatingChat 显示 chip */
+export interface LastIntentState {
+  intent: IntentType;
+  requiresConfirmation: boolean;
+  reply: string;
 }
 
 const HISTORY_LIMIT = 40; // 前端缓存最多 40 条 (用 last 20 转给后端)
@@ -60,6 +71,7 @@ function genId(): string {
 const messages = ref<AssistantMessage[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const lastIntent = ref<LastIntentState | null>(null);
 let currentUserId = '';
 
 export function useAssistant() {
@@ -127,7 +139,20 @@ export function useAssistant() {
         suggestedActions: resp.suggestedActions,
         createdAt: Date.now(),
         fallback: isFallback,
+        // W6-R1: 把 intent 挂到 message 上, R2 可在消息气泡内联卡片
+        intent: resp.intent ?? null,
+        requiresConfirmation: resp.requiresConfirmation ?? false,
       });
+      // 同步给 FloatingChat chip 用 (R1 只显示, 不触发)
+      if (resp.intent) {
+        lastIntent.value = {
+          intent: resp.intent,
+          requiresConfirmation: resp.requiresConfirmation ?? false,
+          reply: resp.reply,
+        };
+      } else {
+        lastIntent.value = null;
+      }
     } catch (e: any) {
       // 网络/5xx — 降级
       const errMsg =
@@ -147,6 +172,7 @@ export function useAssistant() {
 
   function clearMessages() {
     messages.value = [];
+    lastIntent.value = null;
   }
 
   function goToAction(href: string) {
@@ -160,6 +186,7 @@ export function useAssistant() {
     messages,
     loading,
     error,
+    lastIntent,
     canSend,
     sendMessage,
     clearMessages,
