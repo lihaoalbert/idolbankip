@@ -40,6 +40,7 @@ import {
   parseIntent,
   looksLikeInjection,
   tryParseLlmJson,
+  isBusinessIntentMessage,
 } from './intent-schemas';
 
 const HISTORY_LIMIT = 20;
@@ -76,9 +77,12 @@ export class AssistantService {
     const userRole = this.pickPrimaryRole(userRoles);
 
     // FAQ 命中优先 — 节省 LLM 调用
+    // W6-R2 修复: 业务动词优先 — 用户明显是写操作意图 (投标/发包/上传/接单...) 时
+    // 不走 FAQ, 直接走 LLM 分类, 否则 FAQ 关键词把业务意图抢答
     if (userRole === 'CREATOR' || userRole === 'BUYER') {
-      const faqHit = matchFaq(dto.message, userRole === 'CREATOR' ? 'creator' : 'buyer');
-      if (faqHit) {
+      if (!isBusinessIntentMessage(dto.message)) {
+        const faqHit = matchFaq(dto.message, userRole === 'CREATOR' ? 'creator' : 'buyer');
+        if (faqHit) {
         const t0 = Date.now();
         const safeActions = faqHit.entry.actions.filter((a) => this.isAllowedHref(a.href));
         await this.prisma.assistantCallLog.create({
@@ -100,6 +104,7 @@ export class AssistantService {
           suggestedActions: safeActions,
           intent: undefined, // FAQ 不挂 intent
         };
+        }
       }
     }
 

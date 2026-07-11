@@ -28,8 +28,14 @@ export interface AssistantMessage {
   fallback?: boolean;
   /** W6-R1: LLM 选出的 intent (R2 弹卡片用) */
   intent?: IntentType | null;
+  /** W6-R2: LLM 校验后的 params (CREATE_BRIEF 的 title/budget 等) */
+  intentParams?: Record<string, unknown>;
   /** W6-R1: 写操作意图必须 UI 卡片确认 */
   requiresConfirmation?: boolean;
+  /** W6-R2: 卡片执行结果 ('idle' | 'executing' | 'success' | 'error' | 'cancelled') */
+  intentStatus?: 'idle' | 'executing' | 'success' | 'error' | 'cancelled';
+  /** W6-R2: 执行后给用户的提示 (e.g. workspace 创建成功后的 workspaceId) */
+  intentResult?: { workspaceId?: string; briefId?: string } | null;
 }
 
 /** W6-R1: 最后一次 chat 返回的 intent + params + confirm — 共享状态, FloatingChat 显示 chip */
@@ -141,7 +147,10 @@ export function useAssistant() {
         fallback: isFallback,
         // W6-R1: 把 intent 挂到 message 上, R2 可在消息气泡内联卡片
         intent: resp.intent ?? null,
+        intentParams: resp.intentParams ?? undefined,
         requiresConfirmation: resp.requiresConfirmation ?? false,
+        intentStatus: 'idle',
+        intentResult: null,
       });
       // 同步给 FloatingChat chip 用 (R1 只显示, 不触发)
       if (resp.intent) {
@@ -180,6 +189,18 @@ export function useAssistant() {
     if (href.startsWith('/')) router.push(href);
   }
 
+  /** W6-R2: IntentCard 在点 [确认] / [取消] 后调用, 标记消息卡片的执行状态 */
+  function setIntentStatus(
+    messageId: string,
+    status: 'idle' | 'executing' | 'success' | 'error' | 'cancelled',
+    result?: { workspaceId?: string; briefId?: string } | null,
+  ) {
+    const m = messages.value.find((x) => x.id === messageId);
+    if (!m) return;
+    m.intentStatus = status;
+    if (result !== undefined) m.intentResult = result;
+  }
+
   const canSend = computed(() => auth.isAuthenticated);
 
   return {
@@ -191,5 +212,6 @@ export function useAssistant() {
     sendMessage,
     clearMessages,
     goToAction,
+    setIntentStatus,
   };
 }

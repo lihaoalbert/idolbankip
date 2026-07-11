@@ -150,6 +150,19 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/buyer/BriefDetailPage.vue'),
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
+  // W6-R2 三分屏 chat 主页 — R2 起 /buyer 默认进 chat (R4 上线老路由 302)
+  {
+    path: '/buyer/chat',
+    name: 'buyer-chat',
+    component: () => import('@/pages/buyer/BuyerChatPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
+  {
+    path: '/buyer',
+    name: 'buyer',
+    component: () => import('@/pages/buyer/BuyerChatPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
   // W4 D4 — 买家工作台,跨 workspace 集中处理创作者交付
   {
     path: '/buyer/workbench',

@@ -25,11 +25,13 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
 export type IntentType =
   | 'LIST_BRIEFS'
+  | 'CREATE_BRIEF'
   | 'SHOW_BID'
   | 'PLACE_BID'
   | 'ACCEPT_BID'
@@ -44,6 +46,7 @@ export type IntentType =
 
 export const INTENT_TYPES = [
   'LIST_BRIEFS',
+  'CREATE_BRIEF',
   'SHOW_BID',
   'PLACE_BID',
   'ACCEPT_BID',
@@ -60,6 +63,7 @@ export const INTENT_TYPES = [
 /** 写操作意图必须 UI 卡片确认才能落库 */
 export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
   LIST_BRIEFS: false,
+  CREATE_BRIEF: true,
   SHOW_BID: false,
   PLACE_BID: true,
   ACCEPT_BID: true,
@@ -76,6 +80,7 @@ export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
 /** 中文标签 — 给前端 chip 显示 + 审计可读 */
 export const INTENT_LABELS: Record<IntentType, string> = {
   LIST_BRIEFS: '列出可接发包',
+  CREATE_BRIEF: '创建发包',
   SHOW_BID: '查看投标详情',
   PLACE_BID: '提交投标',
   ACCEPT_BID: '接受投标',
@@ -96,6 +101,42 @@ export const INTENT_LABELS: Record<IntentType, string> = {
 export class ListBriefsParams {
   @IsOptional() @IsIn(['open', 'all'])
   status?: 'open' | 'all';
+}
+
+/** W6-R2.1.5 buyer CREATE_BRIEF intent — 买家发包。
+ * 与 brief.controller 的 CreateBriefDto 字段对齐 (subset, 关键字段 LLM 必须填,
+ * 缺任一 → Zod 校验失败 → intent=null, 走 ASK_CLARIFICATION)。
+ */
+export class CreateBriefParams {
+  @IsString() @MinLength(5) @MaxLength(100)
+  title!: string;
+
+  @IsOptional() @IsString() @MaxLength(5000)
+  description?: string;
+
+  @IsString() @MaxLength(30)
+  category!: string;
+
+  @IsArray() @IsString({ each: true })
+  platformSet!: string[];
+
+  @IsArray() @IsString({ each: true })
+  ipIds!: string[];
+
+  @IsNumber() @Min(0) @Max(1_000_000)
+  budgetMin!: number;
+
+  @IsNumber() @Min(0) @Max(1_000_000)
+  budgetMax!: number;
+
+  @IsString() @MaxLength(20)
+  packageTier!: string;
+
+  @IsString() @MaxLength(30)
+  deadlineAt!: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  attachments?: string[];
 }
 
 export class IdOnlyParams {
@@ -202,6 +243,7 @@ export class AskClarificationParams {
 
 const SCHEMA_BY_INTENT: Record<IntentType, any> = {
   LIST_BRIEFS: ListBriefsParams,
+  CREATE_BRIEF: CreateBriefParams,
   SHOW_BID: ShowBidParams,
   PLACE_BID: PlaceBidParams,
   ACCEPT_BID: AcceptBidParams,
@@ -310,4 +352,49 @@ export function tryParseLlmJson(text: string): any {
     }
     return null;
   }
+}
+
+// =============================================================
+// 业务意图优先级 (W6-R2) — FAQ 抢答修复
+// =============================================================
+
+/**
+ * FAQ 关键词太宽 (e.g. "投标" 命中 creator-bid FAQ), 把所有业务意图抢走.
+ *
+ * 修复: 在 FAQ match 前先扫"业务动词 + 写操作意图", 命中 → 跳过 FAQ 走 LLM
+ *
+ * 命中规则 (任一):
+ *   - 消息开头/包含 写操作意图词 (我要/帮我/提交/创建/上传/接单/接受/写个)
+ *   - 写操作动词 (投标/发包/接单/接受/上传/写评价/提交KYC/写好评/打款)
+ *   - 消息里有 ID 形态 (cuid/IP code/brief id)
+ *
+ * 返回 true → service 跳过 FAQ, 直接走 LLM 分类
+ */
+const WRITE_VERBS = [
+  '投标', '发包', '接单', '接受', '上传', '写评价', '写好评', '写个评价',
+  '提交 KYC', '提交KYC', '提交实名', '付款', '退款', '签合同',
+];
+const INTENT_PREFIX = ['我要', '帮我', '帮我把', '请帮我', '能否帮我', '可以帮我', '麻烦帮我'];
+
+export function isBusinessIntentMessage(message: string): boolean {
+  const m = message.trim();
+  if (!m) return false;
+
+  // 1. 写操作动词直接命中
+  for (const v of WRITE_VERBS) {
+    if (m.includes(v)) return true;
+  }
+
+  // 2. 意图前缀 + 任意业务词
+  for (const p of INTENT_PREFIX) {
+    if (m.startsWith(p)) return true;
+  }
+
+  // 3. 消息含 ID 形态 (cuid 是 cm[a-z0-9]{20,30}, IP code 是 IBI-2026-NNNN, brief id 同 cuid)
+  if (/\bIBI-\d{4}-\d{4,}\b/.test(m)) return true;
+  if (/\bcm[a-z0-9]{20,}\b/i.test(m)) return true;
+  // 短 id 形态 (用户口头说"brief abc123") - 至少 4 位字母数字
+  if (/(?:brief|bid|workspace|ws|订单|发包|投标)[-_ ]?([a-z0-9]{4,})/i.test(m)) return true;
+
+  return false;
 }

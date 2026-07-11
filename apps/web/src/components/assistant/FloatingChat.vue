@@ -10,6 +10,7 @@
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAssistant, type AssistantMessage } from '@/composables/useAssistant';
 import { useAuthStore } from '@/stores/auth';
+import IntentCard from '@/components/IntentCard.vue';
 
 const auth = useAuthStore();
 const { messages, loading, error, canSend, sendMessage, clearMessages, goToAction, lastIntent } = useAssistant();
@@ -257,6 +258,8 @@ const chipLabel = computed(() => {
                   {{ a.label }} →
                 </button>
               </div>
+              <!-- W6-R2 IntentCard: 把 LLM 选出的 intent 渲染为 UI 卡片 -->
+              <IntentCard v-if="m.role === 'assistant' && m.intent" :message="m" />
               <div class="text-[9px] mt-1 opacity-50">
                 {{ formatTime(m.createdAt) }}
               </div>

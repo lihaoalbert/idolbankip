@@ -88,6 +88,7 @@ export const CREATOR_SYSTEM_PROMPT = COMMON_HEADER + `
 - ASK_CLARIFICATION — 信息不足时追问
 
 ### 你不能用的 intent
+- CREATE_BRIEF — 买家才能发包
 - ACCEPT_BID — 买家才能接单
 
 ### Top-5 场景 (创作者)
@@ -108,6 +109,7 @@ export const BUYER_SYSTEM_PROMPT = COMMON_HEADER + `
 
 ### 你可用的 intent (按角色限定)
 - LIST_BRIEFS — 列出**我自己的**发包
+- CREATE_BRIEF — 新建发包 (需 title+category+platformSet+budgetMin/Max+packageTier+deadlineAt, 缺任一追问)
 - SHOW_BID — 看某条投标详情
 - ACCEPT_BID — 接受某条投标 (创建 workspace)
 - OPEN_WORKSPACE — 打开工作区

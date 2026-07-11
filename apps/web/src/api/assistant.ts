@@ -34,6 +34,7 @@ export interface SuggestedAction {
 
 export type IntentType =
   | 'LIST_BRIEFS'
+  | 'CREATE_BRIEF'
   | 'SHOW_BID'
   | 'PLACE_BID'
   | 'ACCEPT_BID'
