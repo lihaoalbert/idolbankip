@@ -18,40 +18,37 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 
 interface Props {
-  /** 左栏折叠状态 (v-model:sidebarCollapsed) */
-  sidebarCollapsed?: boolean;
-  /** 默认 false — R2 留 true 方便老路由嵌入 */
+  /**
+   * 默认折叠状态 — 由父组件用 prop 控制(如 BuyerChatPage / CreatorChatPage 都未传,默认展开)。
+   * 折叠状态本身走内部 ref 自管,避免 v-model 双向绑定时 boolean coerce 把 undefined 误判为 false。
+   * Why: Vue 3 boolean prop 没传会被 coerce 成 false,父组件不传 v-model:sidebarCollapsed 时永远走 collapsed 分支,
+   *      emit 给没人监听的 parent → 永远不变。改用单一字段 defaultCollapsed + 内部 ref 是最简稳的方案。
+   */
   defaultCollapsed?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), {
-  sidebarCollapsed: false,
   defaultCollapsed: false,
 });
 
-const emit = defineEmits<{
-  (e: 'update:sidebarCollapsed', v: boolean): void;
-}>();
-
 const route = useRoute();
-const collapsed = computed({
-  get: () => props.sidebarCollapsed,
-  set: (v) => emit('update:sidebarCollapsed', v),
-});
-
+const COLLAPSED_KEY = 'chat-left-collapsed';
 const initCollapsed = ref(props.defaultCollapsed);
-const effectiveCollapsed = computed(() =>
-  props.sidebarCollapsed !== undefined ? collapsed.value : initCollapsed.value,
-);
+const effectiveCollapsed = computed(() => initCollapsed.value);
 
 /** W6-R7: fullscreen 模式 — 隐藏中栏 chat, 让右屏占满 */
 const isFullscreen = computed(() => route.query.fullscreen === 'true');
 
 function toggleSidebar() {
-  if (props.sidebarCollapsed !== undefined) {
-    collapsed.value = !collapsed.value;
-  } else {
-    initCollapsed.value = !initCollapsed.value;
+  initCollapsed.value = !initCollapsed.value;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(COLLAPSED_KEY, initCollapsed.value ? '1' : '0');
   }
+}
+
+function loadCollapsed() {
+  if (typeof window === 'undefined') return;
+  const raw = window.localStorage.getItem(COLLAPSED_KEY);
+  if (raw === '1') initCollapsed.value = true;
 }
 
 // 右栏宽度 — 持久化到 localStorage; 默认 400, 范围 [280, 80vw]
@@ -110,6 +107,7 @@ function resetRightWidth() {
 }
 
 onMounted(() => {
+  loadCollapsed();
   loadRightWidth();
   window.addEventListener('mousemove', onDragMove);
   window.addEventListener('mouseup', endDrag);
