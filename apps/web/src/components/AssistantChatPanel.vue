@@ -3,6 +3,8 @@
  * AssistantChatPanel — 整页对话的中栏内容
  *
  * W6-R2: 从 AssistantPage / FloatingChat 抽出来复用。
+ * W6-R7: 输入框支持多附件 + 缩略图 chips, 自动切到 /assistant/chat-with-attachments
+ *
  * 接受 variant prop 控制密度:
  *   - 'panel' (默认) — 完整 header, 适合 BuyerChatPage 主屏
  *   - 'full' — AssistantPage 整页版 (大屏, 历史可滚动)
@@ -24,6 +26,46 @@ const { messages, loading, error, canSend, sendMessage, clearMessages, goToActio
 
 const input = ref('');
 const scrollRef = ref<HTMLElement | null>(null);
+
+/** W6-R7: 附件 — 最多 5 个, 单文件 50MB(后端限制) */
+const attachments = ref<File[]>([]);
+const fileInput = ref<HTMLInputElement | null>(null);
+/** 缩略图 dataURL (用于图片预览) */
+const attachmentPreviews = ref<Record<string, string>>({});
+
+function pickAttachments() {
+  fileInput.value?.click();
+}
+
+function onFileChange(e: Event) {
+  const inp = e.target as HTMLInputElement;
+  const files = inp.files ? Array.from(inp.files) : [];
+  // 合并 + 截断 (≤5)
+  const merged = [...attachments.value, ...files].slice(0, 5);
+  attachments.value = merged;
+  // 缩略图:仅图片生成 dataURL
+  for (const f of files) {
+    if (f.type.startsWith('image/') && !attachmentPreviews.value[f.name + f.size]) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        attachmentPreviews.value[f.name + f.size] = String(reader.result);
+      };
+      reader.readAsDataURL(f);
+    }
+  }
+  inp.value = ''; // 重置,允许同名
+}
+
+function removeAttachment(i: number) {
+  const removed = attachments.value.splice(i, 1)[0];
+  if (removed) delete attachmentPreviews.value[removed.name + removed.size];
+}
+
+function fmtSize(b: number): string {
+  if (b < 1024) return `${b}B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)}KB`;
+  return `${(b / 1024 / 1024).toFixed(1)}MB`;
+}
 
 const isCreator = computed(() => auth.user?.roles?.includes('CREATOR'));
 const isBuyer = computed(() => auth.user?.roles?.includes('BUYER'));
@@ -52,9 +94,12 @@ const quickPrompts = computed(() => {
 
 async function submit() {
   const text = input.value.trim();
-  if (!text || loading.value) return;
+  const atts = attachments.value;
+  if ((!text && atts.length === 0) || loading.value) return;
   input.value = '';
-  await sendMessage(text);
+  attachments.value = [];
+  attachmentPreviews.value = {};
+  await sendMessage(text, atts);
   scrollToBottom();
 }
 
@@ -78,6 +123,11 @@ function formatTime(ts: number): string {
 
 function handleAction(href: string) {
   goToAction(href);
+}
+
+/** 显示附件已上传的快照 — 在 user 消息气泡里 (从 useAssistant.messages 取,持久化在 localStorage) */
+function getMessageAttachments(m: any): Array<{ mimeType: string; filename: string; sizeBytes: number; publicUrl: string }> {
+  return m.attachments || [];
 }
 
 watch(messages, scrollToBottom, { deep: true });
@@ -158,6 +208,23 @@ function autosize(e: Event) {
                   : (m.fallback ? 'bg-amber-50 dark:bg-amber-900/20 text-ink border border-amber-200/50' : 'bg-surface text-ink border border-line rounded-tl-sm'),
               ]"
             >
+              <!-- W6-R7: 附件预览 chips (上传后回填到 user 消息,持久化显示) -->
+              <div v-if="getMessageAttachments(m).length > 0" class="mb-2 flex flex-wrap gap-1.5">
+                <a
+                  v-for="(att, i) in getMessageAttachments(m)"
+                  :key="i"
+                  :href="att.publicUrl"
+                  target="_blank"
+                  rel="noopener"
+                  :title="att.filename"
+                  class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cream/30 dark:bg-surface-3/30 text-[10px] max-w-[180px] hover:bg-cream/50 transition"
+                >
+                  <span v-if="att.mimeType.startsWith('image/')">📎</span>
+                  <span v-else>📄</span>
+                  <span class="truncate">{{ att.filename }}</span>
+                  <span class="text-ink/40 shrink-0">· {{ fmtSize(att.sizeBytes) }}</span>
+                </a>
+              </div>
               <div class="whitespace-pre-wrap break-words">{{ m.content }}</div>
               <div
                 v-if="m.suggestedActions && m.suggestedActions.length > 0"
@@ -197,25 +264,72 @@ function autosize(e: Event) {
       <div v-if="!canSend" class="text-xs text-ink/50 text-center py-2">
         请先 <RouterLink to="/login" class="text-gold hover:underline">登录</RouterLink>
       </div>
-      <div v-else class="flex items-end gap-2">
-        <textarea
-          v-model="input"
-          @keydown="onKeydown"
-          @input="autosize"
-          placeholder="问点什么… (Enter 发送, Shift+Enter 换行)"
-          rows="1"
-          :disabled="loading"
-          class="flex-1 resize-none bg-surface text-sm px-3 py-2 border border-line rounded-xl focus:outline-none focus:border-gold disabled:opacity-50"
-          style="min-height: 36px"
-        />
-        <button
-          @click="submit"
-          :disabled="loading || !input.trim()"
-          class="w-10 h-10 rounded-lg bg-ink text-cream flex items-center justify-center hover:bg-gold transition disabled:opacity-30 disabled:hover:bg-ink shrink-0"
-          aria-label="发送"
-        >
-          ↑
-        </button>
+      <div v-else>
+        <!-- W6-R7: 附件 chips (选中后未发送) -->
+        <div v-if="attachments.length > 0" class="mb-2 flex flex-wrap gap-1.5">
+          <div
+            v-for="(f, i) in attachments"
+            :key="i"
+            class="relative group flex items-center gap-1.5 px-2 py-1 rounded-lg bg-cream border border-line text-[10px]"
+          >
+            <img
+              v-if="attachmentPreviews[f.name + f.size]"
+              :src="attachmentPreviews[f.name + f.size]"
+              :alt="f.name"
+              class="w-8 h-8 rounded object-cover shrink-0"
+            />
+            <span v-else class="w-8 h-8 rounded bg-line flex items-center justify-center shrink-0">📄</span>
+            <div class="min-w-0 max-w-[140px]">
+              <div class="truncate text-ink/80">{{ f.name }}</div>
+              <div class="text-ink/40">{{ fmtSize(f.size) }}</div>
+            </div>
+            <button
+              type="button"
+              @click="removeAttachment(i)"
+              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-danger text-cream text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+              title="移除"
+            >×</button>
+          </div>
+        </div>
+        <!-- 输入框 row -->
+        <div class="flex items-end gap-2">
+          <input
+            ref="fileInput"
+            type="file"
+            multiple
+            class="hidden"
+            accept="image/*,.pdf,.docx,.txt,.md,.zip"
+            @change="onFileChange"
+          />
+          <button
+            type="button"
+            @click="pickAttachments"
+            :disabled="loading || attachments.length >= 5"
+            class="w-10 h-10 rounded-lg border border-line bg-surface text-ink/60 hover:border-gold hover:text-gold transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center"
+            :title="attachments.length >= 5 ? '最多 5 个附件' : '上传图片/文档 (jpg/png/pdf/docx, ≤50MB/文件)'"
+            aria-label="上传附件"
+          >
+            📎
+          </button>
+          <textarea
+            v-model="input"
+            @keydown="onKeydown"
+            @input="autosize"
+            placeholder="问点什么… (Enter 发送, Shift+Enter 换行)"
+            rows="1"
+            :disabled="loading"
+            class="flex-1 resize-none bg-surface text-sm px-3 py-2 border border-line rounded-xl focus:outline-none focus:border-gold disabled:opacity-50"
+            style="min-height: 36px"
+          />
+          <button
+            @click="submit"
+            :disabled="loading || (!input.trim() && attachments.length === 0)"
+            class="w-10 h-10 rounded-lg bg-ink text-cream flex items-center justify-center hover:bg-gold transition disabled:opacity-30 disabled:hover:bg-ink shrink-0"
+            aria-label="发送"
+          >
+            ↑
+          </button>
+        </div>
       </div>
       <div v-if="error" class="text-[10px] text-danger mt-1 px-1">{{ error }}</div>
     </div>

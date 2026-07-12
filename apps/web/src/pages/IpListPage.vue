@@ -41,11 +41,19 @@ const filters = ref({
   ethnicity: (route.query.ethnicity as string) || '',
   style: (route.query.style as string) || '',
   scenario: (route.query.scenario as string) || '',
+  creatorName: (route.query.creatorName as string) || '',
   page: parseInt((route.query.page as string) || '1', 10),
 });
 const sort = ref<'newest' | 'popular'>(((route.query.sort as string) || 'newest') as 'newest' | 'popular');
 
 const SIZE = 24;
+
+/** W6-R7: embed 模式 — 由 ResultsPane 嵌入右屏 (`?embed=ip-library` 或显式 prop),
+ *   隐藏 hero/header chrome。 prop 优先于 query (组件嵌套时 query 会和 page 冲突)。*/
+const props = defineProps<{ embedMode?: boolean }>();
+const isEmbed = computed(() => !!props.embedMode || route.query.embed === 'ip-library');
+/** W6-R7: fullscreen 模式 — 占满右屏 (`?fullscreen=true`), 隐藏 ResultsPane 顶栏 */
+const isFullscreen = computed(() => route.query.fullscreen === 'true');
 
 const watermarkText = computed(() =>
   auth.user?.email ? `IBIren · ${auth.user.email}` : 'IBIren · guest'
@@ -105,6 +113,7 @@ async function fetchList() {
         ethnicity: filters.value.ethnicity || undefined,
         style: filters.value.style || undefined,
         scenario: filters.value.scenario || undefined,
+        creatorName: filters.value.creatorName || undefined,
         sort: sort.value,
         page: filters.value.page,
         size: SIZE,
@@ -112,18 +121,21 @@ async function fetchList() {
     });
     items.value = data.items;
     total.value = data.total;
-    router.replace({
-      query: {
-        ...filters.value,
-        sort: sort.value,
-        page: filters.value.page || undefined,
-        gender: filters.value.gender || undefined,
-        ageBucket: filters.value.ageBucket || undefined,
-        ethnicity: filters.value.ethnicity || undefined,
-        style: filters.value.style || undefined,
-        scenario: filters.value.scenario || undefined,
-      },
-    });
+    if (!isEmbed.value) {
+      // embed 模式下 ResultsPane 已经控制 URL, 这里再 replace 会冲突
+      router.replace({
+        query: {
+          ...filters.value,
+          sort: sort.value,
+          page: filters.value.page || undefined,
+          gender: filters.value.gender || undefined,
+          ageBucket: filters.value.ageBucket || undefined,
+          ethnicity: filters.value.ethnicity || undefined,
+          style: filters.value.style || undefined,
+          scenario: filters.value.scenario || undefined,
+        },
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -134,6 +146,11 @@ function applyFilter(key: 'gender' | 'ageBucket' | 'ethnicity' | 'style' | 'scen
   fetchList();
 }
 
+function applyCreatorName(name: string) {
+  filters.value = { ...filters.value, creatorName: name, page: 1 };
+  fetchList();
+}
+
 function setSort(s: 'newest' | 'popular') {
   sort.value = s;
   filters.value = { ...filters.value, page: 1 };
@@ -141,7 +158,7 @@ function setSort(s: 'newest' | 'popular') {
 }
 
 function resetFilters() {
-  filters.value = { gender: '', ageBucket: '', ethnicity: '', style: '', scenario: '', page: 1 };
+  filters.value = { gender: '', ageBucket: '', ethnicity: '', style: '', scenario: '', creatorName: '', page: 1 };
   sort.value = 'newest';
   fetchList();
 }
@@ -152,13 +169,15 @@ onMounted(fetchList);
 </script>
 
 <template>
-  <div class="bg-cream">
+  <div :class="['bg-cream', isEmbed ? 'h-full overflow-y-auto' : '']">
 
-    <!-- ============================================================
+    <!-- W6-R7: 嵌入右屏模式 → 跳过 hero header (ResultsPane 已自带头部) -->
+    <template v-if="!isEmbed">
+      <!-- ============================================================
          HEADER · 档案首页
          ============================================================ -->
-    <section class="relative paper-grain border-b hairline-b border-line">
-      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 pt-14 md:pt-20 pb-10 md:pb-14 relative z-10">
+      <section class="relative paper-grain border-b hairline-b border-line">
+        <div class="max-w-[1320px] mx-auto px-6 lg:px-10 pt-14 md:pt-20 pb-10 md:pb-14 relative z-10">
 
         <!-- 元数据行 -->
         <div class="grid grid-cols-12 gap-4 mb-10 md:mb-14">
@@ -210,6 +229,7 @@ onMounted(fetchList);
         </div>
       </div>
     </section>
+    </template>
 
     <!-- ============================================================
          MAIN · 左侧固定图录索引 + 右侧画廊
@@ -318,6 +338,22 @@ onMounted(fetchList);
                 </button>
               </li>
             </ul>
+          </div>
+
+          <!-- W6-R7: 创作者名搜索 (模糊匹配 User.displayName) -->
+          <div>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
+              <h3 class="catalog-no text-ink/60">F · CREATOR</h3>
+              <span class="catalog-no text-ink/30">{{ filters.creatorName ? '01' : '—' }}</span>
+            </div>
+            <input
+              type="text"
+              :value="filters.creatorName"
+              @input="(e: any) => applyCreatorName(e.target.value)"
+              placeholder="搜索创作者名…"
+              class="w-full px-3 py-1.5 bg-surface border border-line text-sm text-ink placeholder:text-ink/30 focus:outline-none focus:border-gold"
+              data-testid="ip-filter-creator-name"
+            />
           </div>
 
           <!-- Footer note -->

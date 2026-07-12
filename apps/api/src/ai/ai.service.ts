@@ -564,6 +564,45 @@ ${ip.description}
   }
 
   /**
+   * W6-R7: 多模态 chat — 接受 content blocks (text + image base64)。
+   * 用于 chat-with-attachments 端点; 仅 user 消息支持多模态, assistant 历史回包仍是字符串。
+   *
+   * Anthropic content block shape:
+   *   { type: 'text', text }
+   *   { type: 'image', source: { type: 'base64', media_type, data } }
+   *
+   * 失败语义: 同 chat() → ServiceUnavailableException。
+   */
+  async chatMultiModal(opts: {
+    systemPrompt: string;
+    messages: Array<
+      | { role: 'user' | 'assistant'; content: string }
+      | { role: 'user'; content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/webp'; data: string } }> }
+    >;
+    maxTokens?: number;
+    temperature?: number;
+  }): Promise<{ text: string; model: string; latencyMs: number }> {
+    const { client, model } = await this.getClient();
+    const t0 = Date.now();
+    try {
+      const resp = await client.messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 1024,
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        system: opts.systemPrompt,
+        messages: opts.messages.map((m) => ({ role: m.role, content: m.content } as any)),
+      });
+      const text = (resp.content[0] as any).text ?? '';
+      const latencyMs = Date.now() - t0;
+      this.logger.log(`assistant multimodal chat: model=${model} in=${opts.messages.length}turns out=${text.length}B ${latencyMs}ms`);
+      return { text, model, latencyMs };
+    } catch (e: any) {
+      this.logger.error(`assistant multimodal chat 失败: ${e?.message || e}`);
+      throw new ServiceUnavailableException('AI 服务暂不可用, 请稍后再试');
+    }
+  }
+
+  /**
    * 模型返的 text 可能是 ```json {...} ``` 包裹或纯 JSON, 这里 extract
    */
   private parseJson(text: string): any {

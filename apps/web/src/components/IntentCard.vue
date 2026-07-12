@@ -78,15 +78,47 @@ async function routeAfterSuccess(out: { kind: 'success'; briefId?: string; works
   }
 }
 
+/** W6-R7: 嵌入式 intent — 不调接口,只触发右屏 embed 路由
+ *   UPLOAD_IP      → /buyer/chat?embed=upload-ip(创作者: /creator/chat?embed=upload-ip)
+ *   OPEN_IP_LIBRARY → /buyer/chat?embed=ip-library(创作者: /creator/chat?embed=ip-library)
+ *   KYC_SUBMIT     → 跳 kyc 页面 (老路径,不嵌)
+ * 全屏模式意图自动在 embed 路径上加 fullscreen=true
+ */
+function pickEmbedRoute(intent: string | null | undefined): { path: string; query: Record<string, string> } | null {
+  if (!intent) return null;
+  // 同一 chat 页路由根据当前 path 决定
+  const path = window.location.pathname.startsWith('/creator') ? '/creator/chat' : '/buyer/chat';
+  if (intent === 'UPLOAD_IP') return { path, query: { embed: 'upload-ip' } };
+  if (intent === 'OPEN_IP_LIBRARY') return { path, query: { embed: 'ip-library' } };
+  return null;
+}
+
 async function onConfirm() {
+  // W6-R7: 嵌入式 intent 先把右屏切到 embed, 用户立刻看到表单/库, 再调 executor(no-op)
+  const embedRoute = pickEmbedRoute(props.message.intent);
+  if (embedRoute) {
+    await router.push({ path: embedRoute.path, query: embedRoute.query });
+  }
   const out = await execute(props.message.id, props.message.intent, props.message.intentParams);
   if (out.kind === 'success') {
     await routeAfterSuccess(out as any, props.message.intent);
   }
 }
 
+/** 用户手动点右上 ⛶ 全屏 — 在右屏已显示 embed 时再叠加 fullscreen=true */
+async function openEmbedFullscreen() {
+  const embedRoute = pickEmbedRoute(props.message.intent);
+  if (!embedRoute) return;
+  await router.push({ path: embedRoute.path, query: { ...embedRoute.query, fullscreen: 'true' } });
+}
+
 const errorReason = ref('');
 async function onConfirmCaptureErr() {
+  // W6-R7: 嵌入式 intent 先切右屏, 再调 executor
+  const embedRoute = pickEmbedRoute(props.message.intent);
+  if (embedRoute) {
+    await router.push({ path: embedRoute.path, query: embedRoute.query });
+  }
   const out = await execute(props.message.id, props.message.intent, props.message.intentParams);
   if (out.kind === 'error') errorReason.value = out.reason;
   else errorReason.value = '';
@@ -464,6 +496,48 @@ onMounted(async () => {
       <p class="mt-2 text-[10px] text-ink/60">将创建蓝图草稿, 进入下一步骤编辑。</p>
       <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
         ✓ 蓝图已创建, 跳转步骤 1…
+      </div>
+    </template>
+
+    <!-- W6-R7: UPLOAD_IP — 嵌入式意图,onConfirm 已 router.push 触发右屏 embed -->
+    <template v-else-if="message.intent === 'UPLOAD_IP'">
+      <p class="text-ink/70 leading-relaxed">
+        右屏已打开 <strong>IP 上传向导</strong>。直接在右屏填名称、小传、风格与素材上传。
+      </p>
+      <ul v-if="pickString(params.displayName) || pickString(params.description) || pickStringArray(params.styleTags).length > 0" class="mt-2 space-y-0.5 text-[10px] text-ink/60">
+        <li v-if="pickString(params.displayName)">预设名称: <span class="text-ink/80">{{ pickString(params.displayName) }}</span></li>
+        <li v-if="pickStringArray(params.styleTags).length > 0">预设风格: <span v-for="s in pickStringArray(params.styleTags)" :key="s" class="mr-1 px-1 rounded bg-line/40">{{ s }}</span></li>
+        <li v-if="pickString(params.tagline)">预设简介: <span class="text-ink/80">{{ pickString(params.tagline) }}</span></li>
+      </ul>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="text-[11px] px-2.5 py-1 rounded-lg border border-gold/50 text-gold hover:bg-gold hover:text-ink transition"
+          @click="openEmbedFullscreen()"
+        >
+          ⛶ 全屏编辑
+        </button>
+      </div>
+    </template>
+
+    <!-- W6-R7: OPEN_IP_LIBRARY — 嵌入式意图,onConfirm 已 router.push 触发右屏 embed -->
+    <template v-else-if="message.intent === 'OPEN_IP_LIBRARY'">
+      <p class="text-ink/70 leading-relaxed">
+        右屏已打开 <strong>形象库</strong>。可按 <span class="text-gold">类别 / 风格 / 价格</span> 筛选,或按创作者名搜索。
+      </p>
+      <ul v-if="pickString(params.category) || pickStringArray(params.styleTags).length > 0 || pickString(params.creatorName)" class="mt-2 space-y-0.5 text-[10px] text-ink/60">
+        <li v-if="pickString(params.category)">预设类别: <span class="text-ink/80">{{ pickString(params.category) }}</span></li>
+        <li v-if="pickStringArray(params.styleTags).length > 0">预设风格: <span v-for="s in pickStringArray(params.styleTags)" :key="s" class="mr-1 px-1 rounded bg-line/40">{{ s }}</span></li>
+        <li v-if="pickString(params.creatorName)">创作者: <span class="text-ink/80">{{ pickString(params.creatorName) }}</span></li>
+      </ul>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="text-[11px] px-2.5 py-1 rounded-lg border border-gold/50 text-gold hover:bg-gold hover:text-ink transition"
+          @click="openEmbedFullscreen()"
+        >
+          ⛶ 全屏浏览
+        </button>
       </div>
     </template>
 

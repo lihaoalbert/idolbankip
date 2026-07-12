@@ -48,6 +48,8 @@ export interface ListFilter {
   page?: number;
   size?: number;
   sort?: 'newest' | 'popular';
+  /** W6-R7: 创作者名模糊查询 (走 User.displayName contains)。case-insensitive by LOWER(). */
+  creatorName?: string;
 }
 
 export interface CreateIpParams {
@@ -185,6 +187,13 @@ export class IpsService {
     if (filter.ethnicity) where.ethnicity = filter.ethnicity;
     if (filter.style) where.styleTags = { contains: filter.style };
     if (filter.scenario) where.scenarioTags = { contains: filter.scenario };
+    // W6-R7: 创作者名模糊查询 — 走 Prisma relation filter, MySQL 8 默认 case-sensitive (utf8mb4_0900_as_cs),
+    // 这里 `contains` 不带 mode: 'insensitive' 时仍能用,因为 User.displayName 默认 utf8mb4_unicode_ci 排序规则 (case-insensitive)
+    if (filter.creatorName && filter.creatorName.trim().length > 0) {
+      where.creator = {
+        displayName: { contains: filter.creatorName.trim() },
+      };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.ipAsset.findMany({
@@ -211,6 +220,8 @@ export class IpsService {
           status: true,
           publishedAt: true,
           faceCloseupFileId: true, // #31
+          // W6-R7: 创作者名 — 让前端展示"创作者: 林雾"
+          creator: { select: { id: true, displayName: true } },
         },
       }),
       this.prisma.ipAsset.count({ where }),

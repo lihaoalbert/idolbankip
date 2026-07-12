@@ -41,6 +41,7 @@ export type IntentType =
   | 'UPLOAD_DELIVERABLE'
   | 'CREATE_REVIEW'
   | 'UPLOAD_IP'
+  | 'OPEN_IP_LIBRARY'
   | 'KYC_SUBMIT'
   | 'NAVIGATE'
   | 'ASK_CLARIFICATION'
@@ -68,6 +69,7 @@ export const INTENT_TYPES = [
   'UPLOAD_DELIVERABLE',
   'CREATE_REVIEW',
   'UPLOAD_IP',
+  'OPEN_IP_LIBRARY',
   'KYC_SUBMIT',
   'NAVIGATE',
   'ASK_CLARIFICATION',
@@ -95,6 +97,7 @@ export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
   UPLOAD_DELIVERABLE: true,
   CREATE_REVIEW: true,
   UPLOAD_IP: true,
+  OPEN_IP_LIBRARY: false,
   KYC_SUBMIT: true,
   NAVIGATE: false,
   ASK_CLARIFICATION: false,
@@ -122,6 +125,7 @@ export const INTENT_LABELS: Record<IntentType, string> = {
   UPLOAD_DELIVERABLE: '上传交付物',
   CREATE_REVIEW: '写评价',
   UPLOAD_IP: '上传 IP',
+  OPEN_IP_LIBRARY: '打开形象库',
   KYC_SUBMIT: '提交实名',
   NAVIGATE: '跳转页面',
   ASK_CLARIFICATION: '追问澄清',
@@ -275,7 +279,31 @@ export class UploadIpParams {
 
   @IsString() @MaxLength(2000)
   description!: string;
+
+  // W6-R7: 扩参 — 用户可能口头提一些细节, 后端落库时只收已经填好的字段,
+  // 缺失的字段由 /creator/ips/new 表单补完。LLM 没必要抽齐所有字段,容易误填。
+  @IsOptional() @IsString() @MaxLength(200)
+  tagline?: string;
+
+  @IsOptional() @IsIn(['FEMALE', 'MALE', 'NONBINARY'])
+  gender?: 'FEMALE' | 'MALE' | 'NONBINARY';
+
+  @IsOptional() @IsIn(['CHILD', 'YOUNG', 'MIDDLE', 'ELDERLY'])
+  ageBucket?: 'CHILD' | 'YOUNG' | 'MIDDLE' | 'ELDERLY';
+
+  @IsOptional() @IsIn(['EAST_ASIAN', 'SOUTHEAST_ASIAN', 'SOUTH_ASIAN', 'AFRICAN', 'EUROPEAN', 'MIXED'])
+  ethnicity?: 'EAST_ASIAN' | 'SOUTHEAST_ASIAN' | 'SOUTH_ASIAN' | 'AFRICAN' | 'EUROPEAN' | 'MIXED';
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  styleTags?: string[];
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  scenarioTags?: string[];
 }
+
+/** W6-R7: OPEN_IP_LIBRARY — 打开形象库浏览/筛选界面, 仅展示不写。
+ * 不需 params (filters 走前端组件状态); schema 留空但保留 enum 项方便 IntentCard 渲染 */
+export class OpenIpLibraryParams {}
 
 export class KycSubmitParams {
   @IsString() @MaxLength(100)
@@ -415,6 +443,7 @@ const SCHEMA_BY_INTENT: Record<IntentType, any> = {
   UPLOAD_DELIVERABLE: UploadDeliverableParams,
   CREATE_REVIEW: CreateReviewParams,
   UPLOAD_IP: UploadIpParams,
+  OPEN_IP_LIBRARY: OpenIpLibraryParams,
   KYC_SUBMIT: KycSubmitParams,
   NAVIGATE: NavigateParams,
   ASK_CLARIFICATION: AskClarificationParams,
@@ -575,6 +604,9 @@ const WRITE_VERBS = [
   '生成视频', '生成图片', '生成一段', '建个蓝图', '起个蓝图', '做个蓝图',
   '跑 sora', '跑sora', '跑 kling', '跑kling', '跑 runway', '跑runway',
   '跑 jimeng', '跑jimeng', '用 sora', '用sora', '用可灵', '用即梦',
+  // W6-R7 — IP 上传 / 形象库浏览
+  '上传 IP', '上传新 IP', '新建 IP', '加个 IP', '录个 IP', '录个新形象',
+  '打开形象库', '看形象库', '搜形象库', '筛选形象库', '查 IP', '看 IP 库',
 ];
 const INTENT_PREFIX = ['我要', '帮我', '帮我把', '请帮我', '能否帮我', '可以帮我', '麻烦帮我'];
 

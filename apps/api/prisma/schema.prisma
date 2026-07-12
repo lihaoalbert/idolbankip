@@ -1029,6 +1029,11 @@ model AssistantCallLog {
   intent       String?  // IntentType 字面量之一
   requiresConfirmation Boolean? @default(false)
 
+  // W6-R7 chat-with-attachments — 聊天附件快照
+  // [{ fileId?, ossKey, mimeType, filename, sizeBytes, publicUrl }] — null 表示无附件
+  // OSS public 桶直传 URL,1 个月 CDN 缓存; 过期不补,够给 LLM 短期理解用
+  attachments  Json?
+
   createdAt    DateTime @default(now())
 
   @@index([userId, createdAt])

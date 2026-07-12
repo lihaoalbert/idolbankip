@@ -21,10 +21,11 @@
  *
  * 边界: 助手不调任何写接口 — R1 纯分析; 写操作由前端拿 intent 后弹卡片确认再调
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UploadService } from '../upload/upload.service';
 import { ChatDto } from './dto/chat.dto';
 import { hasRole, UserRole } from '../common/util/roles.util';
 import {
@@ -58,6 +59,18 @@ export interface ChatResult {
   intentParams?: Record<string, unknown>;
   /** 写操作意图必须 UI 卡片确认才能落库 */
   requiresConfirmation?: boolean;
+  /** W6-R7: 聊天附件快照 — 上传 OSS 后给前端回填 chip / 下载入口 */
+  attachments?: ChatAttachment[];
+}
+
+export interface ChatAttachment {
+  /** 前端缓存 key — 不可靠,刷新失效 */
+  ossKey: string;
+  mimeType: string;
+  filename: string;
+  sizeBytes: number;
+  /** public 桶直传 URL — 给前端展示 + LLM 引用 */
+  publicUrl: string;
 }
 
 @Injectable()
@@ -67,6 +80,7 @@ export class AssistantService {
   constructor(
     private readonly ai: AiService,
     private readonly prisma: PrismaService,
+    private readonly upload: UploadService,
   ) {}
 
   async chat(
@@ -270,6 +284,7 @@ export class AssistantService {
     latencyMs: number;
     intent: string | null;
     requiresConfirmation: boolean;
+    attachments?: ChatAttachment[];
   }) {
     await this.prisma.assistantCallLog.create({
       data: {
@@ -282,10 +297,232 @@ export class AssistantService {
         latencyMs: args.latencyMs,
         intent: args.intent,
         requiresConfirmation: args.requiresConfirmation,
+        attachments: args.attachments && args.attachments.length > 0 ? (args.attachments as any) : undefined,
       },
     }).catch((e) => {
       this.logger.warn(`assistant audit write failed: ${e?.message ?? e}`);
     });
+  }
+
+  /**
+   * W6-R7: 多模态 chat — 接收 multipart 上传的 files, 落 OSS public 桶, 喂给 LLM 多模态 messages
+   *
+   * 设计:
+   *   - 任何类型都先落 OSS (public 桶, 1 月缓存) — 给前端展示 + LLM 引用
+   *   - 仅 image/* 类型转 base64 进 LLM content blocks; 其它类型只挂到 context metadata
+   *   - 历史消息保持字符串 (assistant 历史回包一定是文本)
+   *   - 限流更严: 10/min vs chat 20/min
+   *
+   * 失败语义: 抛 BadRequest (文件超限) / ServiceUnavailable (LLM down)。
+   */
+  async chatWithAttachments(
+    userId: string,
+    userRoles: UserRole[],
+    text: string,
+    files: Express.Multer.File[],
+    history?: ChatDto['history'],
+    routeContext?: ChatDto['routeContext'],
+  ): Promise<ChatResult> {
+    const userRole = this.pickPrimaryRole(userRoles);
+
+    // 0. 文件 mime 校验 + 大小硬限制 (FileInterceptor 已设 50MB, 这里双保险)
+    const allowedExts = /\.(jpe?g|png|webp|pdf|docx|txt)$/i;
+    const imageMime: Array<'image/jpeg' | 'image/png' | 'image/webp'> = ['image/jpeg', 'image/png', 'image/webp'];
+    const persisted: ChatAttachment[] = [];
+    const imageBlocks: Array<{ type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/webp'; data: string } }> = [];
+
+    for (const f of files) {
+      const safeName = (f.originalname ?? 'file').replace(/[\\/\0]/g, '_').slice(-200);
+      if (!allowedExts.test(safeName)) {
+        throw new BadRequestException(`不支持的文件扩展名: ${safeName}`);
+      }
+      if (f.size > 50 * 1024 * 1024) {
+        throw new BadRequestException(`文件过大: ${safeName}`);
+      }
+      const ts = Date.now();
+      const key = `chat-attachments/${userId}/${ts}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      const mime = (f.mimetype ?? 'application/octet-stream').toLowerCase();
+      const publicUrl = await this.upload.uploadPublic(key, f.buffer, mime === 'application/octet-stream' ? 'image/jpeg' : mime);
+      persisted.push({
+        ossKey: key,
+        mimeType: mime,
+        filename: safeName,
+        sizeBytes: f.size,
+        publicUrl,
+      });
+      // 仅 image/* 走多模态 LLM (Anthropic Claude vision 仅接受 image)
+      const baseMime = imageMime.find((m) => m === mime);
+      if (baseMime) {
+        imageBlocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: baseMime, data: f.buffer.toString('base64') },
+        });
+      }
+    }
+
+    // 1. 注入检测 (跟 chat 一致 — 附件也可能夹带)
+    if (looksLikeInjection(text)) {
+      await this.writeAudit({
+        userId,
+        userRole,
+        route: routeContext?.route ?? null,
+        promptText: text,
+        responseText: OUT_OF_SCOPE_REPLY,
+        model: 'injection-blocked',
+        latencyMs: 0,
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      });
+      return {
+        reply: OUT_OF_SCOPE_REPLY,
+        suggestedActions: [{ label: '联系商务', href: '/contact' }],
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      };
+    }
+
+    // 2. 拼多模态 messages
+    const systemPrompt = this.pickSystemPrompt(userRoles);
+    const historyMsgs = (history ?? []).slice(-HISTORY_LIMIT).map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    // 当前 user 消息 — 多模态: text + 附件清单 (文本) + image blocks
+    const attachmentSummary = persisted
+      .map((a, i) => `[附件${i + 1}: ${a.filename} (${a.mimeType}, ${Math.round(a.sizeBytes / 1024)}KB)](${a.publicUrl})`)
+      .join('\n');
+    const userText = [text, attachmentSummary].filter(Boolean).join('\n\n');
+    const contentBlocks: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/webp'; data: string } }> = [
+      { type: 'text', text: userText },
+      ...imageBlocks,
+    ];
+
+    // 拼路由上下文到 userText 末尾 (跟 chat 一致)
+    if (routeContext?.route) {
+      contentBlocks.unshift({ type: 'text', text: `[用户当前路由: ${routeContext.route}]` });
+    }
+
+    const messages: Array<any> = [
+      ...historyMsgs,
+      { role: 'user', content: contentBlocks },
+    ];
+
+    // 3. 调 LLM
+    const t0 = Date.now();
+    let text2: string;
+    let model: string;
+    let latencyMs: number;
+    try {
+      const r = await this.ai.chatMultiModal({
+        systemPrompt,
+        messages: messages as any,
+        maxTokens: 600,
+        temperature: 0,
+      });
+      text2 = r.text;
+      model = r.model;
+      latencyMs = r.latencyMs;
+    } catch (e) {
+      const fallback = 'AI 助手暂时无法回答(LLM 服务未配置或不可用)。请稍后再试, 或邮件 admin@ibi.ren。';
+      const isUnavailable = e instanceof ServiceUnavailableException;
+      this.logger.warn(`assistant multimodal fallback (LLM unavailable=${isUnavailable}): ${e?.message ?? e}`);
+      latencyMs = Date.now() - t0;
+      model = 'fallback';
+      await this.writeAudit({
+        userId,
+        userRole,
+        route: routeContext?.route ?? null,
+        promptText: userText,
+        responseText: fallback,
+        model,
+        latencyMs,
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      });
+      return {
+        reply: fallback,
+        suggestedActions: [{ label: '联系商务', href: '/contact' }],
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      };
+    }
+
+    // 4. parse intent + 校验 + audit
+    const parsed = tryParseLlmJson(text2);
+    if (!parsed || typeof parsed.reply !== 'string') {
+      this.logger.warn(`assistant multimodal LLM 输出无法解析: ${text2.slice(0, 200)}`);
+      await this.writeAudit({
+        userId,
+        userRole,
+        route: routeContext?.route ?? null,
+        promptText: userText,
+        responseText: OUT_OF_SCOPE_REPLY,
+        model,
+        latencyMs: Date.now() - t0,
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      });
+      return {
+        reply: OUT_OF_SCOPE_REPLY,
+        suggestedActions: [],
+        intent: null,
+        requiresConfirmation: false,
+        attachments: persisted,
+      };
+    }
+
+    let reply = parsed.reply.trim();
+    if (reply === '[OOS]') reply = OUT_OF_SCOPE_REPLY;
+
+    const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+    const suggestedActions: SuggestedAction[] = [];
+    for (const a of rawActions) {
+      if (!a || typeof a.label !== 'string' || typeof a.href !== 'string') continue;
+      const label = a.label.trim().slice(0, 30);
+      const href = a.href.trim();
+      if (!this.isAllowedHref(href)) {
+        this.logger.warn(`assistant multimodal OOB href dropped: ${href}`);
+        continue;
+      }
+      suggestedActions.push({ label, href });
+      if (suggestedActions.length >= 3) break;
+    }
+
+    const intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+
+    await this.writeAudit({
+      userId,
+      userRole,
+      route: routeContext?.route ?? null,
+      promptText: userText,
+      responseText: reply,
+      model,
+      latencyMs: Date.now() - t0,
+      intent: intentParsed?.intent ?? null,
+      requiresConfirmation: intentParsed?.requiresConfirmation ?? false,
+      attachments: persisted,
+    });
+
+    if (parsed.intent && !intentParsed) {
+      this.logger.warn(
+        `assistant multimodal intent dropped (Zod fail): intent=${parsed.intent} params=${JSON.stringify(parsed.intentParams).slice(0, 200)}`,
+      );
+    }
+
+    return {
+      reply,
+      suggestedActions,
+      intent: intentParsed?.intent ?? null,
+      intentParams: intentParsed?.intentParams,
+      requiresConfirmation: intentParsed?.requiresConfirmation,
+      attachments: persisted,
+    };
   }
 
   private pickSystemPrompt(roles: UserRole[]): string {

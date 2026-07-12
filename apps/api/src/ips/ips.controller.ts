@@ -84,6 +84,8 @@ class ListQueryDto {
   @IsOptional() @IsIn(['newest', 'popular']) sort?: 'newest' | 'popular';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) size?: number;
+  /** W6-R7: 创作者名模糊查询 (User.displayName contains) */
+  @IsOptional() @IsString() @MaxLength(50) creatorName?: string;
 }
 
 @ApiTags('ips')

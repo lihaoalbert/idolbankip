@@ -15,7 +15,7 @@
 
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { chatAssistant, type ChatHistoryItem, type IntentType, type SuggestedAction } from '@/api/assistant';
+import { chatAssistant, chatWithAttachments, type ChatHistoryItem, type IntentType, type SuggestedAction, type ChatAttachment } from '@/api/assistant';
 import { useAuthStore } from '@/stores/auth';
 
 export interface AssistantMessage {
@@ -42,6 +42,8 @@ export interface AssistantMessage {
     deliverableId?: string;
     generationRecordId?: string;
   } | null;
+  /** W6-R7: 用户上传的附件快照 — 同步显示在 user 消息气泡里 */
+  attachments?: ChatAttachment[];
 }
 
 /** W6-R1: 最后一次 chat 返回的 intent + params + confirm — 共享状态, FloatingChat 显示 chip */
@@ -123,27 +125,39 @@ export function useAssistant() {
     return rc;
   }
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, attachments?: File[]) {
     const trimmed = text.trim();
-    if (!trimmed || loading.value) return;
+    if ((!trimmed && (!attachments || attachments.length === 0)) || loading.value) return;
     error.value = null;
 
     const userMsg: AssistantMessage = {
       id: genId(),
       role: 'user',
-      content: trimmed,
+      content: trimmed || (attachments ? `上传了 ${attachments.length} 个附件` : ''),
       createdAt: Date.now(),
     };
     messages.value.push(userMsg);
 
     loading.value = true;
     try {
-      const resp = await chatAssistant({
-        message: trimmed,
-        history: buildHistory(),
-        routeContext: buildRouteContext(),
-      });
+      // W6-R7: 有附件时走 multipart 端点,否则原 JSON 端点
+      const resp = attachments && attachments.length > 0
+        ? await chatWithAttachments({
+            message: trimmed,
+            files: attachments,
+            history: buildHistory(),
+            routeContext: buildRouteContext(),
+          })
+        : await chatAssistant({
+            message: trimmed,
+            history: buildHistory(),
+            routeContext: buildRouteContext(),
+          });
       const isFallback = resp.reply.startsWith('AI 助手暂时无法回答');
+      // W6-R7: 把 assistant 返回的 attachments 挂到 user 消息上 (持久化展示)
+      if (resp.attachments && resp.attachments.length > 0) {
+        userMsg.attachments = resp.attachments;
+      }
       messages.value.push({
         id: genId(),
         role: 'assistant',

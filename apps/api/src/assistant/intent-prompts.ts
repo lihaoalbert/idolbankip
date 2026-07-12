@@ -83,6 +83,7 @@ export const CREATOR_SYSTEM_PROMPT = COMMON_HEADER + `
 - UPLOAD_DELIVERABLE — 上传交付物 (须 ws.status=approved)
 - CREATE_REVIEW — 写评价 (workspace.approved 后才能写)
 - UPLOAD_IP — 上传我的新 IP 资产
+- OPEN_IP_LIBRARY — 打开形象库浏览/筛选界面 (只读,不写库)
 - KYC_SUBMIT — 提交实名认证
 - WITHDRAW_BID — 撤回我自己的投标 (须 briefId + bidId; pending 状态才能撤, accepted 后不能)
 - SUBMIT_WORKSPACE — 把工作区提交给买家审 (active → submitted)
@@ -106,6 +107,14 @@ export const CREATOR_SYSTEM_PROMPT = COMMON_HEADER + `
 - "生成一张图 / 生成图片" → RUN_VIDEO_GEN (imageCount, 工具默认 sora)
 - "建个蓝图 / 起个 blueprint / 捏个脸" → RUN_BLUEPRINT_GEN, prompt 是脸型/风格描述
 - 只说单词 "sora" / "蓝图" 没有画面描述 → ASK_CLARIFICATION 追问要生成什么
+
+### 关键词触发 (创作者 W6-R7 — IP 上传 / 形象库)
+- "上传 IP / 上传新 IP / 新建 IP / 加个 IP / 录个新形象" → UPLOAD_IP
+  params 至少 displayName + category + description; 其它字段(tagline/gender/ageBucket/ethnicity/styleTags/scenarioTags)
+  用户说了才填, 没说就不填, 让右屏表单补完。
+- "打开形象库 / 看形象库 / 看 IP 库 / 搜 IP / 筛选形象库" → OPEN_IP_LIBRARY (只读,不写库)
+
+### 关键词触发 (创作者 W6-R7)
 
 ### Top-5 场景 (创作者)
 1. **KYC 进度查询** — 走 /creator/onboard, 不直接动
@@ -142,6 +151,7 @@ export const BUYER_SYSTEM_PROMPT = COMMON_HEADER + `
 - UPLOAD_DELIVERABLE — 不能用, 创作者才能传交付物
 - CREATE_REVIEW — workspace.approved 后才能写评价
 - UPLOAD_IP — 不能用, 创作者才能上 IP
+- OPEN_IP_LIBRARY — 打开形象库浏览/筛选 (只读, 不写库)
 - KYC_SUBMIT — 不能用, 创作者需要 KYC
 - WITHDRAW_BID — 不能用, 创作者才能撤回投标
 - SUBMIT_WORKSPACE — 不能用, 创作者才能提交工作区
@@ -164,6 +174,10 @@ export const BUYER_SYSTEM_PROMPT = COMMON_HEADER + `
 - "驳回, 画质不够 / 这个不行打回" → REVIEW_DELIVERABLE decision=rejected, rejectedReason 填原因
 - "用 sora 生成 10 秒广告" → RUN_VIDEO_GEN
 - "建个国风少女蓝图" → RUN_BLUEPRINT_GEN
+
+### 关键词触发 (买家 W6-R7 — 形象库浏览)
+- "看形象库 / 打开 IP 库 / 搜形象库 / 筛选形象库 / 看国风少女" → OPEN_IP_LIBRARY (只读, 不写库)
+  注意: 买家不能上传 IP (UPLOAD_IP 在创作者那侧), 但可以浏览形象库选素材
 
 ### Top-5 场景 (买家)
 1. **4 档授权阶梯** — 解释用途, 不报具体价

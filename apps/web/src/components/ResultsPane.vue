@@ -7,15 +7,20 @@
  * W6-R6 Tier 4: 当 route.query.focus === 'generations' 时, 切换为 AI 生成记录列表
  *   (RUN_VIDEO_GEN 成功后跳 /creator/workspace/:id?focus=generations 触发)
  *
+ * W6-R7 embed 模式:
+ *   - route.query.embed === 'upload-ip'    → 嵌入 IpWizard 步骤 1 (创作者)
+ *   - route.query.embed === 'ip-library'   → 嵌入 IpListPage (?embed=ip-library)
+ *
  * 接受 `scope` prop:
  *   - 'buyer' (默认): 列我的发包
  *   - 'creator': 列可接发包
  */
 import { onMounted, ref, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { buyerBriefsApi } from '@/api/briefs';
 import type { BriefSummary } from '@/api/briefs';
 import { aiToolsApi, type GenerationRecord } from '@/api/ai-tools';
+import IpListPage from '@/pages/IpListPage.vue';
 
 interface Props {
   scope?: 'buyer' | 'creator';
@@ -23,6 +28,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { scope: 'buyer' });
 
 const route = useRoute();
+const router = useRouter();
 const briefs = ref<BriefSummary[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -41,7 +47,34 @@ const toolBadgeMap: Record<string, string> = {
 const focusMode = computed(() => route.query.focus === 'generations' && route.params.workspaceId !== undefined);
 const workspaceIdFromQuery = computed(() => (typeof route.params.workspaceId === 'string' ? route.params.workspaceId : ''));
 
+/** W6-R7: embed 模式判定 */
+const embedMode = computed<'upload-ip' | 'ip-library' | null>(() => {
+  const e = route.query.embed;
+  if (e === 'upload-ip') return 'upload-ip';
+  if (e === 'ip-library') return 'ip-library';
+  return null;
+});
+const isFullscreen = computed(() => route.query.fullscreen === 'true');
+
+/** W6-R7: 顶部全屏 / 返回按钮 — 保留 chat 区可见时不显示, fullscreen 时显示"返回" */
+function goFullscreen() {
+  const q: Record<string, string> = { ...route.query as Record<string, string>, fullscreen: 'true' };
+  router.push({ query: q });
+}
+function exitEmbed() {
+  // 清掉 embed + fullscreen 两个 query, 留其它 (e.g. focus)
+  const q = { ...route.query };
+  delete q.embed;
+  delete q.fullscreen;
+  router.push({ query: q });
+}
+
 async function load() {
+  // W6-R7: embed 模式不 fetch briefs/generations — 由子组件自己 fetch
+  if (embedMode.value) {
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   error.value = null;
   try {
@@ -66,10 +99,14 @@ async function load() {
 }
 
 const title = computed(() => {
+  if (embedMode.value === 'upload-ip') return '新建 IP';
+  if (embedMode.value === 'ip-library') return '形象库';
   if (focusMode.value) return 'AI 生成记录';
   return props.scope === 'creator' ? '可接发包' : '我的发包';
 });
 const subtitle = computed(() => {
+  if (embedMode.value === 'upload-ip') return '填写基础信息 + 上传资产包';
+  if (embedMode.value === 'ip-library') return '按 类别 / 风格 / 价格 / 创作者 筛选';
   if (focusMode.value) {
     const yuan = (generationsTotalCostCents.value / 100).toFixed(2);
     return `共 ${generationsTotal.value} 次生成 · 累计 ¥${yuan}`;
@@ -103,13 +140,60 @@ watch(() => route.fullPath, () => {
 
 <template>
   <div class="h-full flex flex-col bg-cream/30 dark:bg-surface/30">
-    <div class="px-4 py-2.5 border-b border-line bg-cream/60 dark:bg-surface-60 backdrop-blur">
-      <div class="text-sm font-medium">{{ title }}</div>
-      <div class="text-[10px] text-ink/50 mt-0.5">{{ subtitle }}</div>
+    <div class="px-4 py-2.5 border-b border-line bg-cream/60 dark:bg-surface-60 backdrop-blur flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <div class="text-sm font-medium">{{ title }}</div>
+        <div class="text-[10px] text-ink/50 mt-0.5">{{ subtitle }}</div>
+      </div>
+      <!-- W6-R7: embed 模式顶栏按钮 — 全屏 / 返回 -->
+      <div v-if="embedMode" class="flex items-center gap-1.5 shrink-0">
+        <button
+          v-if="!isFullscreen"
+          type="button"
+          @click="goFullscreen"
+          class="text-[10px] px-2 py-1 rounded-full border border-line text-ink/60 hover:border-gold hover:text-gold transition"
+          title="全屏编辑 (隐藏左/中栏, 仅留右屏)"
+        >⛶ 全屏</button>
+        <button
+          type="button"
+          @click="exitEmbed"
+          class="text-[10px] px-2 py-1 rounded-full border border-line text-ink/60 hover:border-danger hover:text-danger transition"
+          title="关闭右屏内容, 回到默认工作台"
+        >✕ 返回</button>
+      </div>
     </div>
     <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-xs">
       <div v-if="loading" class="text-ink/50 text-center py-6">加载中…</div>
       <div v-else-if="error" class="text-red-500 text-center py-6">{{ error }}</div>
+
+      <!-- W6-R7: embed=ip-library — 复用 IpListPage (已有 embed 模式 + 4 维筛选) -->
+      <IpListPage
+        v-else-if="embedMode === 'ip-library'"
+        :embed-mode="true"
+      />
+
+      <!-- W6-R7: embed=upload-ip — 嵌入 IP 上传向导(只创作者可见; 买家点这个会提示) -->
+      <div v-else-if="embedMode === 'upload-ip'" class="space-y-3">
+        <div v-if="props.scope === 'creator'" class="rounded-xl overflow-hidden border border-line">
+          <RouterLink
+            to="/creator/ips/new?embed=upload-ip"
+            target="_blank"
+            class="block p-4 bg-surface hover:bg-cream/40 transition"
+          >
+            <div class="text-sm font-medium mb-1">📝 在向导里打开 (新标签页)</div>
+            <div class="text-[10px] text-ink/60">完整 3 步上传 (基础信息 → 资产包 → 预览提交)。在右屏仅展示"已打开"提示, 不阻塞 chat 流。</div>
+          </RouterLink>
+          <div class="px-4 py-3 border-t border-line bg-cream/30 text-[10px] text-ink/60 leading-relaxed">
+            ✨ 提示: 右屏已打开 IP 上传入口。也可以直接在左侧 chat 说"上传新 IP 名叫 XX",
+            让 AI 帮你预填后再继续。
+          </div>
+        </div>
+        <div v-else class="p-6 bg-cream/60 rounded-xl text-center">
+          <div class="text-base mb-2">🔒</div>
+          <p class="text-sm text-ink/70 mb-1">当前账号不是创作者</p>
+          <p class="text-[10px] text-ink/50">上传 IP 需要 <RouterLink to="/creator" class="text-gold hover:underline">创作者入驻</RouterLink>。买家可在 chat 输入"看形象库"浏览公开 IP。</p>
+        </div>
+      </div>
 
       <!-- W6-R6: AI 生成记录列表 -->
       <template v-else-if="focusMode">

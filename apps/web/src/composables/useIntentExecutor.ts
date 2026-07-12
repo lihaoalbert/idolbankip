@@ -395,9 +395,13 @@ export function useIntentExecutor() {
           return { kind: 'no-op' };
 
         // ============ 其它 — 既不是 buyer 也不是 creator 该处理的 ============
+        // W6-R7: UPLOAD_IP / OPEN_IP_LIBRARY 不在 executor 里执行 —
+        //   这俩 intent 只触发右屏 embed 模式 (IpUploadForm / IpLibraryBrowser),
+        //   IntentCard 在 onConfirm 阶段已 router.push 到 embed URL,
+        //   executor 走 no-op 让 UI 不报错。KYC 也保留同样的 no-op 行为。
         case 'UPLOAD_IP':
+        case 'OPEN_IP_LIBRARY':
         case 'KYC_SUBMIT':
-          // 这俩是 creator 路径上的 (R3 后期接), 但通常在 buyer chat 不应出现
           setIntentStatus(messageId, 'cancelled');
           return { kind: 'no-op' };
 
