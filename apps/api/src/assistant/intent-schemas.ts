@@ -612,7 +612,8 @@ const WRITE_VERBS = [
   '跑 sora', '跑sora', '跑 kling', '跑kling', '跑 runway', '跑runway',
   '跑 jimeng', '跑jimeng', '用 sora', '用sora', '用可灵', '用即梦',
   // W6-R7 — IP 上传 / 形象库浏览
-  '上传 IP', '上传新 IP', '新建 IP', '加个 IP', '录个 IP', '录个新形象',
+  '上传 IP', '上传新 IP', '上传新IP', '上传新的 IP', '上传一个 IP', '新建 IP', '新建一个 IP',
+  '加个 IP', '录个 IP', '录个新形象',
   '打开形象库', '看形象库', '搜形象库', '筛选形象库', '查 IP', '看 IP 库',
 ];
 const INTENT_PREFIX = ['我要', '帮我', '帮我把', '请帮我', '能否帮我', '可以帮我', '麻烦帮我'];

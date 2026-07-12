@@ -71,16 +71,18 @@ function toggleSidebar() {
       <slot name="sidebar" />
     </aside>
 
-    <!-- 折叠按钮 (fixed 左侧中部) -->
+    <!-- 折叠按钮 (fixed 左侧中部) — W6-R7 修: 24×56 更大点击面,加可见 hover 边框 -->
     <button
+      type="button"
       @click="toggleSidebar"
       :class="[
-        'fixed left-0 top-1/2 -translate-y-1/2 z-20 w-5 h-12 bg-cream/90 dark:bg-surface-90 border border-line rounded-r-lg flex items-center justify-center text-ink/50 hover:text-gold transition',
+        'fixed top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-cream dark:bg-surface border border-line rounded-r-lg flex items-center justify-center text-ink/60 hover:bg-gold hover:text-cream hover:border-gold transition shadow-sm',
         effectiveCollapsed ? 'left-0' : 'left-60',
       ]"
       :aria-label="effectiveCollapsed ? '展开侧栏' : '折叠侧栏'"
+      :title="effectiveCollapsed ? '展开侧栏' : '折叠侧栏'"
     >
-      <span class="text-[10px]">{{ effectiveCollapsed ? '›' : '‹' }}</span>
+      <span class="text-base font-bold leading-none">{{ effectiveCollapsed ? '›' : '‹' }}</span>
     </button>
 
     <!-- 中栏 (chat) — fullscreen 时隐藏 -->

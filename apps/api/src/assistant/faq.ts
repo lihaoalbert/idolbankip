@@ -56,7 +56,11 @@ export const FAQ: ReadonlyArray<FaqEntry> = [
   {
     id: 'creator-ip-upload',
     audience: 'creator',
-    keywords: ['上传', 'ip', '资产', '资产包', '图片', 'wizard', '向导', '3d', '形象', '捏脸'],
+    // W6-R7 修: 关键词收紧为多字 / 业务词, 避免单字"上传"+"ip" 组合把"上传新IP"等动作句抢走。
+    // FAQ 命中阈值是 score ≥ 2; 现在单 token "上传" 不会因为 +1 触发命中, 必须有完整短语或
+    // 2 个以上的 2 字 token 才行。"上传新 IP" / "我要上传 IP" 等用户真正想做动作的 query
+    // 进不来 FAQ, 由 LLM 走 UPLOAD_IP intent (右屏 embed 触发)。
+    keywords: ['ip 上传', '上传 ip', 'ip资产', '资产包', '上传流程', '数字人', 'wizard', '向导', '3d', '捏脸', 'blender'],
     answer:
       '上传 IP 走 3 步向导 (/creator/ips/new):\n' +
       '● 第 1 步 — 选档位: 数字人广告 / 短视频 / 3D 数字人 等\n' +

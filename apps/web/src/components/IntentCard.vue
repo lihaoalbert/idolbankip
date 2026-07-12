@@ -16,8 +16,8 @@
  *   - ASK_CLARIFICATION — 提示用户在 input 里直接回答
  *   - NAVIGATE (write-no-side-effect) — 直接跳转
  */
-import { computed, ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import type { AssistantMessage } from '@/composables/useAssistant';
 import { useIntentExecutor } from '@/composables/useIntentExecutor';
 import { aiToolsApi, type VideoToolName } from '@/api/ai-tools';
@@ -25,6 +25,7 @@ import { aiToolsApi, type VideoToolName } from '@/api/ai-tools';
 const props = defineProps<{ message: AssistantMessage }>();
 
 const router = useRouter();
+const route = useRoute();
 const { execute } = useIntentExecutor();
 
 const executing = computed(() => props.message.intentStatus === 'executing');
@@ -34,6 +35,50 @@ const cancelled = computed(() => props.message.intentStatus === 'cancelled');
 
 const intentLabel = computed(() => props.message.intent ?? '');
 const params = computed(() => props.message.intentParams ?? {});
+
+/** W6-R7: 嵌入式 intent — 跟踪当前用户是否已经点过"右屏打开"。
+ * route.query.embed 一变 ("upload-ip" 或 "ip-library") 视为已激活,卡片状态切到 "✓ 已在右屏" 模式。
+ * 也支持 mount 时自动打开 (延迟 800ms, 让用户先看到 LLM 回复) — 不点也会激活。 */
+const embedOpened = ref(false);
+let autoEmbedTimer: ReturnType<typeof setTimeout> | null = null;
+
+const EMBED_INTENTS = new Set(['UPLOAD_IP', 'OPEN_IP_LIBRARY']);
+const isEmbedIntent = computed(() => EMBED_INTENTS.has(props.message.intent ?? ''));
+const expectedEmbedKey = computed(() => {
+  if (props.message.intent === 'UPLOAD_IP') return 'upload-ip';
+  if (props.message.intent === 'OPEN_IP_LIBRARY') return 'ip-library';
+  return null;
+});
+
+function syncEmbedOpenedFromRoute() {
+  if (!isEmbedIntent.value || !expectedEmbedKey.value) return;
+  if (route.query.embed === expectedEmbedKey.value) {
+    embedOpened.value = true;
+  }
+}
+
+watch(() => route.query.embed, syncEmbedOpenedFromRoute);
+
+async function openEmbedNow() {
+  const embedRoute = pickEmbedRoute(props.message.intent);
+  if (!embedRoute) return;
+  await router.push({ path: embedRoute.path, query: embedRoute.query });
+  // router.push 是异步的, query 真正更新在 watch 后才生效 — 这里手动乐观置 true
+  embedOpened.value = true;
+}
+
+function scheduleAutoEmbed() {
+  if (!isEmbedIntent.value) return;
+  if (autoEmbedTimer) clearTimeout(autoEmbedTimer);
+  autoEmbedTimer = setTimeout(() => {
+    if (!embedOpened.value) {
+      openEmbedNow().catch(() => {});
+    }
+  }, 800);
+}
+onBeforeUnmount(() => {
+  if (autoEmbedTimer) clearTimeout(autoEmbedTimer);
+});
 
 function pickString(v: unknown): string {
   return typeof v === 'string' ? v : '';
@@ -136,6 +181,13 @@ const toolLabelMap: Record<VideoToolName, string> = {
   runway: 'Runway',
 };
 onMounted(async () => {
+  // W6-R7: 嵌入式 intent — 已经在右屏 embed (route.query.embed 一致) 视为已开;
+  // 否则延迟 800ms 自动触发, 让用户先看到 LLM 回复, 再悄悄开右屏
+  syncEmbedOpenedFromRoute();
+  if (isEmbedIntent.value && !embedOpened.value) {
+    scheduleAutoEmbed();
+  }
+
   if (props.message.intent !== 'RUN_VIDEO_GEN') return;
   if (props.message.intentStatus !== 'idle') return;
   const wsId = pickString(props.message.intentParams?.workspaceId);
@@ -499,10 +551,13 @@ onMounted(async () => {
       </div>
     </template>
 
-    <!-- W6-R7: UPLOAD_IP — 嵌入式意图,onConfirm 已 router.push 触发右屏 embed -->
+    <!-- W6-R7: UPLOAD_IP — 嵌入式意图。
+         之前 onConfirm 只在写操作的 [确认执行] 路径上跑,但 UPLOAD_IP/OPEN_IP_LIBRARY 这类
+         嵌入式意图的右屏切换必须让用户主动点一下才会触发 — 加显式 primary 按钮 + 自动 mount-time 触发
+         (用户没点也 800ms 后开), 不能只靠 "右屏已打开" 让人猜 -->
     <template v-else-if="message.intent === 'UPLOAD_IP'">
       <p class="text-ink/70 leading-relaxed">
-        右屏已打开 <strong>IP 上传向导</strong>。直接在右屏填名称、小传、风格与素材上传。
+        <strong>IP 上传向导</strong> 可在右屏直接打开 — 填名称、小传、风格与素材上传。
       </p>
       <ul v-if="pickString(params.displayName) || pickString(params.description) || pickStringArray(params.styleTags).length > 0" class="mt-2 space-y-0.5 text-[10px] text-ink/60">
         <li v-if="pickString(params.displayName)">预设名称: <span class="text-ink/80">{{ pickString(params.displayName) }}</span></li>
@@ -511,8 +566,18 @@ onMounted(async () => {
       </ul>
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <button
+          v-if="!embedOpened"
           type="button"
-          class="text-[11px] px-2.5 py-1 rounded-lg border border-gold/50 text-gold hover:bg-gold hover:text-ink transition"
+          class="text-[11px] px-3 py-1.5 rounded-lg bg-gold text-ink font-medium hover:bg-gold/80 transition"
+          @click="openEmbedNow"
+        >
+          📂 在右屏打开
+        </button>
+        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">✓ 已在右屏</span>
+        <button
+          v-if="embedOpened"
+          type="button"
+          class="text-[11px] px-2.5 py-1 rounded-lg border border-line text-ink/60 hover:border-gold hover:text-gold transition"
           @click="openEmbedFullscreen()"
         >
           ⛶ 全屏编辑
@@ -520,10 +585,10 @@ onMounted(async () => {
       </div>
     </template>
 
-    <!-- W6-R7: OPEN_IP_LIBRARY — 嵌入式意图,onConfirm 已 router.push 触发右屏 embed -->
+    <!-- W6-R7: OPEN_IP_LIBRARY — 嵌入式意图, 同 UPLOAD_IP 模式 -->
     <template v-else-if="message.intent === 'OPEN_IP_LIBRARY'">
       <p class="text-ink/70 leading-relaxed">
-        右屏已打开 <strong>形象库</strong>。可按 <span class="text-gold">类别 / 风格 / 价格</span> 筛选,或按创作者名搜索。
+        <strong>形象库</strong> 已在右屏 — 可按 <span class="text-gold">类别 / 风格 / 价格 / 创作者名</span> 筛选浏览。
       </p>
       <ul v-if="pickString(params.category) || pickStringArray(params.styleTags).length > 0 || pickString(params.creatorName)" class="mt-2 space-y-0.5 text-[10px] text-ink/60">
         <li v-if="pickString(params.category)">预设类别: <span class="text-ink/80">{{ pickString(params.category) }}</span></li>
@@ -532,8 +597,18 @@ onMounted(async () => {
       </ul>
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <button
+          v-if="!embedOpened"
           type="button"
-          class="text-[11px] px-2.5 py-1 rounded-lg border border-gold/50 text-gold hover:bg-gold hover:text-ink transition"
+          class="text-[11px] px-3 py-1.5 rounded-lg bg-gold text-ink font-medium hover:bg-gold/80 transition"
+          @click="openEmbedNow"
+        >
+          📂 在右屏打开
+        </button>
+        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">✓ 已在右屏</span>
+        <button
+          v-if="embedOpened"
+          type="button"
+          class="text-[11px] px-2.5 py-1 rounded-lg border border-line text-ink/60 hover:border-gold hover:text-gold transition"
           @click="openEmbedFullscreen()"
         >
           ⛶ 全屏浏览
