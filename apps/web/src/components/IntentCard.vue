@@ -16,10 +16,11 @@
  *   - ASK_CLARIFICATION — 提示用户在 input 里直接回答
  *   - NAVIGATE (write-no-side-effect) — 直接跳转
  */
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import type { AssistantMessage } from '@/composables/useAssistant';
 import { useIntentExecutor } from '@/composables/useIntentExecutor';
+import { aiToolsApi, type VideoToolName } from '@/api/ai-tools';
 
 const props = defineProps<{ message: AssistantMessage }>();
 
@@ -50,14 +51,37 @@ function ymd(v: string): string {
   return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 }
 
+/** W6-R6: 9 新 intent 的 post-success 路由 — 成功跳转逻辑集中 */
+async function routeAfterSuccess(out: { kind: 'success'; briefId?: string; workspaceId?: string; generationRecordId?: string; toolName?: string } & Record<string, unknown>, intent: string | null | undefined) {
+  if (!intent) return;
+  if (out.briefId && intent === 'CREATE_BRIEF') {
+    await router.push(`/buyer/briefs/${out.briefId}`);
+  } else if (out.briefId && intent === 'UPDATE_BRIEF') {
+    await router.push(`/buyer/briefs/${out.briefId}`);
+  } else if (out.briefId && intent === 'PUBLISH_BRIEF') {
+    await router.push(`/buyer/briefs/${out.briefId}`);
+  } else if (out.briefId && intent === 'CLOSE_BRIEF') {
+    await router.push(`/buyer/briefs/${out.briefId}`);
+  } else if (out.workspaceId && intent === 'ACCEPT_BID') {
+    await router.push(`/buyer/workspace/${out.workspaceId}`);
+  } else if (out.workspaceId && intent === 'APPROVE_WORKSPACE') {
+    await router.push(`/buyer/workspace/${out.workspaceId}`);
+  } else if (out.workspaceId && intent === 'REQUEST_REVISION') {
+    await router.push(`/buyer/workspace/${out.workspaceId}`);
+  } else if (out.workspaceId && intent === 'SUBMIT_WORKSPACE') {
+    await router.push(`/creator/workspace/${out.workspaceId}`);
+  } else if (out.workspaceId && intent === 'RUN_VIDEO_GEN') {
+    const qs = out.toolName ? `?tool=${encodeURIComponent(out.toolName)}&record=${encodeURIComponent(out.generationRecordId ?? '')}&focus=generations` : '?focus=generations';
+    await router.push(`/creator/workspace/${out.workspaceId}${qs}`);
+  } else if (out.generationRecordId && intent === 'RUN_BLUEPRINT_GEN') {
+    await router.push(`/creator/blueprint/${out.generationRecordId}/step/1`);
+  }
+}
+
 async function onConfirm() {
   const out = await execute(props.message.id, props.message.intent, props.message.intentParams);
   if (out.kind === 'success') {
-    if (out.briefId && props.message.intent === 'CREATE_BRIEF') {
-      await router.push(`/buyer/briefs/${out.briefId}`);
-    } else if (out.workspaceId && props.message.intent === 'ACCEPT_BID') {
-      await router.push(`/buyer/workspace/${out.workspaceId}`);
-    }
+    await routeAfterSuccess(out as any, props.message.intent);
   }
 }
 
@@ -67,13 +91,34 @@ async function onConfirmCaptureErr() {
   if (out.kind === 'error') errorReason.value = out.reason;
   else errorReason.value = '';
   if (out.kind === 'success') {
-    if (out.briefId && props.message.intent === 'CREATE_BRIEF') {
-      await router.push(`/buyer/briefs/${out.briefId}`);
-    } else if (out.workspaceId && props.message.intent === 'ACCEPT_BID') {
-      await router.push(`/buyer/workspace/${out.workspaceId}`);
-    }
+    await routeAfterSuccess(out as any, props.message.intent);
   }
 }
+
+/** W6-R6: RUN_VIDEO_GEN 预飞成本显示 — IntentCard 加载时调 preflight, 给按钮 label 加价 */
+const preflightCost = ref<string | null>(null);
+const toolLabelMap: Record<VideoToolName, string> = {
+  sora: 'Sora',
+  kling: 'Kling',
+  jimeng: '即梦',
+  runway: 'Runway',
+};
+onMounted(async () => {
+  if (props.message.intent !== 'RUN_VIDEO_GEN') return;
+  if (props.message.intentStatus !== 'idle') return;
+  const wsId = pickString(props.message.intentParams?.workspaceId);
+  const tn = pickString(props.message.intentParams?.toolName) as VideoToolName | '';
+  if (!wsId || !tn) return;
+  const durationSec = Number(props.message.intentParams?.durationSec ?? 0) || undefined;
+  const imageCount = Number(props.message.intentParams?.imageCount ?? 0) || undefined;
+  try {
+    const { estimate } = await aiToolsApi.preflightVideo(wsId, tn as VideoToolName, { durationSec, imageCount });
+    const cny = (estimate.costCents ?? 0) / 100;
+    preflightCost.value = cny > 0 ? `¥${cny.toFixed(2)}` : '免费';
+  } catch {
+    preflightCost.value = null;
+  }
+});
 </script>
 
 <template>
@@ -254,6 +299,174 @@ async function onConfirmCaptureErr() {
       </div>
     </template>
 
+    <!-- W6-R6 Tier 1: UPDATE_BRIEF (改发包) -->
+    <template v-else-if="message.intent === 'UPDATE_BRIEF'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.id) || '—' }}</div>
+        <template v-if="pickString(params.title)">
+          <div class="text-ink/50">标题</div><div class="font-medium">{{ pickString(params.title) }}</div>
+        </template>
+        <template v-if="pickString(params.description)">
+          <div class="text-ink/50">描述</div><div class="whitespace-pre-wrap break-words line-clamp-2">{{ pickString(params.description) }}</div>
+        </template>
+        <template v-if="pickStringArray(params.platformSet).length > 0">
+          <div class="text-ink/50">平台</div>
+          <div class="flex flex-wrap gap-1">
+            <span v-for="p in pickStringArray(params.platformSet)" :key="p" class="px-1.5 py-0.5 rounded bg-line/40">{{ p }}</span>
+          </div>
+        </template>
+        <template v-if="params.budgetMin !== undefined || params.budgetMax !== undefined">
+          <div class="text-ink/50">预算</div>
+          <div>¥{{ pickNumber(params.budgetMin) || '?' }} – ¥{{ pickNumber(params.budgetMax) || '?' }}</div>
+        </template>
+        <template v-if="pickString(params.packageTier)">
+          <div class="text-ink/50">套餐</div><div>{{ pickString(params.packageTier) }}</div>
+        </template>
+        <template v-if="pickString(params.deadlineAt)">
+          <div class="text-ink/50">截止</div><div>{{ ymd(pickString(params.deadlineAt)) }}</div>
+        </template>
+      </div>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 发包已更新, 跳转中…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: PUBLISH_BRIEF (发布草稿) -->
+    <template v-else-if="message.intent === 'PUBLISH_BRIEF'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.id) || '—' }}</div>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/60">将 draft 转为 bidding, 公开后可被创作者投标。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 已发布, 跳转中…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: WITHDRAW_BID (创作者撤回投标) -->
+    <template v-else-if="message.intent === 'WITHDRAW_BID'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
+        <div class="text-ink/50">Bid</div><div class="font-mono text-[11px]">{{ pickString(params.bidId) || '—' }}</div>
+      </div>
+      <p class="mt-2 text-[10px] text-red-600 dark:text-red-400 font-medium">
+        ⚠ 若 bid 已被买家接受, 需先和买家沟通再走 workspace 流程。
+      </p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 投标已撤回
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: SUBMIT_WORKSPACE (创作者提交) -->
+    <template v-else-if="message.intent === 'SUBMIT_WORKSPACE'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.id) || pickString(params.workspaceId) || '—' }}</div>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/60">提交后进入买家审批环节, 可被通过 / 打回。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ Workspace 已提交, 跳转中…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: APPROVE_WORKSPACE (买家通过) -->
+    <template v-else-if="message.intent === 'APPROVE_WORKSPACE'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.id) || pickString(params.workspaceId) || '—' }}</div>
+      </div>
+      <p class="mt-2 text-[10px] text-green-700 dark:text-green-400">通过后, 工作区进入 approved, 进入交付阶段。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ Workspace 已通过, 跳转中…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: REQUEST_REVISION (买家打回) -->
+    <template v-else-if="message.intent === 'REQUEST_REVISION'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.id) || pickString(params.workspaceId) || '—' }}</div>
+        <template v-if="pickString(params.reason)">
+          <div class="text-ink/50">打回原因</div>
+          <div class="whitespace-pre-wrap break-words">{{ pickString(params.reason) }}</div>
+        </template>
+      </div>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 已打回, revisionCount+1, 跳转中…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 1: REVIEW_DELIVERABLE (买家审批交付物 — decision 字段决定 chip 颜色) -->
+    <template v-else-if="message.intent === 'REVIEW_DELIVERABLE'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Deliverable</div><div class="font-mono text-[11px]">{{ pickString(params.deliverableId) || '—' }}</div>
+        <div class="text-ink/50">决策</div>
+        <div>
+          <span
+            class="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium"
+            :class="pickString(params.decision) === 'approved' ? 'bg-green-500/15 text-green-700 dark:text-green-400' : 'bg-red-500/15 text-red-700 dark:text-red-400'"
+          >
+            {{ pickString(params.decision) === 'approved' ? '✓ 通过' : '✗ 驳回' }}
+          </span>
+        </div>
+        <template v-if="pickString(params.decision) === 'rejected' && pickString(params.rejectedReason)">
+          <div class="text-ink/50">驳回理由</div>
+          <div class="whitespace-pre-wrap break-words">{{ pickString(params.rejectedReason) }}</div>
+        </template>
+      </div>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 审批完成
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 4: RUN_VIDEO_GEN (AI 视频/图片生成) -->
+    <template v-else-if="message.intent === 'RUN_VIDEO_GEN'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.workspaceId) || '—' }}</div>
+        <div class="text-ink/50">工具</div>
+        <div>
+          <span class="inline-block text-[10px] px-2 py-0.5 rounded-full bg-gold/15 text-gold font-medium">
+            {{ toolLabelMap[pickString(params.toolName) as VideoToolName] || pickString(params.toolName) || '—' }}
+          </span>
+        </div>
+        <template v-if="preflightCost">
+          <div class="text-ink/50">预估成本</div>
+          <div class="font-medium text-gold">{{ preflightCost }}</div>
+        </template>
+        <div class="text-ink/50">Prompt</div>
+        <div class="whitespace-pre-wrap break-words line-clamp-3">{{ pickString(params.prompt) || '—' }}</div>
+        <template v-if="params.durationSec || params.resolution || params.imageCount">
+          <div class="text-ink/50">参数</div>
+          <div class="text-[10px] text-ink/60 flex flex-wrap gap-2">
+            <span v-if="params.durationSec">时长 {{ pickNumber(params.durationSec) }}s</span>
+            <span v-if="params.resolution">分辨率 {{ pickString(params.resolution) }}</span>
+            <span v-if="params.imageCount">图片 {{ pickNumber(params.imageCount) }}</span>
+          </div>
+        </template>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/60">生成会消耗 API 额度, 确认后不可取消。</p>
+      <div v-if="success && message.intentResult?.generationRecordId" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 生成完成, 跳转 AI 记录列表…
+      </div>
+    </template>
+
+    <!-- W6-R6 Tier 4: RUN_BLUEPRINT_GEN (人脸蓝图生成) -->
+    <template v-else-if="message.intent === 'RUN_BLUEPRINT_GEN'">
+      <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
+        <div class="text-ink/50">Prompt</div>
+        <div class="whitespace-pre-wrap break-words line-clamp-3">{{ pickString(params.prompt) || '—' }}</div>
+        <template v-if="pickString(params.title)">
+          <div class="text-ink/50">标题</div><div>{{ pickString(params.title) }}</div>
+        </template>
+        <template v-if="pickStringArray(params.tags).length > 0">
+          <div class="text-ink/50">标签</div>
+          <div class="flex flex-wrap gap-1">
+            <span v-for="t in pickStringArray(params.tags)" :key="t" class="px-1.5 py-0.5 rounded bg-line/40">{{ t }}</span>
+          </div>
+        </template>
+      </div>
+      <p class="mt-2 text-[10px] text-ink/60">将创建蓝图草稿, 进入下一步骤编辑。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+        ✓ 蓝图已创建, 跳转步骤 1…
+      </div>
+    </template>
+
     <!-- 其它写 (creator-only 或 R3 处理) -->
     <template v-else>
       <p class="text-ink/60">此操作由 R3 (Creator) 接管。R2 buyer chat 不执行。</p>
@@ -274,7 +487,11 @@ async function onConfirmCaptureErr() {
         :disabled="executing"
         class="text-[11px] px-3 py-1.5 rounded-lg bg-ink text-cream hover:bg-gold transition disabled:opacity-50"
       >
-        {{ executing ? '执行中…' : '确认执行' }}
+        {{ executing
+          ? '执行中…'
+          : message.intent === 'RUN_VIDEO_GEN' && preflightCost
+            ? `确认执行 ${preflightCost}`
+            : '确认执行' }}
       </button>
       <button
         @click="execute(message.id, null, undefined)"

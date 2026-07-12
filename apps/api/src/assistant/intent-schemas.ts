@@ -43,7 +43,18 @@ export type IntentType =
   | 'UPLOAD_IP'
   | 'KYC_SUBMIT'
   | 'NAVIGATE'
-  | 'ASK_CLARIFICATION';
+  | 'ASK_CLARIFICATION'
+  // W6-R6 Tier 1 (6 写意图)
+  | 'UPDATE_BRIEF'
+  | 'PUBLISH_BRIEF'
+  | 'WITHDRAW_BID'
+  | 'SUBMIT_WORKSPACE'
+  | 'APPROVE_WORKSPACE'
+  | 'REQUEST_REVISION'
+  | 'REVIEW_DELIVERABLE'
+  // W6-R6 Tier 4 (2 AI 工具调用)
+  | 'RUN_VIDEO_GEN'
+  | 'RUN_BLUEPRINT_GEN';
 
 export const INTENT_TYPES = [
   'LIST_BRIEFS',
@@ -60,6 +71,15 @@ export const INTENT_TYPES = [
   'KYC_SUBMIT',
   'NAVIGATE',
   'ASK_CLARIFICATION',
+  'UPDATE_BRIEF',
+  'PUBLISH_BRIEF',
+  'WITHDRAW_BID',
+  'SUBMIT_WORKSPACE',
+  'APPROVE_WORKSPACE',
+  'REQUEST_REVISION',
+  'REVIEW_DELIVERABLE',
+  'RUN_VIDEO_GEN',
+  'RUN_BLUEPRINT_GEN',
 ] as const;
 
 /** 写操作意图必须 UI 卡片确认才能落库 */
@@ -78,6 +98,15 @@ export const REQUIRES_CONFIRMATION: Record<IntentType, boolean> = {
   KYC_SUBMIT: true,
   NAVIGATE: false,
   ASK_CLARIFICATION: false,
+  UPDATE_BRIEF: true,
+  PUBLISH_BRIEF: true,
+  WITHDRAW_BID: true,
+  SUBMIT_WORKSPACE: true,
+  APPROVE_WORKSPACE: true,
+  REQUEST_REVISION: true,
+  REVIEW_DELIVERABLE: true,
+  RUN_VIDEO_GEN: true,
+  RUN_BLUEPRINT_GEN: true,
 };
 
 /** 中文标签 — 给前端 chip 显示 + 审计可读 */
@@ -96,6 +125,15 @@ export const INTENT_LABELS: Record<IntentType, string> = {
   KYC_SUBMIT: '提交实名',
   NAVIGATE: '跳转页面',
   ASK_CLARIFICATION: '追问澄清',
+  UPDATE_BRIEF: '更新发包',
+  PUBLISH_BRIEF: '发布发包',
+  WITHDRAW_BID: '撤回投标',
+  SUBMIT_WORKSPACE: '提交工作区',
+  APPROVE_WORKSPACE: '通过工作区',
+  REQUEST_REVISION: '要求修改',
+  REVIEW_DELIVERABLE: '审批交付物',
+  RUN_VIDEO_GEN: '生成视频/图片',
+  RUN_BLUEPRINT_GEN: '生成蓝图',
 };
 
 // =============================================================
@@ -257,6 +295,114 @@ export class AskClarificationParams {
   question!: string;
 }
 
+// =============================================================
+// W6-R6 Tier 1 + Tier 4 — 9 个新 intent 的 Param DTO (8 个类)
+// =============================================================
+
+/** UPDATE_BRIEF — 买家改发包。id 必填, 其余全 optional。
+ * parseIntent 后额外校验: 至少有一个可更新字段 (见 hasAnyUpdateField), 全空 → intent=null。
+ * 与 brief.controller 的 UpdateBriefDto 字段对齐。 */
+export class UpdateBriefParams {
+  @IsString() @MaxLength(64)
+  id!: string;
+
+  @IsOptional() @IsString() @MinLength(5) @MaxLength(100)
+  title?: string;
+
+  @IsOptional() @IsString() @MaxLength(5000)
+  description?: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  platformSet?: string[];
+
+  @IsOptional() @IsNumber() @Min(0) @Max(1_000_000)
+  budgetMin?: number;
+
+  @IsOptional() @IsNumber() @Min(0) @Max(1_000_000)
+  budgetMax?: number;
+
+  @IsOptional() @IsString() @MaxLength(20)
+  packageTier?: string;
+
+  @IsOptional() @IsString() @MaxLength(30)
+  deadlineAt?: string;
+}
+
+/** PUBLISH_BRIEF — 买家把 draft 发布到 bidding。只需 brief id。 */
+export class BriefIdOnlyParams {
+  @IsString() @MaxLength(64)
+  id!: string;
+}
+
+/** WITHDRAW_BID — 创作者撤回自己的投标。 */
+export class WithdrawBidParams {
+  @IsString() @MaxLength(64)
+  briefId!: string;
+
+  @IsString() @MaxLength(64)
+  bidId!: string;
+}
+
+/** SUBMIT_WORKSPACE (creator) / APPROVE_WORKSPACE (buyer) 共用 — 只需 workspace id。 */
+export class WorkspaceIdParams {
+  @IsString() @MaxLength(64)
+  id!: string;
+}
+
+/** REQUEST_REVISION — 买家打回工作区。reason 仅用于聊天卡片展示 (后端 endpoint 不收 body)。 */
+export class RequestRevisionParams {
+  @IsString() @MaxLength(64)
+  id!: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  reason?: string;
+}
+
+/** REVIEW_DELIVERABLE — 买家审批交付物, decision 二选一。rejected 时可带原因。 */
+export class ReviewDeliverableParams {
+  @IsString() @MaxLength(64)
+  deliverableId!: string;
+
+  @IsIn(['approved', 'rejected'])
+  decision!: 'approved' | 'rejected';
+
+  @IsOptional() @IsString() @MaxLength(500)
+  rejectedReason?: string;
+}
+
+/** RUN_VIDEO_GEN — 聊天触发 AI 视频/图片生成 (sora/kling/jimeng/runway 四选一, 同 endpoint)。 */
+export class RunVideoGenParams {
+  @IsString() @MaxLength(64)
+  workspaceId!: string;
+
+  @IsIn(['sora', 'kling', 'jimeng', 'runway'])
+  toolName!: 'sora' | 'kling' | 'jimeng' | 'runway';
+
+  @IsString() @MinLength(5) @MaxLength(5000)
+  prompt!: string;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(600)
+  durationSec?: number;
+
+  @IsOptional() @IsString() @MaxLength(30)
+  resolution?: string;
+
+  @IsOptional() @IsInt() @Min(1) @Max(20)
+  imageCount?: number;
+}
+
+/** RUN_BLUEPRINT_GEN — 聊天触发 Face Blueprint Wizard 创建。 */
+export class RunBlueprintGenParams {
+  @IsString() @MinLength(5) @MaxLength(2000)
+  prompt!: string;
+
+  @IsOptional() @IsString() @MaxLength(100)
+  title?: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  tags?: string[];
+}
+
 const SCHEMA_BY_INTENT: Record<IntentType, any> = {
   LIST_BRIEFS: ListBriefsParams,
   CREATE_BRIEF: CreateBriefParams,
@@ -272,7 +418,31 @@ const SCHEMA_BY_INTENT: Record<IntentType, any> = {
   KYC_SUBMIT: KycSubmitParams,
   NAVIGATE: NavigateParams,
   ASK_CLARIFICATION: AskClarificationParams,
+  UPDATE_BRIEF: UpdateBriefParams,
+  PUBLISH_BRIEF: BriefIdOnlyParams,
+  WITHDRAW_BID: WithdrawBidParams,
+  SUBMIT_WORKSPACE: WorkspaceIdParams,
+  APPROVE_WORKSPACE: WorkspaceIdParams,
+  REQUEST_REVISION: RequestRevisionParams,
+  REVIEW_DELIVERABLE: ReviewDeliverableParams,
+  RUN_VIDEO_GEN: RunVideoGenParams,
+  RUN_BLUEPRINT_GEN: RunBlueprintGenParams,
 };
+
+/** UPDATE_BRIEF 至少要给一个可更新字段, 否则 PATCH 空 body 没意义。 */
+const UPDATE_BRIEF_FIELDS = [
+  'title',
+  'description',
+  'platformSet',
+  'budgetMin',
+  'budgetMax',
+  'packageTier',
+  'deadlineAt',
+] as const;
+
+function hasAnyUpdateField(params: Record<string, unknown>): boolean {
+  return UPDATE_BRIEF_FIELDS.some((f) => params[f] !== undefined && params[f] !== null);
+}
 
 // =============================================================
 // 解析器
@@ -311,6 +481,9 @@ export function parseIntent(
     forbidNonWhitelisted: false,
   });
   if (errors.length > 0) return null;
+
+  // UPDATE_BRIEF 特判: 只给了 id 没给任何可改字段 → PATCH 空 body 无意义, 逼 LLM 追问
+  if (intent === 'UPDATE_BRIEF' && !hasAnyUpdateField(paramsObj)) return null;
 
   // 序列化 (拿真实赋值的字段, 不是 raw)
   const serialized: Record<string, unknown> = {};
@@ -391,6 +564,17 @@ const WRITE_VERBS = [
   '投标', '发包', '接单', '接受', '上传', '写评价', '写好评', '写个评价',
   '提交 KYC', '提交KYC', '提交实名', '付款', '退款', '签合同',
   '撤回', '撤回发包', '关闭发包', '关闭任务', '撤回任务', '取消发包',
+  // W6-R6 Tier 1
+  '更新发包', '改一下发包', '修改发包', '改发包', '发布发包', '发布这个',
+  '撤回投标', '撤回 bid', '撤回我的投标', '撤回报价',
+  '提交工作区', '提交工作台', '把工作区交', '交上去',
+  '通过工作区', '批准工作区', '通过工作台',
+  '打回', '要求修改', '让他改', '返修',
+  '审批交付物', '通过交付物', '驳回交付物', '通过这个视频', '驳回',
+  // W6-R6 Tier 4 AI 工具
+  '生成视频', '生成图片', '生成一段', '建个蓝图', '起个蓝图', '做个蓝图',
+  '跑 sora', '跑sora', '跑 kling', '跑kling', '跑 runway', '跑runway',
+  '跑 jimeng', '跑jimeng', '用 sora', '用sora', '用可灵', '用即梦',
 ];
 const INTENT_PREFIX = ['我要', '帮我', '帮我把', '请帮我', '能否帮我', '可以帮我', '麻烦帮我'];
 

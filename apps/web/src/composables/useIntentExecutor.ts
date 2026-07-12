@@ -22,8 +22,12 @@
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { buyerBriefsApi } from '@/api/briefs';
-import { creatorDeliverableApi } from '@/api/deliverables';
+import { creatorDeliverableApi, buyerDeliverableApi } from '@/api/deliverables';
 import { reviewApi } from '@/api/reviews';
+import { workspacesApi } from '@/api/workspaces';
+import { aiToolsApi, type VideoToolName } from '@/api/ai-tools';
+import { blueprintApi } from '@/api/blueprint';
+import { useBlueprintFeatureFlag } from '@/composables/useBlueprintFeatureFlag';
 import { useAssistant } from '@/composables/useAssistant';
 import type { IntentType } from '@/api/assistant';
 
@@ -35,10 +39,15 @@ export type ExecuteOutcome =
       bidId?: string;
       deliverableId?: string;
       reviewId?: string;
+      generationRecordId?: string;
+      toolName?: string;
     }
   | { kind: 'cancelled' }
   | { kind: 'no-op' }
   | { kind: 'error'; reason: string };
+
+/** RUN_VIDEO_GEN 成本上限 (¥), 超过 executor 拒绝 — 放 env 便于调 */
+const MAX_AI_TOOL_COST_CNY = Number(import.meta.env.VITE_MAX_AI_TOOL_COST_CNY ?? '5');
 
 export function useIntentExecutor() {
   const router = useRouter();
@@ -188,6 +197,176 @@ export function useIntentExecutor() {
           const r = await reviewApi.create({ briefId, role, rating, content, tags });
           setIntentStatus(messageId, 'success', { briefId });
           return { kind: 'success', briefId, reviewId: r.id };
+        }
+
+        // ============ W6-R6 Tier 1: 6 写意图 ============
+        case 'UPDATE_BRIEF': {
+          const id = pickString(params?.id);
+          if (!id) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'briefId 缺失 — 需要告诉我改哪个发包' };
+          }
+          // 只把 params 里实际出现的字段塞进 body, 避免空 PATCH / 覆盖成 undefined
+          const body: Record<string, unknown> = {};
+          const title = pickString(params?.title);
+          const description = pickString(params?.description);
+          const platformSet = pickStringArray(params?.platformSet);
+          const budgetMin = pickNumber(params?.budgetMin);
+          const budgetMax = pickNumber(params?.budgetMax);
+          const packageTier = pickString(params?.packageTier);
+          const deadlineAt = pickString(params?.deadlineAt);
+          if (title !== undefined) body.title = title;
+          if (description !== undefined) body.description = description;
+          if (params?.platformSet !== undefined && platformSet.length > 0) body.platformSet = platformSet;
+          if (budgetMin !== undefined) body.budgetMin = budgetMin;
+          if (budgetMax !== undefined) body.budgetMax = budgetMax;
+          if (packageTier !== undefined) body.packageTier = packageTier;
+          if (deadlineAt !== undefined) body.deadlineAt = deadlineAt;
+
+          if (Object.keys(body).length === 0) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: '没有可更新的字段 — 告诉我要改标题/预算/平台里的哪一项' };
+          }
+          await buyerBriefsApi.update(id, body);
+          setIntentStatus(messageId, 'success', { briefId: id });
+          return { kind: 'success', briefId: id };
+        }
+
+        case 'PUBLISH_BRIEF': {
+          const id = pickString(params?.id);
+          if (!id) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'briefId 缺失 — 需要告诉我发布哪个发包' };
+          }
+          await buyerBriefsApi.publish(id);
+          setIntentStatus(messageId, 'success', { briefId: id });
+          return { kind: 'success', briefId: id };
+        }
+
+        case 'WITHDRAW_BID': {
+          const briefId = pickString(params?.briefId);
+          const bidId = pickString(params?.bidId);
+          if (!briefId || !bidId) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'briefId 或 bidId 缺失 — 撤回投标需要这两个 ID' };
+          }
+          const bid = await buyerBriefsApi.withdrawBid(briefId, bidId);
+          setIntentStatus(messageId, 'success', { briefId });
+          return { kind: 'success', briefId, bidId: bid.id };
+        }
+
+        case 'SUBMIT_WORKSPACE': {
+          const id = pickString(params?.id) ?? pickString(params?.workspaceId);
+          if (!id) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'workspaceId 缺失' };
+          }
+          await workspacesApi.submit(id);
+          setIntentStatus(messageId, 'success', { workspaceId: id });
+          return { kind: 'success', workspaceId: id };
+        }
+
+        case 'APPROVE_WORKSPACE': {
+          const id = pickString(params?.id) ?? pickString(params?.workspaceId);
+          if (!id) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'workspaceId 缺失' };
+          }
+          await workspacesApi.approve(id);
+          setIntentStatus(messageId, 'success', { workspaceId: id });
+          return { kind: 'success', workspaceId: id };
+        }
+
+        case 'REQUEST_REVISION': {
+          const id = pickString(params?.id) ?? pickString(params?.workspaceId);
+          if (!id) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'workspaceId 缺失' };
+          }
+          await workspacesApi.requestRevision(id, pickString(params?.reason));
+          setIntentStatus(messageId, 'success', { workspaceId: id });
+          return { kind: 'success', workspaceId: id };
+        }
+
+        case 'REVIEW_DELIVERABLE': {
+          const deliverableId = pickString(params?.deliverableId);
+          const decision = pickString(params?.decision);
+          if (!deliverableId || (decision !== 'approved' && decision !== 'rejected')) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'params 缺失 (deliverableId + decision=approved|rejected)' };
+          }
+          const rejectedReason = pickString(params?.rejectedReason);
+          const d = await buyerDeliverableApi.review(deliverableId, decision, rejectedReason);
+          setIntentStatus(messageId, 'success', { deliverableId, workspaceId: d.workspaceId });
+          return { kind: 'success', deliverableId, workspaceId: d.workspaceId };
+        }
+
+        // ============ W6-R6 Tier 4: 2 AI 工具调用 ============
+        case 'RUN_VIDEO_GEN': {
+          const workspaceId = pickString(params?.workspaceId);
+          const toolName = pickString(params?.toolName) as VideoToolName | undefined;
+          const prompt = pickString(params?.prompt);
+          const durationSec = pickNumber(params?.durationSec);
+          const resolution = pickString(params?.resolution);
+          const imageCount = pickNumber(params?.imageCount);
+          if (!workspaceId || !toolName || !prompt) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'params 缺失 (workspaceId/toolName/prompt)' };
+          }
+
+          // 1) 先 preflight 估成本, 超阈值拒绝 (防成本失控)
+          try {
+            const { estimate } = await aiToolsApi.preflightVideo(workspaceId, toolName, {
+              durationSec,
+              imageCount,
+            });
+            const cny = (estimate?.costCents ?? 0) / 100;
+            if (cny > MAX_AI_TOOL_COST_CNY) {
+              setIntentStatus(messageId, 'error');
+              return {
+                kind: 'error',
+                reason: `预估成本 ¥${cny.toFixed(2)} 超过单次上限 ¥${MAX_AI_TOOL_COST_CNY.toFixed(2)}, 请缩短时长或减少数量`,
+              };
+            }
+          } catch {
+            /* preflight 失败不阻断 — 后端 generate 会再校验 */
+          }
+
+          // 2) 生成
+          const { record } = await aiToolsApi.generateVideo(workspaceId, {
+            toolName,
+            prompt,
+            durationSec,
+            resolution,
+            imageCount,
+          });
+          setIntentStatus(messageId, 'success', {
+            workspaceId,
+            generationRecordId: record.id,
+          });
+          return { kind: 'success', workspaceId, generationRecordId: record.id, toolName };
+        }
+
+        case 'RUN_BLUEPRINT_GEN': {
+          const prompt = pickString(params?.prompt);
+          if (!prompt) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'prompt 缺失 — 告诉我要生成什么样的脸/风格' };
+          }
+          const { enabled } = useBlueprintFeatureFlag();
+          if (!enabled.value) {
+            setIntentStatus(messageId, 'error');
+            return { kind: 'error', reason: 'Blueprint Wizard 当前未启用' };
+          }
+          const title = pickString(params?.title) ?? prompt.slice(0, 60);
+          const tags = pickStringArray(params?.tags);
+          const bp = await blueprintApi.create({
+            title,
+            description: prompt,
+            tags: tags.length > 0 ? tags.join(',') : undefined,
+          });
+          setIntentStatus(messageId, 'success', { generationRecordId: bp.id });
+          return { kind: 'success', generationRecordId: bp.id };
         }
 
         // ============ 只读 + 导航 (R2) ============

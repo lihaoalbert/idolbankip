@@ -34,8 +34,14 @@ export interface AssistantMessage {
   requiresConfirmation?: boolean;
   /** W6-R2: 卡片执行结果 ('idle' | 'executing' | 'success' | 'error' | 'cancelled') */
   intentStatus?: 'idle' | 'executing' | 'success' | 'error' | 'cancelled';
-  /** W6-R2: 执行后给用户的提示 (e.g. workspace 创建成功后的 workspaceId) */
-  intentResult?: { workspaceId?: string; briefId?: string } | null;
+  /** W6-R2: 执行后给用户的提示 (e.g. workspace 创建成功后的 workspaceId)
+   * W6-R6: 加 deliverableId (审批后跳转) / generationRecordId (AI 生成后切 ResultsPane) */
+  intentResult?: {
+    workspaceId?: string;
+    briefId?: string;
+    deliverableId?: string;
+    generationRecordId?: string;
+  } | null;
 }
 
 /** W6-R1: 最后一次 chat 返回的 intent + params + confirm — 共享状态, FloatingChat 显示 chip */
@@ -193,7 +199,12 @@ export function useAssistant() {
   function setIntentStatus(
     messageId: string,
     status: 'idle' | 'executing' | 'success' | 'error' | 'cancelled',
-    result?: { workspaceId?: string; briefId?: string } | null,
+    result?: {
+      workspaceId?: string;
+      briefId?: string;
+      deliverableId?: string;
+      generationRecordId?: string;
+    } | null,
   ) {
     const m = messages.value.find((x) => x.id === messageId);
     if (!m) return;

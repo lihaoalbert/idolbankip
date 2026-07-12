@@ -52,3 +52,20 @@ export const creatorDeliverableApi = {
     return r.data;
   },
 };
+
+export const buyerDeliverableApi = {
+  /** 买家审批交付物 (POST /buyer/deliverables/:id/review) — W6-R6 REVIEW_DELIVERABLE
+   * decision=approved 通过 / rejected 驳回 (驳回可带 rejectedReason)
+   * 服务端要求 deliverable.status=pending_review, 否则 409 */
+  async review(
+    deliverableId: string,
+    decision: 'approved' | 'rejected',
+    rejectedReason?: string,
+  ): Promise<Deliverable> {
+    const r = await apiClient.post<{ deliverable: Deliverable }>(
+      `/buyer/deliverables/${deliverableId}/review`,
+      { decision, rejectedReason },
+    );
+    return r.data.deliverable;
+  },
+};

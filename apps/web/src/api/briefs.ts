@@ -121,6 +121,28 @@ export const buyerBriefsApi = {
     return data?.brief ?? data;
   },
 
+  /**
+   * 更新发包 (PATCH /buyer/briefs/:id) — W6-R6 UPDATE_BRIEF
+   * 只在 draft/bidding 状态可改; body 只含实际要改的字段 (避免空 PATCH)
+   */
+  async update(id: string, body: Partial<CreateBriefPayload>): Promise<BriefDetail> {
+    const r = await apiClient.patch<{ brief?: BriefDetail } | BriefDetail>(
+      `/buyer/briefs/${id}`,
+      body,
+    );
+    const data: any = r.data;
+    return data?.brief ?? data;
+  },
+
+  /** 发布发包 (POST /buyer/briefs/:id/publish) — W6-R6 PUBLISH_BRIEF, draft → bidding */
+  async publish(id: string): Promise<{ id: string; status: string }> {
+    const r = await apiClient.post<{ brief?: { id: string; status: string }; id?: string; status?: string }>(
+      `/buyer/briefs/${id}/publish`,
+    );
+    const data: any = r.data;
+    return data?.brief ?? data;
+  },
+
   // ============ Creator 侧 ============
 
   /** 创作者浏览可抢单的 brief (GET /creator/briefs) */
@@ -147,6 +169,16 @@ export const buyerBriefsApi = {
     const r = await apiClient.post<{ bid?: BidSummary } | BidSummary>(
       `/creator/briefs/${briefId}/bids`,
       body,
+    );
+    const data: any = r.data;
+    return data?.bid ?? data;
+  },
+
+  /** 创作者撤回投标 (POST /creator/briefs/:briefId/bids/:bidId/withdraw) — W6-R6 WITHDRAW_BID
+   * 只有 pending 状态可撤; accepted 后服务端返 409 */
+  async withdrawBid(briefId: string, bidId: string): Promise<BidSummary> {
+    const r = await apiClient.post<{ bid?: BidSummary } | BidSummary>(
+      `/creator/briefs/${briefId}/bids/${bidId}/withdraw`,
     );
     const data: any = r.data;
     return data?.bid ?? data;

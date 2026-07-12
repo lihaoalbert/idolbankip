@@ -46,7 +46,18 @@ export type IntentType =
   | 'UPLOAD_IP'
   | 'KYC_SUBMIT'
   | 'NAVIGATE'
-  | 'ASK_CLARIFICATION';
+  | 'ASK_CLARIFICATION'
+  // W6-R6 Tier 1 (6 写意图) + Tier 4 (2 AI 工具)
+  // ⚠ must stay in sync with backend apps/api/src/assistant/intent-schemas.ts IntentType
+  | 'UPDATE_BRIEF'
+  | 'PUBLISH_BRIEF'
+  | 'WITHDRAW_BID'
+  | 'SUBMIT_WORKSPACE'
+  | 'APPROVE_WORKSPACE'
+  | 'REQUEST_REVISION'
+  | 'REVIEW_DELIVERABLE'
+  | 'RUN_VIDEO_GEN'
+  | 'RUN_BLUEPRINT_GEN';
 
 export interface ChatResponse {
   reply: string;
