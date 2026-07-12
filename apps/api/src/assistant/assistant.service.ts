@@ -506,7 +506,17 @@ export class AssistantService {
       if (suggestedActions.length >= 3) break;
     }
 
-    const intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+    let intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+
+    // W6-R7 fallback (multimodal 路径): 仅在文本非空时启用, 否则纯附件会无端命中
+    if (!intentParsed && text.trim().length > 0) {
+      const msg = text.trim();
+      if (/形象库|IP\s*库|看\s*IP|搜\s*IP|筛选\s*IP|浏览.*IP|IP.*浏览|打开.*库|看.*库/.test(msg)) {
+        intentParsed = parseIntent('OPEN_IP_LIBRARY', {});
+      } else if (/上传.*新.*IP|新建.*IP|加个.*IP|录.*新.*IP|录个.*IP/.test(msg)) {
+        intentParsed = parseIntent('UPLOAD_IP', {});
+      }
+    }
 
     await this.writeAudit({
       userId,
