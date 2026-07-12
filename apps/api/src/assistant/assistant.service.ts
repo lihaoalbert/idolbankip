@@ -243,7 +243,19 @@ export class AssistantService {
     }
 
     // intent 解析 + 校验
-    const intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+    let intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+
+    // W6-R7 fallback: LLM 经常对 "打开形象库" 类纯查询只返 reply+actions 不挂 intent,
+    //   强制按用户消息里的关键词兜底,让右屏 embed 能触发。OPEN_IP_LIBRARY DTO 全空,
+    //   schema 一定过 — 不会引入误命中。
+    if (!intentParsed) {
+      const msg = userMessageText.trim();
+      if (/形象库|IP\s*库|看\s*IP|搜\s*IP|筛选\s*IP|浏览.*IP|IP.*浏览|打开.*库|看.*库/.test(msg)) {
+        intentParsed = parseIntent('OPEN_IP_LIBRARY', {});
+      } else if (/上传.*新.*IP|新建.*IP|加个.*IP|录.*新.*IP|录个.*IP/.test(msg)) {
+        intentParsed = parseIntent('UPLOAD_IP', {});
+      }
+    }
 
     await this.writeAudit({
       userId,

@@ -271,17 +271,18 @@ export class CreateReviewParams {
 }
 
 export class UploadIpParams {
-  @IsString() @MaxLength(100)
-  displayName!: string;
+  // W6-R7: 全部字段 optional — 用户说"上传新 IP"时不必硬要齐 3 个必填,
+  //   IntentCard 触发右屏 ?embed=upload-ip 后由 IpWizard 表单自己 collect,
+  //   这里 LLM 只抽它能从用户话里直接拿到的字段(名称/性别/风格)。
+  @IsOptional() @IsString() @MaxLength(100)
+  displayName?: string;
 
-  @IsString() @MaxLength(50)
-  category!: string;
+  @IsOptional() @IsString() @MaxLength(50)
+  category?: string;
 
-  @IsString() @MaxLength(2000)
-  description!: string;
+  @IsOptional() @IsString() @MaxLength(2000)
+  description?: string;
 
-  // W6-R7: 扩参 — 用户可能口头提一些细节, 后端落库时只收已经填好的字段,
-  // 缺失的字段由 /creator/ips/new 表单补完。LLM 没必要抽齐所有字段,容易误填。
   @IsOptional() @IsString() @MaxLength(200)
   tagline?: string;
 
@@ -509,7 +510,13 @@ export function parseIntent(
     whitelist: false,
     forbidNonWhitelisted: false,
   });
-  if (errors.length > 0) return null;
+  // W6-R7 fix: class-validator 在空 DTO 类 (OpenIpLibraryParams {} / 类似未来新增空 schema)
+  //   上永远返 1 个 'unknownValue' 错 (没字段可校验), 误杀只读 intent。空类直接放行 —
+  //   校验装饰器为 0 时 validation 本就无意义
+  const realErrors = errors.filter(
+    (e) => !(e.constraints && Object.keys(e.constraints).length === 1 && e.constraints.unknownValue),
+  );
+  if (realErrors.length > 0) return null;
 
   // UPDATE_BRIEF 特判: 只给了 id 没给任何可改字段 → PATCH 空 body 无意义, 逼 LLM 追问
   if (intent === 'UPDATE_BRIEF' && !hasAnyUpdateField(paramsObj)) return null;
