@@ -1081,7 +1081,7 @@ const stepMeta = [
         <label
           v-if="!ip?.faceCloseupFileId"
           :class="[
-            'inline-flex items-center gap-1.5 px-4 py-2 border rounded-full text-xs transition cursor-pointer whitespace-nowrap',
+            'inline-flex items-center gap-1.5 px-4 py-2 border rounded-r8-sm text-xs transition cursor-pointer whitespace-nowrap',
             quickFaceUploading ? 'bg-line text-ink/40 border-line cursor-wait' : 'bg-ink text-cream border-ink hover:bg-gold hover:border-gold',
           ]"
           :title="quickFaceUploading ? '上传中' : '上传面部特写, AI 自动补全 9 字段'"
@@ -1106,7 +1106,7 @@ const stepMeta = [
           <label
             v-if="!ip.thumbnailKey"
             :class="[
-              'w-20 h-20 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
+              'w-20 h-20 rounded-r8-md border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
               quickFaceUploading
                 ? 'border-ink/30 bg-line text-ink/40 cursor-wait'
                 : 'border-gold/40 bg-gold/10 text-gold hover:bg-gold/15 hover:border-gold/50',
@@ -1131,7 +1131,7 @@ const stepMeta = [
           <div v-else class="relative" :title="ip.faceCloseupFileId ? '已设置版权图 — 点击放大' : '未设置版权图'">
             <button
               type="button"
-              class="block w-20 h-20 rounded-2xl overflow-hidden border-2 border-gold hover:border-ink transition relative group"
+              class="block w-20 h-20 rounded-r8-md overflow-hidden border-2 border-gold hover:border-ink transition relative group"
               :title="ip.faceCloseupFileId ? '点击放大' : ''"
               @click="openLightbox(faceCloseupFiles.find((f: any) => f.id === ip.faceCloseupFileId) || fileByType['FACE_CLOSEUP'])"
             >
@@ -1144,7 +1144,7 @@ const stepMeta = [
               <span class="absolute inset-0 bg-ink/0 group-hover:bg-ink/20 transition flex items-center justify-center text-cream opacity-0 group-hover:opacity-100">🔍</span>
             </button>
             <span
-              class="absolute -top-1.5 -right-1.5 w-6 h-6 bg-gold text-ink rounded-full text-xs flex items-center justify-center font-bold shadow"
+              class="absolute -top-1.5 -right-1.5 w-6 h-6 bg-gold text-ink rounded-r8-sm text-xs flex items-center justify-center font-bold shadow"
               title="当前版权图"
             >⭐</span>
           </div>
@@ -1153,7 +1153,7 @@ const stepMeta = [
             <button
               type="button"
               :disabled="aiLoading[quickFaceFile.id]"
-              class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+              class="shrink-0 px-2.5 py-1 rounded-r8-sm text-[10px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
               title="AI 识别 → 自动填充 9 字段"
               @click="aiRecognize(quickFaceFile.id)"
             >{{ aiLoading[quickFaceFile.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
@@ -1163,7 +1163,7 @@ const stepMeta = [
       </div>
     </div>
     <div v-if="ip" class="flex items-center gap-3 mb-6 flex-wrap">
-      <span class="text-xs px-2 py-0.5 bg-cream border border-line rounded-full">状态: {{ statusLabel(ip.status) }}</span>
+      <span class="text-xs px-2 py-0.5 bg-cream border border-line rounded-r8-sm">状态: {{ statusLabel(ip.status) }}</span>
       <span class="text-xs text-ink/60">资产完整度 {{ completion }}%</span>
       <span v-if="ip.tagline" class="text-xs text-ink/50">· {{ ip.tagline }}</span>
     </div>
@@ -1191,7 +1191,7 @@ const stepMeta = [
     </div>
 
     <!-- 步骤进度条 (sticky) · 档案版次切换 -->
-    <div class="sticky top-16 z-20 bg-cream/90 backdrop-blur -mx-6 px-6 py-4 mb-8 border-b hairline-b border-line">
+    <div class="sticky top-16 z-20 bg-cream/90 dark:bg-ink/95 -mx-6 px-6 py-4 mb-8 border-b hairline-b border-line dark:border-cream/15">
       <div class="flex items-center gap-2">
         <template v-for="(s, idx) in stepMeta" :key="s.num">
           <button
@@ -1233,7 +1233,7 @@ const stepMeta = [
       </div>
       <!-- #30.6.11 面部特写快速通道已挪到顶部右侧, 此处不再展示上传卡 -->
       <!-- #30 任务接单模式 banner — 预填 spec + 提示"版权归平台" -->
-      <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-xl space-y-2">
+      <div v-if="taskContext" class="p-4 bg-gold/10 border border-gold/30 rounded-r8-md space-y-2">
         <div class="flex items-center gap-2 text-sm font-medium text-ink">
           <span>📋 任务接单模式</span>
           <span class="text-xs text-ink/50">· {{ taskContext.title }}</span>
@@ -1252,12 +1252,12 @@ const stepMeta = [
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-1">IP 名称 <span class="text-danger">*</span></label>
-        <input v-model="infoForm.displayName" required class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" placeholder="如:林知夏" />
+        <input v-model="infoForm.displayName" required class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream focus:outline-none focus:border-gold" placeholder="如:林知夏" />
         <FieldHint field="displayName" />
       </div>
       <div>
         <label class="text-xs text-ink/60 block mb-1">一句话简介</label>
-        <input v-model="infoForm.tagline" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold" placeholder="如:都市冷感御姐,平面/短剧双栖" />
+        <input v-model="infoForm.tagline" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream focus:outline-none focus:border-gold" placeholder="如:都市冷感御姐,平面/短剧双栖" />
         <FieldHint field="tagline" />
       </div>
       <div>
@@ -1265,21 +1265,21 @@ const stepMeta = [
           人物小传 (Markdown) <span class="text-danger">*</span>
           <span class="text-ink/40 text-[10px] ml-2">保存后会自动生成 .txt 资产, 步骤 ② 可重新生成或手动覆盖</span>
         </label>
-        <textarea v-model="infoForm.description" rows="6" class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold font-mono text-sm" placeholder="姓名 / 年龄 / 性格 / 背景故事..."></textarea>
+        <textarea v-model="infoForm.description" rows="6" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream focus:outline-none focus:border-gold font-mono text-sm" placeholder="姓名 / 年龄 / 性格 / 背景故事..."></textarea>
         <FieldHint field="description" />
       </div>
 
       <div class="grid grid-cols-3 gap-4">
         <div>
           <label class="text-xs text-ink/60 block mb-1">性别 <span class="text-danger">*</span></label>
-          <select v-model="infoForm.gender" class="w-full px-3 py-2 border border-line rounded-lg bg-cream">
+          <select v-model="infoForm.gender" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream">
             <option v-for="o in genderOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
           <FieldHint field="gender" />
         </div>
         <div>
           <label class="text-xs text-ink/60 block mb-1">视觉年龄 <span class="text-danger">*</span></label>
-          <select v-model="infoForm.ageBucket" class="w-full px-3 py-2 border border-line rounded-lg bg-cream">
+          <select v-model="infoForm.ageBucket" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream">
             <option v-for="o in ageBucketOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
           <FieldHint field="ageBucket" />
@@ -1289,7 +1289,7 @@ const stepMeta = [
             种族 <span class="text-danger">*</span>
             <span class="text-ink/40 text-[10px] ml-1">(#32 决定丰富度评分)</span>
           </label>
-          <select v-model="infoForm.ethnicity" class="w-full px-3 py-2 border border-line rounded-lg bg-cream">
+          <select v-model="infoForm.ethnicity" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream">
             <option value="">— 请选择 —</option>
             <option v-for="o in ethnicityOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -1312,7 +1312,7 @@ const stepMeta = [
               v-for="v in cat.values" :key="v" type="button"
               @click="toggleFaceTag(cat.value, v)"
               :class="hasFaceTag(cat.value, v) ? 'bg-ink text-cream' : 'bg-cream text-ink/60 border border-line'"
-              class="px-3 py-1 text-xs rounded-full"
+              class="px-3 py-1 text-xs rounded-r8-sm"
             >{{ faceTagValueLabel[v] || v }}</button>
           </div>
         </div>
@@ -1328,13 +1328,13 @@ const stepMeta = [
             type="button"
             @click="toggle(infoForm.styleTags, s)"
             :class="infoForm.styleTags.includes(s) ? 'bg-ink text-cream' : 'bg-cream text-ink/60 border border-line'"
-            class="px-3 py-1.5 text-xs rounded-full"
+            class="px-3 py-1.5 text-xs rounded-r8-sm"
           >{{ s }}</button>
           <!-- 自定义标签 chip (可移除) -->
           <span
             v-for="(tag, i) in infoForm.styleTags.filter(t => !styleOptions.includes(t))"
             :key="`custom-${i}`"
-            class="px-3 py-1.5 text-xs rounded-full bg-ink text-cream flex items-center gap-1"
+            class="px-3 py-1.5 text-xs rounded-r8-sm bg-ink text-cream flex items-center gap-1"
           >
             {{ tag }}
             <button type="button" @click="infoForm.styleTags.splice(infoForm.styleTags.indexOf(tag), 1)" class="hover:text-gold">×</button>
@@ -1343,7 +1343,7 @@ const stepMeta = [
         <input
           v-model="customStyleInput"
           @keydown="(e) => onCustomInputKeydown('styleTags', e)"
-          class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold text-xs"
+          class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream focus:outline-none focus:border-gold text-xs"
           :placeholder="customTagPlaceholder"
         />
         <FieldHint field="styleTags" />
@@ -1358,12 +1358,12 @@ const stepMeta = [
             type="button"
             @click="toggle(infoForm.scenarioTags, s)"
             :class="infoForm.scenarioTags.includes(s) ? 'bg-ink text-cream' : 'bg-cream text-ink/60 border border-line'"
-            class="px-3 py-1.5 text-xs rounded-full"
+            class="px-3 py-1.5 text-xs rounded-r8-sm"
           >{{ s }}</button>
           <span
             v-for="(tag, i) in infoForm.scenarioTags.filter(t => !scenarioOptions.includes(t))"
             :key="`custom-${i}`"
-            class="px-3 py-1.5 text-xs rounded-full bg-ink text-cream flex items-center gap-1"
+            class="px-3 py-1.5 text-xs rounded-r8-sm bg-ink text-cream flex items-center gap-1"
           >
             {{ tag }}
             <button type="button" @click="infoForm.scenarioTags.splice(infoForm.scenarioTags.indexOf(tag), 1)" class="hover:text-gold">×</button>
@@ -1372,7 +1372,7 @@ const stepMeta = [
         <input
           v-model="customScenarioInput"
           @keydown="(e) => onCustomInputKeydown('scenarioTags', e)"
-          class="w-full px-3 py-2 border border-line rounded-lg bg-cream focus:outline-none focus:border-gold text-xs"
+          class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream focus:outline-none focus:border-gold text-xs"
           :placeholder="customTagPlaceholder"
         />
         <FieldHint field="scenarioTags" />
@@ -1384,7 +1384,7 @@ const stepMeta = [
             意向金 (元)
             <span class="text-ink/40 text-[10px] ml-1" title="买家付 199 元锁定 IP 30 天, 期间不能被别人买; 平台 0 抽成, 后续转全额授权时抵扣">?</span>
           </label>
-          <input v-model.number="infoForm.depositPriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+          <input v-model.number="infoForm.depositPriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream" />
           <div class="text-[10px] text-ink/40 mt-1">默认 199 元 = 19900 分</div>
           <FieldHint field="depositPriceFen" />
         </div>
@@ -1393,12 +1393,12 @@ const stepMeta = [
             正式授权起价 (元)
             <span class="text-ink/40 text-[10px] ml-1" title="全额买断 / 多年授权 / 短剧单集 等不同 scope 的起步价, 平台抽 15%">?</span>
           </label>
-          <input v-model.number="infoForm.fullLicensePriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-lg bg-cream" />
+          <input v-model.number="infoForm.fullLicensePriceFen" type="number" min="0" step="100" class="w-full px-3 py-2 border border-line rounded-r8-md bg-cream" />
           <FieldHint field="fullLicensePriceFen" />
         </div>
       </div>
 
-      <div v-if="infoError" class="p-3 bg-danger/10 text-danger text-sm rounded-lg">{{ infoError }}</div>
+      <div v-if="infoError" class="p-3 bg-danger/10 text-danger text-sm rounded-r8-md">{{ infoError }}</div>
 
       <div class="flex justify-end gap-3 pt-2">
         <button
@@ -1411,7 +1411,7 @@ const stepMeta = [
           type="button"
           @click="saveInfo"
           :disabled="savingInfo || !infoValid"
-          class="px-8 py-2.5 bg-ink text-cream rounded-full text-sm font-medium hover:bg-gold transition disabled:opacity-50"
+          class="px-8 py-2.5 bg-ink text-cream rounded-r8-sm text-sm font-medium hover:bg-gold transition disabled:opacity-50"
         >
           {{ savingInfo ? '保存中...' : (isNew ? '创建并上传资产包 →' : '保存并继续 →') }}
         </button>
@@ -1436,14 +1436,14 @@ const stepMeta = [
       <div class="h-1 bg-cream overflow-hidden mb-6">
         <div class="h-full bg-gold transition-all" :style="{ width: completion + '%' }" />
       </div>
-      <div v-if="!ip" class="p-6 bg-cream/60 rounded-xl text-center text-sm text-ink/60">
+      <div v-if="!ip" class="p-6 bg-cream/60 rounded-r8-md text-center text-sm text-ink/60">
         请先完成步骤 ① 基础信息后再上传资产包
       </div>
       <div v-else class="space-y-3">
         <div
           v-for="t in allAssetTypes"
           :key="t"
-          class="p-4 border border-line rounded-xl flex items-center justify-between gap-3"
+          class="p-4 border border-line rounded-r8-md flex items-center justify-between gap-3"
         >
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium flex items-center gap-2 flex-wrap">
@@ -1477,7 +1477,7 @@ const stepMeta = [
               <button
                 v-if="['FACE_CLOSEUP','THREE_VIEW','EXPRESSION_GRID','TRANSPARENT_RENDER'].includes(t)"
                 type="button"
-                class="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-line hover:border-gold transition relative group"
+                class="shrink-0 w-12 h-12 rounded-r8-md overflow-hidden border border-line hover:border-gold transition relative group"
                 :title="`点击放大查看 — ${fileByType[t].originalName}`"
                 @click="openLightbox(fileByType[t])"
               >
@@ -1501,7 +1501,7 @@ const stepMeta = [
               type="button"
               :disabled="aiGenLoading[t] || !ip?.faceCloseupFileId || uploadingTypes[t]"
               :class="[
-                'px-3 py-2 rounded-full text-xs font-medium border transition flex items-center gap-1',
+                'px-3 py-2 rounded-r8-sm text-xs font-medium border transition flex items-center gap-1',
                 aiGenLoading[t]
                   ? 'bg-line text-ink/40 border-line cursor-wait'
                   : !ip?.faceCloseupFileId
@@ -1519,7 +1519,7 @@ const stepMeta = [
               type="button"
               @click="regenerateBio"
               :disabled="regeneratingBio || isUploading"
-              class="px-3 py-2 border border-line rounded-full text-xs hover:bg-ink hover:text-cream transition disabled:opacity-50"
+              class="px-3 py-2 border border-line rounded-r8-sm text-xs hover:bg-ink hover:text-cream transition disabled:opacity-50"
             >
               {{ regeneratingBio ? '生成中…' : (fileByType[t] ? '重新生成' : '生成小传') }}
             </button>
@@ -1529,7 +1529,7 @@ const stepMeta = [
               type="button"
               :disabled="aiGenLoading[t] || !ip"
               :class="[
-                'px-3 py-2 rounded-full text-xs font-medium border transition flex items-center gap-1',
+                'px-3 py-2 rounded-r8-sm text-xs font-medium border transition flex items-center gap-1',
                 aiGenLoading[t]
                   ? 'bg-line text-ink/40 border-line cursor-wait'
                   : 'border-gold text-gold hover:bg-gold hover:text-ink',
@@ -1543,13 +1543,13 @@ const stepMeta = [
             <button
               v-if="t === 'RECIPE_TXT' && fileByType[t]"
               type="button"
-              class="px-3 py-2 border border-line rounded-full text-xs hover:bg-ink hover:text-cream transition"
+              class="px-3 py-2 border border-line rounded-r8-sm text-xs hover:bg-ink hover:text-cream transition"
               title="查看 Prompt 说明书内容"
               @click="viewRecipe(fileByType[t].id)"
             >👁 查看</button>
             <label
               :class="[
-                'px-4 py-2 border rounded-full text-xs transition cursor-pointer',
+                'px-4 py-2 border rounded-r8-sm text-xs transition cursor-pointer',
                 uploadingTypes[t]
                   ? 'bg-line text-ink/40 border-line cursor-wait'
                   : 'bg-cream border-line hover:bg-ink hover:text-cream',
@@ -1583,7 +1583,7 @@ const stepMeta = [
           <!-- 进度条:该 assetType 上传中时显示 -->
           <div
             v-if="uploadingTypes[t]"
-            class="mt-2 w-full h-1 bg-line rounded-full overflow-hidden"
+            class="mt-2 w-full h-1 bg-line rounded-r8-sm overflow-hidden"
           >
             <div
               class="h-full bg-gold transition-all duration-150"
@@ -1602,7 +1602,7 @@ const stepMeta = [
             <div
               v-for="ff in faceCloseupFiles"
               :key="ff.id"
-              class="flex items-center gap-2 p-2 bg-cream/40 rounded-lg text-xs"
+              class="flex items-center gap-2 p-2 bg-cream/40 rounded-r8-md text-xs"
             >
               <button
                 type="button"
@@ -1616,7 +1616,7 @@ const stepMeta = [
               <button
                 type="button"
                 :disabled="aiLoading[ff.id]"
-                class="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
+                class="shrink-0 px-2 py-0.5 rounded-r8-sm text-[11px] font-medium border border-gold text-gold hover:bg-gold hover:text-ink transition disabled:opacity-50"
                 :title="aiLoading[ff.id] ? 'AI 识别中...' : 'AI 识别 → 自动填充 8 个字段 (脸型/肤色/发型/发色/眼型/气质/性别/年龄段/种族/风格/场景/小传)'"
                 @click="aiRecognize(ff.id)"
               >{{ aiLoading[ff.id] ? '⏳ 识别中' : '✨ AI 识别' }}</button>
@@ -1638,7 +1638,7 @@ const stepMeta = [
         </div>
 
         <!-- #33 创作过程证据 — 多文件列表 + 累计 ≤600MB -->
-        <div class="p-4 border border-line rounded-xl bg-cream/20">
+        <div class="p-4 border border-line rounded-r8-md bg-cream/20">
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="flex items-baseline gap-2">
               <h3 class="font-medium text-sm">📂 创作过程证据</h3>
@@ -1651,7 +1651,7 @@ const stepMeta = [
             </div>
           </div>
           <!-- 累计进度条 -->
-          <div class="h-1 bg-line/60 rounded-full overflow-hidden mb-3">
+          <div class="h-1 bg-line/60 rounded-r8-sm overflow-hidden mb-3">
             <div
               :class="processEvidenceTotal > PROCESS_EVIDENCE_MAX_MB * 1024 * 1024 * 0.9 ? 'bg-danger' : 'bg-gold'"
               class="h-full transition-all duration-300"
@@ -1668,7 +1668,7 @@ const stepMeta = [
             <div
               v-for="ev in processEvidence"
               :key="ev.id"
-              class="flex items-center gap-2 p-2 bg-surface border border-line rounded-lg text-xs"
+              class="flex items-center gap-2 p-2 bg-surface border border-line rounded-r8-md text-xs"
             >
               <span class="px-1.5 py-0.5 bg-gold/20 text-gold rounded text-[10px] font-mono shrink-0">
                 {{ processStepLabel[ev.processStep || ''] || ev.processStep || '?' }}
@@ -1693,18 +1693,18 @@ const stepMeta = [
           </div>
 
           <!-- 添加证据表单 -->
-          <div class="space-y-2 p-3 bg-surface border border-dashed border-line rounded-lg">
+          <div class="space-y-2 p-3 bg-surface border border-dashed border-line rounded-r8-md">
             <div class="grid grid-cols-2 gap-2">
               <select
                 v-model="newEvidenceStep"
-                class="px-2 py-1.5 border border-line rounded-lg bg-cream text-xs"
+                class="px-2 py-1.5 border border-line rounded-r8-md bg-cream text-xs"
                 :disabled="processEvidenceUploading"
               >
                 <option v-for="o in processStepOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
               <label
                 :class="[
-                  'px-3 py-1.5 border rounded-lg text-xs text-center cursor-pointer transition',
+                  'px-3 py-1.5 border rounded-r8-md text-xs text-center cursor-pointer transition',
                   processEvidenceUploading
                     ? 'bg-line text-ink/30 border-line cursor-wait'
                     : 'bg-cream border-line hover:bg-ink hover:text-cream',
@@ -1725,11 +1725,11 @@ const stepMeta = [
               type="text"
               maxlength="500"
               placeholder="说明: 数据集来源 / 训练时长 / 关键参数 等 (≤500字)"
-              class="w-full px-2.5 py-1.5 border border-line rounded-lg bg-cream text-xs"
+              class="w-full px-2.5 py-1.5 border border-line rounded-r8-md bg-cream text-xs"
               :disabled="processEvidenceUploading"
             />
             <!-- 上传中进度条 -->
-            <div v-if="processEvidenceUploading" class="h-1 bg-line rounded-full overflow-hidden">
+            <div v-if="processEvidenceUploading" class="h-1 bg-line rounded-r8-sm overflow-hidden">
               <div
                 class="h-full bg-gold transition-all duration-150"
                 :style="{ width: processEvidenceUploadProgress + '%' }"
@@ -1743,7 +1743,7 @@ const stepMeta = [
                 type="button"
                 @click="addProcessEvidence"
                 :disabled="processEvidenceUploading || !newEvidenceFile || !newEvidenceDescription.trim()"
-                class="px-4 py-1.5 text-xs bg-ink text-cream rounded-full font-medium hover:bg-gold transition disabled:opacity-30 shrink-0"
+                class="px-4 py-1.5 text-xs bg-ink text-cream rounded-r8-sm font-medium hover:bg-gold transition disabled:opacity-30 shrink-0"
               >
                 {{ processEvidenceUploading ? `上传中 ${processEvidenceUploadProgress}%` : '+ 上传证据' }}
               </button>
@@ -1752,7 +1752,7 @@ const stepMeta = [
         </div>
       </div>
 
-      <div class="mt-8 p-4 bg-cream/60 rounded-xl text-sm text-ink/70 leading-relaxed">
+      <div class="mt-8 p-4 bg-cream/60 rounded-r8-md text-sm text-ink/70 leading-relaxed">
         <strong class="text-ink">合规承诺</strong>:上传素材即视为您确认拥有该 AI 形象的完整知识产权,
         并同意承担《作品原创性及自主承担侵权责任承诺书》的法律责任。平台保留因肖像权、版权争议而下架 IP 的权利。
       </div>
@@ -1767,7 +1767,7 @@ const stepMeta = [
           type="button"
           @click="step = 3"
           :disabled="!ip || completion < 100"
-          class="px-8 py-2.5 bg-ink text-cream rounded-full text-sm font-medium hover:bg-gold transition disabled:opacity-40"
+          class="px-8 py-2.5 bg-ink text-cream rounded-r8-sm text-sm font-medium hover:bg-gold transition disabled:opacity-40"
         >下一步:预览提交 →</button>
       </div>
     </section>
@@ -1781,7 +1781,7 @@ const stepMeta = [
         — 03 — REVIEW & SUBMIT · 预览提交
       </div>
       <div class="font-display text-2xl text-ink mb-6">预览 <span class="font-display-italic text-gold">/</span> 提交</div>
-      <div v-if="!ip" class="p-6 bg-cream/60 rounded-xl text-center text-sm text-ink/60">
+      <div v-if="!ip" class="p-6 bg-cream/60 rounded-r8-md text-center text-sm text-ink/60">
         请先完成步骤 ① + ②
       </div>
       <div v-else class="space-y-4">
@@ -1795,7 +1795,7 @@ const stepMeta = [
           <span class="text-ink/60">正式授权起价</span><span class="font-mono">¥{{ (Number(ip.fullLicensePriceFen) / 100).toFixed(0) }}</span>
           <span class="text-ink/60">资产完整度</span><span :class="completion === 100 ? 'text-success' : 'text-gold'">{{ completion }}%</span>
         </div>
-        <div class="p-4 bg-cream/60 rounded-xl">
+        <div class="p-4 bg-cream/60 rounded-r8-md">
           <div class="text-xs text-ink/60 mb-2">已上传素材 ({{ files.length }})</div>
           <div class="space-y-1 text-sm">
             <div v-for="f in files" :key="f.id" class="flex justify-between gap-2">
@@ -1805,14 +1805,14 @@ const stepMeta = [
           </div>
         </div>
 
-        <div v-if="ip.status !== 'PENDING_REVIEW'" class="p-4 bg-ink/5 border border-ink/10 rounded-xl text-sm">
+        <div v-if="ip.status !== 'PENDING_REVIEW'" class="p-4 bg-ink/5 border border-ink/10 rounded-r8-md text-sm">
           当前状态: <span class="font-medium">{{ statusLabel(ip.status) }}</span>。
           <span v-if="ip.status === 'REJECTED'">如需重新提交,请联系平台管理员。</span>
         </div>
 
         <!-- 版权证书区: PUBLIC_INTENT/OFFICIAL_REGISTERED 始终显示;
              PENDING_REVIEW + cert REJECTED 时也显示 (cert 被拒后退到此状态,让创作者看到原因 + 重提) -->
-        <div v-if="ip.status === 'PUBLIC_INTENT' || ip.status === 'OFFICIAL_REGISTERED' || (cert && cert.status === 'REJECTED')" class="p-5 bg-cream/40 border border-gold/30 rounded-2xl space-y-3">
+        <div v-if="ip.status === 'PUBLIC_INTENT' || ip.status === 'OFFICIAL_REGISTERED' || (cert && cert.status === 'REJECTED')" class="p-5 bg-cream/40 border border-gold/30 rounded-r8-md space-y-3">
           <div class="flex items-baseline justify-between">
             <h3 class="font-display text-base">📜 版权证书登记</h3>
             <span v-if="ip.status === 'OFFICIAL_REGISTERED'" class="text-xs text-success">已登记</span>
@@ -1824,14 +1824,14 @@ const stepMeta = [
         </div>
 
         <!-- OFFICIAL_REGISTERED 时显示下载证书按钮 (创作者需要拿到证书副本) -->
-        <div v-if="ip.status === 'OFFICIAL_REGISTERED' && cert?.status === 'APPROVED'" class="p-5 bg-success/5 border border-success/30 rounded-2xl space-y-3">
+        <div v-if="ip.status === 'OFFICIAL_REGISTERED' && cert?.status === 'APPROVED'" class="p-5 bg-success/5 border border-success/30 rounded-r8-md space-y-3">
           <h3 class="font-display text-base text-success">📄 下载版权证书</h3>
           <div class="flex items-center gap-3 flex-wrap">
             <button
               type="button"
               @click="downloadCert"
               :disabled="downloadingCert"
-              class="px-5 py-2 bg-ink text-cream rounded-full text-sm hover:bg-gold transition disabled:opacity-50"
+              class="px-5 py-2 bg-ink text-cream rounded-r8-sm text-sm hover:bg-gold transition disabled:opacity-50"
             >
               {{ downloadingCert ? '下载中…' : '📄 下载证书 PDF' }}
             </button>
@@ -1844,7 +1844,7 @@ const stepMeta = [
         </div>
 
         <!-- 提交审核合规模块 — 必须勾选才能提交 -->
-        <div v-if="ip.status === 'PENDING_REVIEW'" class="p-4 bg-cream/60 border border-line rounded-xl">
+        <div v-if="ip.status === 'PENDING_REVIEW'" class="p-4 bg-cream/60 border border-line rounded-r8-md">
           <label class="flex items-start gap-2.5 cursor-pointer">
             <input
               type="checkbox"
@@ -1876,7 +1876,7 @@ const stepMeta = [
             type="button"
             @click="submitForReview"
             :disabled="submitting"
-            class="px-8 py-2.5 bg-ink text-cream rounded-full text-sm font-medium hover:bg-gold transition disabled:opacity-50"
+            class="px-8 py-2.5 bg-ink text-cream rounded-r8-sm text-sm font-medium hover:bg-gold transition disabled:opacity-50"
           >
             {{ submitting ? '提交中...' : '提交审核' }}
           </button>
@@ -1917,7 +1917,7 @@ const stepMeta = [
           class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
           @click.self="recipePreviewVisible = false"
         >
-          <div class="relative bg-surface rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <div class="relative bg-surface rounded-r8-md max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
             <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
               <div class="text-sm font-medium">📄 Prompt 说明书 (买家拿去 ComfyUI 复现 IP)</div>
               <button
@@ -1943,7 +1943,7 @@ const stepMeta = [
           class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
           @click.self="loraGuideVisible = false"
         >
-          <div class="relative bg-surface rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <div class="relative bg-surface rounded-r8-md max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
             <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
               <div class="text-sm font-medium">📖 LoRA 本地训练指引</div>
               <button
