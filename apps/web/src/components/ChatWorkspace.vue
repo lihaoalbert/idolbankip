@@ -119,29 +119,29 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-4rem)] bg-cream/30 dark:bg-surface/30 overflow-hidden">
+  <div class="flex h-[calc(100vh-4rem)] bg-cream dark:bg-ink overflow-hidden">
     <!-- 左栏 (fullscreen 时也保留, 方便用户点击「AI 助手」切回) -->
     <aside
       :class="[
-        'border-r border-line bg-cream/80 dark:bg-surface/80 backdrop-blur flex flex-col shrink-0 transition-all duration-200 overflow-hidden',
+        'border-r hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 transition-all duration-200 overflow-hidden',
         effectiveCollapsed ? 'w-0' : 'w-60',
       ]"
     >
       <slot name="sidebar" />
     </aside>
 
-    <!-- 折叠按钮 (fixed 左侧中部) — 24×56,hover 边框 -->
+    <!-- 折叠按钮 (fixed 左侧中部) — 24×56 直角 + 印章角标 -->
     <button
       type="button"
       @click="toggleSidebar"
       :class="[
-        'fixed top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-cream dark:bg-surface border border-line rounded-r-lg flex items-center justify-center text-ink/60 hover:bg-gold hover:text-cream hover:border-gold transition shadow-sm',
+        'fixed top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-cream dark:bg-ink border hairline border-line dark:border-cream/30 rounded-none flex items-center justify-center text-ink/60 dark:text-cream/60 hover:bg-gold hover:text-ink hover:border-gold transition',
         effectiveCollapsed ? 'left-0' : 'left-60',
       ]"
       :aria-label="effectiveCollapsed ? '展开侧栏' : '折叠侧栏'"
       :title="effectiveCollapsed ? '展开侧栏' : '折叠侧栏'"
     >
-      <span class="text-base font-bold leading-none">{{ effectiveCollapsed ? '›' : '‹' }}</span>
+      <span class="text-sm font-bold leading-none tracking-widest">{{ effectiveCollapsed ? '›' : '‹' }}</span>
     </button>
 
     <!-- 中栏 (chat) — fullscreen 时隐藏 -->
@@ -149,20 +149,20 @@ onBeforeUnmount(() => {
       <slot />
     </main>
 
-    <!-- 中-右 之间拖把手 (fullscreen 时不显示) -->
+    <!-- 中-右 之间拖把手 (fullscreen 时不显示) — 1px gold 实线 + hover 拉宽 -->
     <div
       v-show="!isFullscreen"
       @mousedown="startRightDrag"
-      class="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-gold/40 transition-colors relative group"
+      class="w-1 shrink-0 cursor-col-resize hover:bg-gold transition-colors relative group"
       :title="'拖动调整右屏宽度 (当前 ' + Math.round(rightWidthPx) + 'px)'"
     >
-      <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-line group-hover:bg-gold transition-colors" />
+      <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gold/40 group-hover:bg-gold transition-colors" />
     </div>
 
     <!-- 右栏 (results) — fullscreen 占满; 否则按 rightWidthPx -->
     <aside
       :class="[
-        'border-l border-line bg-cream/50 dark:bg-surface/50 flex flex-col shrink-0 overflow-y-auto transition-[width] duration-150',
+        'border-l hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 overflow-y-auto transition-[width] duration-150',
         isFullscreen ? 'flex-1 max-w-none' : '',
       ]"
       :style="isFullscreen ? undefined : { width: rightWidthPx + 'px', maxWidth: '80vw' }"
@@ -170,12 +170,12 @@ onBeforeUnmount(() => {
       <slot name="results" />
     </aside>
 
-    <!-- Reset 按钮 — 极小, 右下角, hover 才显 — 把右屏恢复默认 400px -->
+    <!-- Reset 按钮 — 极小, 右下角, hover 才显 — 把右屏恢复默认 400px (直角 stamp chip) -->
     <button
       v-show="!isFullscreen && rightWidthPx !== 400"
       type="button"
       @click="resetRightWidth"
-      class="fixed right-2 bottom-16 z-20 text-[10px] px-2 py-1 rounded-full bg-cream/80 dark:bg-surface/80 border border-line text-ink/60 hover:border-gold hover:text-gold transition shadow-sm"
+      class="fixed right-2 bottom-16 z-20 text-[10px] px-2 py-1 rounded-none bg-cream dark:bg-ink border hairline border-line dark:border-cream/30 text-ink/60 dark:text-cream/60 hover:border-gold hover:text-gold transition"
       :title="'重置右屏宽度 (' + Math.round(rightWidthPx) + 'px → 400px)'"
     >
       ↺ 重置右屏
