@@ -210,27 +210,27 @@ onMounted(async () => {
     v-if="message.intent"
     class="mt-2 rounded-xl border bg-cream/70 dark:bg-surface-2/40 backdrop-blur px-3 py-2.5 text-xs"
     :class="[
-      success ? 'border-green-500/40 bg-green-50 dark:bg-green-900/10' :
-      errored ? 'border-red-400/40 bg-red-50 dark:bg-red-900/10' :
+      success ? 'border-success/40 bg-success/10 dark:bg-success/10' :
+      errored ? 'border-danger/40 bg-danger/10 dark:bg-danger/10' :
       cancelled ? 'border-line opacity-60' :
-      message.requiresConfirmation ? 'border-amber-400/50 bg-amber-50 dark:bg-amber-900/10' :
+      message.requiresConfirmation ? 'border-gold/40 bg-gold/10 dark:bg-gold/10' :
       'border-line',
     ]"
   >
     <!-- header: intent 名 + 状态徽章 -->
     <div class="flex items-center justify-between gap-2 mb-2">
       <span class="inline-flex items-center gap-1 text-[10px] font-medium">
-        <span class="w-1.5 h-1.5 rounded-full" :class="success ? 'bg-green-500' : errored ? 'bg-red-500' : cancelled ? 'bg-ink/30' : message.requiresConfirmation ? 'bg-amber-500 animate-pulse' : 'bg-gold'"></span>
-        <span class="text-ink/80">意图: {{ intentLabel }}<span v-if="message.requiresConfirmation" class="text-amber-600 ml-1">(待确认)</span></span>
+        <span class="w-1.5 h-1.5 rounded-full" :class="success ? 'bg-success' : errored ? 'bg-danger' : cancelled ? 'bg-ink/30' : message.requiresConfirmation ? 'bg-gold animate-pulse' : 'bg-gold'"></span>
+        <span class="text-ink/80">意图: {{ intentLabel }}<span v-if="message.requiresConfirmation" class="text-gold ml-1">(待确认)</span></span>
       </span>
       <span
         class="text-[10px] px-1.5 py-0.5 rounded-full"
         :class="[
           executing ? 'bg-ink/10 text-ink/70' :
-          success ? 'bg-green-500/15 text-green-700 dark:text-green-400' :
-          errored ? 'bg-red-500/15 text-red-700 dark:text-red-400' :
+          success ? 'bg-success/15 text-success dark:text-success' :
+          errored ? 'bg-danger/15 text-danger dark:text-danger' :
           cancelled ? 'bg-ink/5 text-ink/40' :
-          message.requiresConfirmation ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400' :
+          message.requiresConfirmation ? 'bg-gold/15 text-gold dark:text-gold' :
           'bg-gold/15 text-gold'
         ]"
       >
@@ -260,7 +260,7 @@ onMounted(async () => {
         <div class="text-ink/50">套餐</div><div>{{ pickString(params.packageTier) || '—' }}</div>
         <div class="text-ink/50">截止</div><div>{{ ymd(pickString(params.deadlineAt)) }}</div>
       </div>
-      <div v-if="success && message.intentResult?.briefId" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success && message.intentResult?.briefId" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 发包已创建, 跳转中…
       </div>
     </template>
@@ -272,7 +272,7 @@ onMounted(async () => {
         <div class="text-ink/50">Bid</div><div class="font-mono text-[11px]">{{ pickString(params.bidId) || '—' }}</div>
       </div>
       <p class="mt-2 text-[10px] text-ink/60">接受后将创建 workspace, 其他 bid 自动 rejected。</p>
-      <div v-if="success && message.intentResult?.workspaceId" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success && message.intentResult?.workspaceId" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ Workspace {{ message.intentResult.workspaceId }} 已创建, 跳转中…
       </div>
     </template>
@@ -321,10 +321,10 @@ onMounted(async () => {
         <div v-if="pickString(params.reason)" class="text-ink/50">原因</div>
         <div v-if="pickString(params.reason)" class="whitespace-pre-wrap break-words">{{ pickString(params.reason) }}</div>
       </div>
-      <p class="mt-2 text-[10px] text-red-600 dark:text-red-400 font-medium">
+      <p class="mt-2 text-[10px] text-danger dark:text-danger font-medium">
         ⚠ 关闭后无法恢复, 已投标的创作者会收到通知。
       </p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 发包已关闭
       </div>
     </template>
@@ -338,7 +338,7 @@ onMounted(async () => {
         <div class="text-ink/50">提案摘要</div>
         <div class="whitespace-pre-wrap break-words line-clamp-3">{{ pickString(params.proposal) || '—' }}</div>
       </div>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 投标已提交, 等待买家反馈
       </div>
     </template>
@@ -356,7 +356,7 @@ onMounted(async () => {
         <div v-else class="text-ink/30">—</div>
       </div>
       <p class="mt-2 text-[10px] text-ink/50">提交后将进入买家审批 (pending → approved / rejected)。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 交付物已上传, 等待买家审批
       </div>
     </template>
@@ -367,7 +367,7 @@ onMounted(async () => {
         <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
         <div class="text-ink/50">评分</div>
         <div class="flex items-center gap-0.5">
-          <span v-for="n in 5" :key="n" :class="n <= Number(pickNumber(params.rating) || 0) ? 'text-amber-500' : 'text-ink/20'">★</span>
+          <span v-for="n in 5" :key="n" :class="n <= Number(pickNumber(params.rating) || 0) ? 'text-gold' : 'text-ink/20'">★</span>
           <span class="ml-1.5 text-[10px] text-ink/50">{{ pickNumber(params.rating) || '—' }}/5</span>
         </div>
         <div class="text-ink/50">评价</div>
@@ -378,7 +378,7 @@ onMounted(async () => {
         </div>
       </div>
       <p class="mt-2 text-[10px] text-ink/50">评价将公开挂在你和买家主页。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 评价已写入, 影响对方信用分
       </div>
     </template>
@@ -410,7 +410,7 @@ onMounted(async () => {
           <div class="text-ink/50">截止</div><div>{{ ymd(pickString(params.deadlineAt)) }}</div>
         </template>
       </div>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 发包已更新, 跳转中…
       </div>
     </template>
@@ -421,7 +421,7 @@ onMounted(async () => {
         <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.id) || '—' }}</div>
       </div>
       <p class="mt-2 text-[10px] text-ink/60">将 draft 转为 bidding, 公开后可被创作者投标。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 已发布, 跳转中…
       </div>
     </template>
@@ -432,10 +432,10 @@ onMounted(async () => {
         <div class="text-ink/50">Brief</div><div class="font-mono text-[11px]">{{ pickString(params.briefId) || '—' }}</div>
         <div class="text-ink/50">Bid</div><div class="font-mono text-[11px]">{{ pickString(params.bidId) || '—' }}</div>
       </div>
-      <p class="mt-2 text-[10px] text-red-600 dark:text-red-400 font-medium">
+      <p class="mt-2 text-[10px] text-danger dark:text-danger font-medium">
         ⚠ 若 bid 已被买家接受, 需先和买家沟通再走 workspace 流程。
       </p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 投标已撤回
       </div>
     </template>
@@ -446,7 +446,7 @@ onMounted(async () => {
         <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.id) || pickString(params.workspaceId) || '—' }}</div>
       </div>
       <p class="mt-2 text-[10px] text-ink/60">提交后进入买家审批环节, 可被通过 / 打回。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ Workspace 已提交, 跳转中…
       </div>
     </template>
@@ -456,8 +456,8 @@ onMounted(async () => {
       <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ink/80">
         <div class="text-ink/50">Workspace</div><div class="font-mono text-[11px]">{{ pickString(params.id) || pickString(params.workspaceId) || '—' }}</div>
       </div>
-      <p class="mt-2 text-[10px] text-green-700 dark:text-green-400">通过后, 工作区进入 approved, 进入交付阶段。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <p class="mt-2 text-[10px] text-success dark:text-success">通过后, 工作区进入 approved, 进入交付阶段。</p>
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ Workspace 已通过, 跳转中…
       </div>
     </template>
@@ -471,7 +471,7 @@ onMounted(async () => {
           <div class="whitespace-pre-wrap break-words">{{ pickString(params.reason) }}</div>
         </template>
       </div>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 已打回, revisionCount+1, 跳转中…
       </div>
     </template>
@@ -484,7 +484,7 @@ onMounted(async () => {
         <div>
           <span
             class="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium"
-            :class="pickString(params.decision) === 'approved' ? 'bg-green-500/15 text-green-700 dark:text-green-400' : 'bg-red-500/15 text-red-700 dark:text-red-400'"
+            :class="pickString(params.decision) === 'approved' ? 'bg-success/15 text-success dark:text-success' : 'bg-danger/15 text-danger dark:text-danger'"
           >
             {{ pickString(params.decision) === 'approved' ? '✓ 通过' : '✗ 驳回' }}
           </span>
@@ -494,7 +494,7 @@ onMounted(async () => {
           <div class="whitespace-pre-wrap break-words">{{ pickString(params.rejectedReason) }}</div>
         </template>
       </div>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 审批完成
       </div>
     </template>
@@ -525,7 +525,7 @@ onMounted(async () => {
         </template>
       </div>
       <p class="mt-2 text-[10px] text-ink/60">生成会消耗 API 额度, 确认后不可取消。</p>
-      <div v-if="success && message.intentResult?.generationRecordId" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success && message.intentResult?.generationRecordId" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 生成完成, 跳转 AI 记录列表…
       </div>
     </template>
@@ -546,7 +546,7 @@ onMounted(async () => {
         </template>
       </div>
       <p class="mt-2 text-[10px] text-ink/60">将创建蓝图草稿, 进入下一步骤编辑。</p>
-      <div v-if="success" class="mt-2 text-[10px] text-green-700 dark:text-green-400">
+      <div v-if="success" class="mt-2 text-[10px] text-success dark:text-success">
         ✓ 蓝图已创建, 跳转步骤 1…
       </div>
     </template>
@@ -573,7 +573,7 @@ onMounted(async () => {
         >
           📂 在右屏打开
         </button>
-        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">✓ 已在右屏</span>
+        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-success/15 text-success dark:text-success">✓ 已在右屏</span>
         <button
           v-if="embedOpened"
           type="button"
@@ -604,7 +604,7 @@ onMounted(async () => {
         >
           📂 在右屏打开
         </button>
-        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">✓ 已在右屏</span>
+        <span v-else class="text-[11px] px-2 py-1 rounded-full bg-success/15 text-success dark:text-success">✓ 已在右屏</span>
         <button
           v-if="embedOpened"
           type="button"
@@ -622,7 +622,7 @@ onMounted(async () => {
     </template>
 
     <!-- 错误信息 -->
-    <div v-if="errored" class="mt-2 text-[10px] text-red-600 dark:text-red-400">
+    <div v-if="errored" class="mt-2 text-[10px] text-danger dark:text-danger">
       {{ errorReason || '执行失败, 请稍后再试' }}
     </div>
 

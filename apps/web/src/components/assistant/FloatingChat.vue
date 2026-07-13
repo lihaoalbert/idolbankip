@@ -240,7 +240,7 @@ const chipLabel = computed(() => {
                 'max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed',
                 m.role === 'user'
                   ? 'bg-ink text-cream rounded-tr-sm'
-                  : (m.fallback ? 'bg-amber-50 dark:bg-amber-900/20 text-ink border border-amber-200/50' : 'bg-surface text-ink border border-line rounded-tl-sm'),
+                  : (m.fallback ? 'bg-gold/10 dark:bg-gold/20 text-ink border border-gold/30' : 'bg-surface text-ink border border-line rounded-tl-sm'),
               ]"
             >
               <div class="whitespace-pre-wrap break-words">{{ m.content }}</div>

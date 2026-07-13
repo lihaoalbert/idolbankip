@@ -42,7 +42,7 @@ function dismiss() {
     v-if="visible"
     class="rounded-md border p-3 text-sm"
     :class="warningCount > 0
-      ? 'border-amber-300 bg-amber-50 text-amber-900'
+      ? 'border-gold/40 bg-gold/10 text-gold'
       : 'border-sky-300 bg-sky-50 text-sky-900'"
   >
     <div class="mb-2 flex items-start justify-between gap-2">

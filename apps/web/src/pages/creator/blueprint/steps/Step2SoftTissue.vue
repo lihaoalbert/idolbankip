@@ -126,12 +126,12 @@ const isLayerInferred = useStepInferred(blueprintCtx, 'L2_softTissue');
       </div>
       <div
         v-if="draftRestored"
-        class="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+        class="mt-2 rounded border border-gold/40 bg-gold/10 p-2 text-xs text-gold"
       >
         已从本地草稿恢复(刷新前未保存的修改);点 "立即保存" 同步到服务器。
         <button
           type="button"
-          class="ml-2 underline hover:text-amber-600"
+          class="ml-2 underline hover:text-gold"
           @click="draft.discardDraft()"
         >
           丢弃草稿,改用服务器版本

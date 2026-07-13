@@ -1109,7 +1109,7 @@ const stepMeta = [
               'w-20 h-20 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition',
               quickFaceUploading
                 ? 'border-ink/30 bg-line text-ink/40 cursor-wait'
-                : 'border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-500',
+                : 'border-gold/40 bg-gold/10 text-gold hover:bg-gold/15 hover:border-gold/50',
             ]"
             :title="quickFaceUploading ? '上传中' : '点击重新上传面部特写 (会生成新文件+缩略图)'"
           >

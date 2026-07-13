@@ -122,10 +122,10 @@ const emptyHint = computed(() => {
 
 function statusPillClass(s: GenerationRecord['status']): string {
   return s === 'success'
-    ? 'bg-green-500/15 text-green-700 dark:text-green-400'
+    ? 'bg-success/15 text-success dark:text-success'
     : s === 'failed'
-    ? 'bg-red-500/15 text-red-700 dark:text-red-400'
-    : 'bg-amber-500/15 text-amber-700 dark:text-amber-400';
+    ? 'bg-danger/15 text-danger dark:text-danger'
+    : 'bg-gold/15 text-gold dark:text-gold';
 }
 function statusLabel(s: GenerationRecord['status']): string {
   return s === 'success' ? '成功' : s === 'failed' ? '失败' : '超时';
@@ -164,7 +164,7 @@ watch(() => route.fullPath, () => {
     </div>
     <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-xs">
       <div v-if="loading" class="text-ink/50 text-center py-6">加载中…</div>
-      <div v-else-if="error" class="text-red-500 text-center py-6">{{ error }}</div>
+      <div v-else-if="error" class="text-danger text-center py-6">{{ error }}</div>
 
       <!-- W6-R7: embed=ip-library — 复用 IpListPage (已有 embed 模式 + 4 维筛选) -->
       <IpListPage
@@ -226,7 +226,7 @@ watch(() => route.fullPath, () => {
             <span class="text-gold font-medium">¥{{ (g.costCents / 100).toFixed(2) }}</span>
             <span>·</span>
             <span>{{ g.durationMs }}ms</span>
-            <span v-if="g.errorMsg" class="text-red-500 truncate" :title="g.errorMsg">· {{ g.errorMsg.slice(0, 24) }}</span>
+            <span v-if="g.errorMsg" class="text-danger truncate" :title="g.errorMsg">· {{ g.errorMsg.slice(0, 24) }}</span>
           </div>
         </RouterLink>
         <div v-if="generations.length === 0" class="text-center py-6 text-ink/40">

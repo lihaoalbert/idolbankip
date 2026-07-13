@@ -46,6 +46,30 @@ export default {
         '1': '1px',
         '2': '2px',
       },
+      // R8.0: 圆角 token 新增, 不覆盖 Tailwind 默认 rounded-* 类 (老代码继续用默认)
+      // 新代码用 r8-radius-* 别名 (0/2/4/8) — R8.1/2/3 commit 逐步替换 rounded-full/xl/2xl
+      borderRadius: {
+        'r8-none': '0',
+        'r8-sm': '2px',
+        'r8-md': '4px',
+        'r8-lg': '8px',
+      },
+      // R8.0: z-index token 统一, 避免散用 z-10/20/30/40/50
+      zIndex: {
+        base: '0',
+        float: '10',
+        sticky: '20',
+        overlay: '30',
+        modal: '40',
+        toast: '50',
+      },
+      // R8.0: 过渡时长统一, hover fast / 默认 base / 慢动效 slow
+      transitionDuration: {
+        DEFAULT: '200ms',
+        fast: '120ms',
+        base: '200ms',
+        slow: '400ms',
+      },
       animation: {
         'reveal-up': 'revealUp 1.1s cubic-bezier(0.22, 1, 0.36, 1) both',
         'reveal-fade': 'revealFade 1.4s cubic-bezier(0.22, 1, 0.36, 1) both',

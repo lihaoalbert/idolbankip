@@ -129,7 +129,7 @@ function autosize(e: Event) {
             <p class="text-sm text-ink/60 mb-2 max-w-md leading-relaxed">
               我能帮你解读订单/合同状态、指路到对应页面、解释常见卡点。
             </p>
-            <p class="text-xs text-amber-600 dark:text-amber-400 mb-6 max-w-md leading-relaxed">
+            <p class="text-xs text-gold dark:text-gold mb-6 max-w-md leading-relaxed">
               助手回答仅供参考。涉及钱/合同/合规问题, 以页面/PDF 原文为准, 争议请联系 admin@ibi.ren。
             </p>
             <div class="w-full max-w-md space-y-2">
@@ -161,7 +161,7 @@ function autosize(e: Event) {
                     m.role === 'user'
                       ? 'bg-ink text-cream rounded-tr-sm'
                       : (m.fallback
-                          ? 'bg-amber-50 dark:bg-amber-900/20 text-ink border border-amber-200/50 rounded-tl-sm'
+                          ? 'bg-gold/10 dark:bg-gold/20 text-ink border border-gold/30 rounded-tl-sm'
                           : 'bg-cream/70 dark:bg-surface-2 text-ink border border-line rounded-tl-sm'),
                   ]"
                 >

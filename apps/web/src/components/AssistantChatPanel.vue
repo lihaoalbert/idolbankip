@@ -178,7 +178,7 @@ function autosize(e: Event) {
         <p class="text-xs text-ink/60 mb-2 max-w-md leading-relaxed">
           我能帮你解读订单/合同状态、指路到对应页面、执行发包/接单等写操作（需要你确认）。
         </p>
-        <p class="text-[10px] text-amber-600 dark:text-amber-400 mb-5 max-w-md leading-relaxed">
+        <p class="text-[10px] text-gold dark:text-gold mb-5 max-w-md leading-relaxed">
           助手回答仅供参考。涉及钱/合同/合规问题, 以页面/PDF 原文为准。
         </p>
         <div class="w-full max-w-md space-y-2">
@@ -205,7 +205,7 @@ function autosize(e: Event) {
                 'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
                 m.role === 'user'
                   ? 'bg-ink text-cream rounded-tr-sm'
-                  : (m.fallback ? 'bg-amber-50 dark:bg-amber-900/20 text-ink border border-amber-200/50' : 'bg-surface text-ink border border-line rounded-tl-sm'),
+                  : (m.fallback ? 'bg-gold/10 dark:bg-gold/20 text-ink border border-gold/30' : 'bg-surface text-ink border border-line rounded-tl-sm'),
               ]"
             >
               <!-- W6-R7: 附件预览 chips (上传后回填到 user 消息,持久化显示) -->
