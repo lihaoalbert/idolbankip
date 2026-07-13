@@ -97,7 +97,7 @@ const tickerItems = [
 </script>
 
 <template>
-  <div class="relative bg-cream">
+  <div class="relative bg-cream dark:bg-ink">
 
     <!-- =========================================================
          TOP TICKER · 顶部滚动条 · 美术馆开放通知
@@ -121,7 +121,7 @@ const tickerItems = [
           <span class="catalog-no">VOL. I · 2026</span>
         </div>
         <div class="text-center">
-          <span class="font-display italic text-base md:text-lg text-ink/70">IBIren · IP Catalogue</span>
+          <span class="font-display italic text-base md:text-lg text-ink/70 dark:text-ink/60">IBIren · IP Catalogue</span>
         </div>
         <div class="text-right catalog-no">EST. 2026 / CN</div>
       </div>
@@ -135,10 +135,10 @@ const tickerItems = [
 
         <!-- Plate metadata top -->
         <div class="grid grid-cols-12 gap-4 mb-12 md:mb-16">
-          <div class="col-span-3 col-start-1 catalog-no text-ink/50">№ 001</div>
-          <div class="col-span-3 col-start-5 catalog-no text-ink/50">CAT. NF-26·A</div>
-          <div class="col-span-3 col-start-9 catalog-no text-ink/50">EDITION 23 / 100</div>
-          <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">— MANIFESTO</div>
+          <div class="col-span-3 col-start-1 catalog-no text-ink/50 dark:text-ink/40">№ 001</div>
+          <div class="col-span-3 col-start-5 catalog-no text-ink/50 dark:text-ink/40">CAT. NF-26·A</div>
+          <div class="col-span-3 col-start-9 catalog-no text-ink/50 dark:text-ink/40">EDITION 23 / 100</div>
+          <div class="col-span-3 col-start-12 catalog-no text-ink/50 dark:text-ink/40 text-right hidden md:block">— MANIFESTO</div>
         </div>
 
         <!-- Massive display headline -->
@@ -158,21 +158,21 @@ const tickerItems = [
         <!-- DEK · 副标题 -->
         <div class="mt-14 md:mt-20 grid md:grid-cols-12 gap-8 items-end">
           <div class="md:col-span-1 hidden md:flex flex-col items-center gap-3">
-            <div class="w-px h-16 bg-ink/30" />
+            <div class="w-px h-16 bg-ink/30 dark:bg-cream/30" />
             <span class="catalog-no [writing-mode:vertical-rl]">DEK · 2026·I</span>
           </div>
 
-          <p class="md:col-span-6 font-display text-2xl md:text-3xl lg:text-[2.5rem] leading-[1.1] text-ink/85 swash">
+          <p class="md:col-span-6 font-display text-2xl md:text-3xl lg:text-[2.5rem] leading-[1.1] text-ink/85 dark:text-cream/85 swash">
             IBIren 让每个 IP<br />
             都带<span class="text-gold italic">版权证书</span>。
           </p>
 
-          <p class="md:col-span-5 text-base md:text-lg text-ink/60 leading-relaxed max-w-md">
+          <p class="md:col-span-5 text-base md:text-lg text-ink/60 dark:text-cream/60 leading-relaxed max-w-md">
             上架即获国家或省级
-            <span class="text-ink/85 border-b border-gold pb-0.5">作品著作权登记证书</span>,
+            <span class="text-ink/85 dark:text-cream/85 border-b border-gold pb-0.5">作品著作权登记证书</span>,
             区块链时间戳存证, 完整授权链随包。
             <br /><br />
-            <span class="text-ink/80 italic font-display text-xl">短剧上线那天, 律师函追不到你。</span>
+            <span class="text-ink/80 dark:text-cream/80 italic font-display text-xl">短剧上线那天, 律师函追不到你。</span>
           </p>
         </div>
 
@@ -223,7 +223,7 @@ const tickerItems = [
               本期<span class="font-display-italic text-gold">精选</span>
             </h2>
           </div>
-          <div class="md:col-span-4 md:col-start-9 text-ink/60 leading-relaxed">
+          <div class="md:col-span-4 md:col-start-9 text-ink/60 dark:text-cream/55 leading-relaxed">
             已登记, 可商用。每件作品附国家级或省级作品著作权登记证书 + 区块链时间戳,
             复制不走样, 维权有抓手。
           </div>
@@ -337,7 +337,7 @@ const tickerItems = [
               鉴定<span class="font-display-italic text-gold">流程</span>
             </h2>
           </div>
-          <div class="md:col-span-4 text-ink/60 leading-relaxed text-sm">
+          <div class="md:col-span-4 text-ink/60 dark:text-cream/55 leading-relaxed text-sm">
             从创作者上传到采购方交付, 每一道关卡都留痕。
             区块链 + 国家版权登记双重背书, 让您的资产经得起追溯。
           </div>
@@ -348,7 +348,7 @@ const tickerItems = [
           <li
             v-for="(step, i) in steps"
             :key="i"
-            class="bg-surface p-8 md:p-10 group hover:bg-cream transition-colors duration-500 relative"
+            class="bg-surface dark:bg-ink/40 p-8 md:p-10 group hover:bg-cream dark:hover:bg-ink transition-colors duration-500 relative"
           >
             <!-- 罗马数字巨大浮雕 -->
             <div class="absolute top-4 right-4 catalog-no text-ink/30">{{ step.meta }}</div>
@@ -380,11 +380,11 @@ const tickerItems = [
             <h2 class="font-display text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-ink">
               三层<span class="font-display-italic text-gold">交付</span>
             </h2>
-            <p class="mt-4 text-sm text-ink/50 font-mono tracking-wide">Asset Pack · 资产包 + 著作权证书 + 区块链凭证</p>
+            <p class="mt-4 text-sm text-ink/50 dark:text-ink/40 font-mono tracking-wide">Asset Pack · 资产包 + 著作权证书 + 区块链凭证</p>
           </div>
           <div class="md:col-span-4 md:col-start-9 text-right">
-            <div class="font-display text-7xl text-gold/30 leading-none">III</div>
-            <div class="catalog-no text-ink/40 mt-2">LAYERS</div>
+            <div class="font-display text-7xl text-gold/30 dark:text-gold/40 leading-none">III</div>
+            <div class="catalog-no text-ink/40 dark:text-ink/35 mt-2">LAYERS</div>
           </div>
         </header>
 
@@ -393,7 +393,7 @@ const tickerItems = [
           <article
             v-for="layer in layers"
             :key="layer.no"
-            class="bg-cream p-8 md:p-10 group hover:bg-surface transition-colors duration-500 relative overflow-hidden"
+            class="bg-cream dark:bg-ink/95 p-8 md:p-10 group hover:bg-surface dark:hover:bg-ink/40 transition-colors duration-500 relative overflow-hidden"
           >
             <!-- 巨大背景编号 -->
             <div class="absolute -top-4 -right-2 font-display text-[10rem] leading-none text-ink/[0.03] select-none pointer-events-none group-hover:text-gold/[0.08] transition-colors duration-700">
@@ -445,7 +445,7 @@ const tickerItems = [
               主动联系您。
             </h2>
           </div>
-          <div class="md:col-span-3 text-cream/55 leading-relaxed text-sm">
+          <div class="md:col-span-3 text-cream/55 dark:text-cream/60 leading-relaxed text-sm">
             大量采购 / 联合开发 / IP 代理合作, 留个联系方式, 商务团队主动对接;
             也可以直接下单走标准流程, 两条路并行。
           </div>

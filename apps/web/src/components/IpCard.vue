@@ -52,16 +52,22 @@ const ageLabel = computed(() => ({
 <template>
   <RouterLink
     :to="`/ips/${ip.code}`"
-    class="group relative block rounded-2xl overflow-hidden border border-line bg-surface shadow-soft hover:shadow-glow transition"
+    class="plate group relative block hairline border border-line dark:border-line/60 overflow-hidden"
     @mouseenter="hover = true"
     @mouseleave="hover = false"
   >
-    <div class="relative aspect-square overflow-hidden">
+    <!-- R8.1: 印刷裁切标记四角 — 替代 SaaS shadow-glow -->
+    <span class="cropmark cropmark-tl"></span>
+    <span class="cropmark cropmark-tr"></span>
+    <span class="cropmark cropmark-bl"></span>
+    <span class="cropmark cropmark-br"></span>
+
+    <div class="plate-frame relative aspect-square overflow-hidden">
       <img
         v-if="thumb"
         :src="thumb"
         :alt="ip.displayName"
-        class="w-full h-full object-cover group-hover:scale-105 transition no-pirate"
+        class="w-full h-full object-cover group-hover:scale-105 transition duration-slow no-pirate"
         draggable="false"
         @contextmenu.prevent
       />
@@ -70,56 +76,41 @@ const ageLabel = computed(() => ({
       </div>
       <WatermarkOverlay :text="watermarkText || `IBIren · ${ip.code} · guest`" density="medium" />
 
-      <!-- 状态标签 -->
+      <!-- 状态标签 — R8.0 状态色统一, R8.1 改直角 stamp -->
       <div class="absolute top-3 right-3 flex flex-col gap-1 items-end">
-        <span v-if="isConditional" class="px-2 py-0.5 bg-gold/95 text-ink text-[10px] rounded-full font-medium">
+        <span v-if="isConditional" class="stamp !text-gold !border-gold">
           版权办理中
         </span>
-        <span v-else-if="isOfficial" class="px-2 py-0.5 bg-success/90 text-white text-[10px] rounded-full font-medium">
+        <span v-else-if="isOfficial" class="stamp !text-success !border-success">
           ✓ 已登记
         </span>
       </div>
-
-      <!-- Hover 浮层: 性别 / 年龄 / hash / 价格 -->
-      <div
-        class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-ink/90 via-ink/60 to-transparent text-cream transition-all duration-200"
-        :class="hover ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'"
-      >
-        <div class="flex items-center justify-between text-[10px] mb-1">
-          <span class="px-1.5 py-0.5 bg-white/20 backdrop-blur rounded">{{ genderLabel }} · {{ ageLabel }}</span>
-          <span v-if="shortHash" class="font-mono text-cream/70">⌬ {{ shortHash }}</span>
-        </div>
-        <div class="flex items-baseline justify-between">
-          <span class="text-xs">正式授权起</span>
-          <span class="font-display text-lg text-gold">{{ formatFen(ip.fullLicensePriceFen) }}</span>
-        </div>
-      </div>
     </div>
 
-    <div class="p-4">
+    <div class="px-4 py-3 hairline-t">
       <div class="flex items-baseline justify-between mb-1">
         <h3 class="font-display text-base font-semibold truncate">{{ ip.displayName }}</h3>
-        <span class="text-[10px] text-ink/40 font-mono">{{ ip.code }}</span>
+        <span class="catalog-no text-ink/40 dark:text-ink/30 ml-2 shrink-0">{{ ip.code }}</span>
       </div>
-      <p v-if="ip.tagline" class="text-xs text-ink/60 line-clamp-2 mb-3 min-h-[2rem]">{{ ip.tagline }}</p>
+      <p v-if="ip.tagline" class="text-xs text-ink/60 dark:text-ink/50 line-clamp-2 mb-3 min-h-[2rem]">{{ ip.tagline }}</p>
 
       <div class="flex flex-wrap gap-1 mb-3">
         <span
           v-for="t in styles.slice(0, 3)"
           :key="t"
-          class="px-1.5 py-0.5 text-[10px] bg-cream border border-line rounded"
+          class="px-1.5 py-0.5 text-[10px] bg-cream/60 dark:bg-surface-2 border border-line dark:border-line/50 rounded-r8-sm"
         >
           {{ t }}
         </span>
       </div>
 
-      <div class="flex items-baseline justify-between pt-2 border-t border-line">
+      <div class="flex items-baseline justify-between pt-2 hairline-t">
         <div>
-          <div class="text-[10px] text-ink/40">意向金</div>
+          <div class="catalog-no text-ink/40 dark:text-ink/30">意向金</div>
           <div class="text-sm font-semibold text-gold">{{ formatFen(ip.depositPriceFen) }}</div>
         </div>
         <div class="text-right">
-          <div class="text-[10px] text-ink/40">正式授权起</div>
+          <div class="catalog-no text-ink/40 dark:text-ink/30">正式授权起</div>
           <div class="text-sm font-semibold">{{ formatFen(ip.fullLicensePriceFen) }}</div>
         </div>
       </div>

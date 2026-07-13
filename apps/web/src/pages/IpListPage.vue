@@ -3,7 +3,6 @@ import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import IpCard from '@/components/IpCard.vue';
 import Skeleton from '@/components/Skeleton.vue';
-import EmptyState from '@/components/EmptyState.vue';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 
@@ -169,7 +168,7 @@ onMounted(fetchList);
 </script>
 
 <template>
-  <div :class="['bg-cream', isEmbed ? 'h-full overflow-y-auto' : '']">
+  <div :class="['bg-cream dark:bg-ink', isEmbed ? 'h-full overflow-y-auto' : '']">
 
     <!-- W6-R7: 嵌入右屏模式 → 跳过 hero header (ResultsPane 已自带头部) -->
     <template v-if="!isEmbed">
@@ -181,10 +180,10 @@ onMounted(fetchList);
 
         <!-- 元数据行 -->
         <div class="grid grid-cols-12 gap-4 mb-10 md:mb-14">
-          <div class="col-span-3 catalog-no text-ink/50">№ 002</div>
-          <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER II — CATALOGUE</div>
-          <div class="col-span-3 col-start-9 catalog-no text-ink/50">ACCESSIONED · ON-CHAIN</div>
-          <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">2026 / Q2</div>
+          <div class="col-span-3 catalog-no text-ink/50 dark:text-ink/40">№ 002</div>
+          <div class="col-span-3 col-start-5 catalog-no text-ink/50 dark:text-ink/40">CHAPTER II — CATALOGUE</div>
+          <div class="col-span-3 col-start-9 catalog-no text-ink/50 dark:text-ink/40">ACCESSIONED · ON-CHAIN</div>
+          <div class="col-span-3 col-start-12 catalog-no text-ink/50 dark:text-ink/40 text-right hidden md:block">2026 / Q2</div>
         </div>
 
         <div class="grid md:grid-cols-12 gap-6 items-end">
@@ -192,7 +191,7 @@ onMounted(fetchList);
             <h1 class="font-display text-6xl md:text-8xl lg:text-9xl leading-[0.9] text-ink">
               形象<span class="font-display-italic text-gold">库</span>
             </h1>
-            <p class="mt-6 text-base md:text-lg text-ink/60 max-w-xl leading-relaxed">
+            <p class="mt-6 text-base md:text-lg text-ink/60 dark:text-ink/55 max-w-xl leading-relaxed">
               共 <span class="font-display text-3xl text-gold mx-1">{{ total }}</span> 件已登记 AI 虚拟人资产 ·
               <span class="font-display-italic">每一件都有作品著作权登记证书与区块链时间戳。</span>
             </p>
@@ -200,29 +199,29 @@ onMounted(fetchList);
 
           <!-- 排序 · 像图录版次 -->
           <div class="md:col-span-4 md:col-start-9 flex md:justify-end">
-            <div class="inline-flex items-stretch border-0.5 border-ink">
-              <div class="px-4 py-3 catalog-no text-ink/50 border-r-0.5 border-ink bg-surface">
+            <div class="inline-flex items-stretch border-0.5 border-ink dark:border-cream/40">
+              <div class="px-4 py-3 catalog-no text-ink/50 dark:text-ink/40 border-r-0.5 border-ink dark:border-cream/40 bg-surface dark:bg-ink/40">
                 SORT BY
               </div>
               <button
                 @click="setSort('newest')"
-                :class="sort === 'newest' ? 'bg-ink text-cream' : 'text-ink/70 hover:bg-ink hover:text-cream'"
+                :class="sort === 'newest' ? 'bg-ink text-cream dark:bg-cream dark:text-ink' : 'text-ink/70 dark:text-ink/60 hover:bg-ink hover:text-cream dark:hover:bg-cream dark:hover:text-ink'"
                 class="px-5 py-3 font-mono text-xs tracking-widest uppercase transition"
               >最新</button>
               <button
                 @click="setSort('popular')"
-                :class="sort === 'popular' ? 'bg-ink text-cream' : 'text-ink/70 hover:bg-ink hover:text-cream'"
-                class="px-5 py-3 font-mono text-xs tracking-widest uppercase transition border-l-0.5 border-ink"
+                :class="sort === 'popular' ? 'bg-ink text-cream dark:bg-cream dark:text-ink' : 'text-ink/70 dark:text-ink/60 hover:bg-ink hover:text-cream dark:hover:bg-cream dark:hover:text-ink'"
+                class="px-5 py-3 font-mono text-xs tracking-widest uppercase transition border-l-0.5 border-ink dark:border-cream/40"
               >热门</button>
             </div>
           </div>
         </div>
 
         <!-- 已激活筛选 · 像图录的索引横标 -->
-        <div v-if="activeFilterCount > 0" class="mt-10 pt-6 hairline-t border-line flex items-center gap-3 flex-wrap">
-          <span class="catalog-no text-ink/50">ACTIVE FILTERS · {{ String(activeFilterCount).padStart(2, '0') }}</span>
+        <div v-if="activeFilterCount > 0" class="mt-10 pt-6 hairline-t border-line dark:border-cream/15 flex items-center gap-3 flex-wrap">
+          <span class="catalog-no text-ink/50 dark:text-ink/40">ACTIVE FILTERS · {{ String(activeFilterCount).padStart(2, '0') }}</span>
           <span class="catalog-no text-gold">{{ activeFilterCount }} of 5</span>
-          <button @click="resetFilters" class="ml-auto catalog-no text-ink/50 hover:text-gold transition flex items-center gap-2">
+          <button @click="resetFilters" class="ml-auto catalog-no text-ink/50 dark:text-ink/40 hover:text-gold transition flex items-center gap-2">
             <span>RESET ALL</span>
             <span>×</span>
           </button>
@@ -242,9 +241,9 @@ onMounted(fetchList);
 
           <!-- 性别 -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">A · GENDER</h3>
-              <span class="catalog-no text-ink/30">{{ filters.gender ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">A · GENDER</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.gender ? '01' : '—' }}</span>
             </div>
             <ul class="space-y-1">
               <li v-for="c in genderChips" :key="c.value || 'all'">
@@ -254,7 +253,7 @@ onMounted(fetchList);
                   :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.gender === c.value ? 'is-active' : '']"
                 >
                   <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
-                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                  <span class="font-sans text-sm text-ink dark:text-cream">{{ c.label }}</span>
                 </button>
               </li>
             </ul>
@@ -262,9 +261,9 @@ onMounted(fetchList);
 
           <!-- 年龄 -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">B · AGE BUCKET</h3>
-              <span class="catalog-no text-ink/30">{{ filters.ageBucket ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">B · AGE BUCKET</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.ageBucket ? '01' : '—' }}</span>
             </div>
             <ul class="space-y-1">
               <li v-for="c in ageChips" :key="c.value || 'all'">
@@ -274,7 +273,7 @@ onMounted(fetchList);
                   :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.ageBucket === c.value ? 'is-active' : '']"
                 >
                   <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
-                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                  <span class="font-sans text-sm text-ink dark:text-cream">{{ c.label }}</span>
                 </button>
               </li>
             </ul>
@@ -282,9 +281,9 @@ onMounted(fetchList);
 
           <!-- 种族 -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">C · ETHNICITY</h3>
-              <span class="catalog-no text-ink/30">{{ filters.ethnicity ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">C · ETHNICITY</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.ethnicity ? '01' : '—' }}</span>
             </div>
             <ul class="space-y-1">
               <li v-for="c in ethnicityChips" :key="c.value || 'all'">
@@ -294,7 +293,7 @@ onMounted(fetchList);
                   :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.ethnicity === c.value ? 'is-active' : '']"
                 >
                   <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
-                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                  <span class="font-sans text-sm text-ink dark:text-cream">{{ c.label }}</span>
                 </button>
               </li>
             </ul>
@@ -302,9 +301,9 @@ onMounted(fetchList);
 
           <!-- 风格 -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">D · STYLE</h3>
-              <span class="catalog-no text-ink/30">{{ filters.style ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">D · STYLE</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.style ? '01' : '—' }}</span>
             </div>
             <ul class="space-y-1">
               <li v-for="c in styleChips" :key="c.value || 'all'">
@@ -314,7 +313,7 @@ onMounted(fetchList);
                   :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.style === c.value ? 'is-active' : '']"
                 >
                   <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
-                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                  <span class="font-sans text-sm text-ink dark:text-cream">{{ c.label }}</span>
                 </button>
               </li>
             </ul>
@@ -322,9 +321,9 @@ onMounted(fetchList);
 
           <!-- 场景 -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">E · SCENARIO</h3>
-              <span class="catalog-no text-ink/30">{{ filters.scenario ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">E · SCENARIO</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.scenario ? '01' : '—' }}</span>
             </div>
             <ul class="space-y-1">
               <li v-for="c in scenarioChips" :key="c.value || 'all'">
@@ -334,7 +333,7 @@ onMounted(fetchList);
                   :class="['archive-tab w-full flex items-center gap-3 px-3 py-1.5 text-left', filters.scenario === c.value ? 'is-active' : '']"
                 >
                   <span class="font-mono text-[10px] opacity-50 shrink-0 w-12">{{ c.cn }}</span>
-                  <span class="font-sans text-sm text-ink">{{ c.label }}</span>
+                  <span class="font-sans text-sm text-ink dark:text-cream">{{ c.label }}</span>
                 </button>
               </li>
             </ul>
@@ -342,24 +341,24 @@ onMounted(fetchList);
 
           <!-- W6-R7: 创作者名搜索 (模糊匹配 User.displayName) -->
           <div>
-            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line">
-              <h3 class="catalog-no text-ink/60">F · CREATOR</h3>
-              <span class="catalog-no text-ink/30">{{ filters.creatorName ? '01' : '—' }}</span>
+            <div class="flex items-baseline justify-between mb-4 pb-3 hairline-b border-line dark:border-cream/15">
+              <h3 class="catalog-no text-ink/60 dark:text-ink/50">F · CREATOR</h3>
+              <span class="catalog-no text-ink/30 dark:text-ink/30">{{ filters.creatorName ? '01' : '—' }}</span>
             </div>
             <input
               type="text"
               :value="filters.creatorName"
               @input="(e: any) => applyCreatorName(e.target.value)"
               placeholder="搜索创作者名…"
-              class="w-full px-3 py-1.5 bg-surface border border-line text-sm text-ink placeholder:text-ink/30 focus:outline-none focus:border-gold"
+              class="w-full px-3 py-1.5 bg-surface dark:bg-ink/40 border border-line dark:border-cream/15 text-sm text-ink dark:text-cream placeholder:text-ink/30 dark:placeholder:text-ink/40 focus:outline-none focus:border-gold"
               data-testid="ip-filter-creator-name"
             />
           </div>
 
           <!-- Footer note -->
-          <div class="pt-6 hairline-t border-line">
-            <div class="catalog-no text-ink/40 mb-2">CURATOR'S NOTE</div>
-            <p class="font-display-italic text-base text-ink/60 leading-relaxed">
+          <div class="pt-6 hairline-t border-line dark:border-cream/15">
+            <div class="catalog-no text-ink/40 dark:text-ink/40 mb-2">CURATOR'S NOTE</div>
+            <p class="font-display-italic text-base text-ink/60 dark:text-ink/50 leading-relaxed">
               所有作品已通过区块链存证 + 国家或省级著作权登记,
               可直接进入采购流程。
             </p>
@@ -380,15 +379,33 @@ onMounted(fetchList);
             </div>
           </div>
 
-          <!-- Empty -->
-          <div v-else-if="items.length === 0" class="py-24">
-            <EmptyState
-              icon="◇"
-              title="— No matching plates —"
-              description="尝试放宽筛选条件, 或直接浏览全部形象"
-              action-label="RESET FILTERS"
-              :action-on-click="resetFilters"
-            />
+          <!-- Empty · 全筛选空态: 美术馆"本展暂无藏品"告示 -->
+          <div v-else-if="items.length === 0" class="py-32 relative">
+            <div class="absolute top-12 left-1/2 -translate-x-1/2">
+              <span class="cropmark cropmark-tl"></span>
+              <span class="cropmark cropmark-tr"></span>
+              <span class="cropmark cropmark-bl"></span>
+              <span class="cropmark cropmark-br"></span>
+            </div>
+            <div class="text-center px-6 max-w-md mx-auto">
+              <div class="catalog-no text-gold mb-4">— 002 — EMPTY</div>
+              <h3 class="font-display text-4xl md:text-5xl leading-tight text-ink dark:text-cream mb-3">
+                本展<span class="font-display-italic text-gold">暂无</span>藏品
+              </h3>
+              <p class="text-sm text-ink/60 dark:text-ink/50 mb-8 leading-relaxed">
+                当前筛选条件下没有匹配的形象。<br />
+                试试放宽条件, 或浏览全部 <span class="font-mono text-gold">{{ total }}</span> 件资产。
+              </p>
+              <button
+                type="button"
+                @click="resetFilters"
+                class="group inline-flex items-center gap-3 px-6 py-3 border-0.5 border-ink dark:border-cream/40 text-ink dark:text-cream rounded-none hover:bg-ink hover:text-cream dark:hover:bg-cream dark:hover:text-ink transition-colors duration-500"
+              >
+                <span class="catalog-no text-ink/60 dark:text-cream/60 group-hover:text-cream/60 dark:group-hover:text-ink/60">RESET</span>
+                <span class="text-sm font-medium tracking-wide">重置筛选</span>
+                <span class="inline-block transition-transform duration-500 group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
           <!-- 画廊 grid · 4 列为主,每张 IP 用 archive-tab 卡片 -->
@@ -397,25 +414,25 @@ onMounted(fetchList);
           </div>
 
           <!-- 分页 · 像翻图录的页码 -->
-          <div v-if="totalPages > 1" class="mt-16 pt-6 hairline-t border-line">
+          <div v-if="totalPages > 1" class="mt-16 pt-6 hairline-t border-line dark:border-cream/15">
             <div class="flex items-center justify-between gap-4 flex-wrap">
-              <div class="catalog-no text-ink/50">
+              <div class="catalog-no text-ink/50 dark:text-ink/40">
                 PAGE <span class="text-gold">{{ String(filters.page).padStart(2, '0') }}</span> / {{ String(totalPages).padStart(2, '0') }}
               </div>
-              <div class="flex items-stretch border-0.5 border-ink">
+              <div class="flex items-stretch border-0.5 border-ink dark:border-cream/40">
                 <button
                   v-for="p in totalPages"
                   :key="p"
                   @click="filters.page = p; fetchList()"
-                  :class="filters.page === p ? 'bg-ink text-cream' : 'text-ink hover:bg-ink hover:text-cream'"
-                  class="w-10 h-10 font-mono text-xs transition border-r-0.5 border-ink last:border-r-0"
+                  :class="filters.page === p ? 'bg-ink text-cream dark:bg-cream dark:text-ink' : 'text-ink dark:text-cream/80 hover:bg-ink hover:text-cream dark:hover:bg-cream dark:hover:text-ink'"
+                  class="w-10 h-10 font-mono text-xs transition border-r-0.5 border-ink dark:border-cream/40 last:border-r-0"
                 >{{ String(p).padStart(2, '0') }}</button>
               </div>
             </div>
           </div>
 
           <!-- Colophon · 底部档案签名 -->
-          <div v-if="items.length > 0" class="mt-12 grid grid-cols-12 gap-4 catalog-no text-ink/40">
+          <div v-if="items.length > 0" class="mt-12 grid grid-cols-12 gap-4 catalog-no text-ink/40 dark:text-ink/35">
             <div class="col-span-3">CAT. NF-26</div>
             <div class="col-span-6 col-start-4">CATALOGUED BY IBIren ARCHIVE DEPT.</div>
             <div class="col-span-3 col-start-10 text-right">© 2026</div>
