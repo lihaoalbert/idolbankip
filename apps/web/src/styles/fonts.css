@@ -1,0 +1,47 @@
+/**
+ * R8.fonts: @fontsource 字体本地化入口
+ *
+ * Why: 之前 index.html 用 Google Fonts CDN 远程加载, 弱网 / 被墙 / 移动端 4G 切换会回退到 system-ui,
+ *      丢失品牌字体调性。本地化后字体走 npm 包, build 时打进 dist/assets/, 浏览器直读本域名,
+ *      国内访问零依赖 + 首屏更快。
+ *
+ * Weight 选取按现有 Tailwind fontFamily 配置:
+ *   - Cormorant Garamond: 400/500/600/700 + italic 400-600 (display 标题用)
+ *   - Inter Tight: 300-700 (正文)
+ *   - JetBrains Mono: 400-600 (元数据/编号)
+ *   - Noto Serif SC: 400-700 (中文衬线)
+ *   - Noto Sans SC: 300-600 (中文正文)
+ */
+
+/* Cormorant Garamond — display 标题 (含 italic) */
+@import '@fontsource/cormorant-garamond/400.css';
+@import '@fontsource/cormorant-garamond/500.css';
+@import '@fontsource/cormorant-garamond/600.css';
+@import '@fontsource/cormorant-garamond/700.css';
+@import '@fontsource/cormorant-garamond/400-italic.css';
+@import '@fontsource/cormorant-garamond/500-italic.css';
+@import '@fontsource/cormorant-garamond/600-italic.css';
+
+/* Inter Tight — 正文 */
+@import '@fontsource/inter-tight/300.css';
+@import '@fontsource/inter-tight/400.css';
+@import '@fontsource/inter-tight/500.css';
+@import '@fontsource/inter-tight/600.css';
+@import '@fontsource/inter-tight/700.css';
+
+/* JetBrains Mono — 元数据 / 编号 / 罗马数字 */
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+/* Noto Serif SC — 中文衬线标题 */
+@import '@fontsource/noto-serif-sc/400.css';
+@import '@fontsource/noto-serif-sc/500.css';
+@import '@fontsource/noto-serif-sc/600.css';
+@import '@fontsource/noto-serif-sc/700.css';
+
+/* Noto Sans SC — 中文正文 */
+@import '@fontsource/noto-sans-sc/300.css';
+@import '@fontsource/noto-sans-sc/400.css';
+@import '@fontsource/noto-sans-sc/500.css';
+@import '@fontsource/noto-sans-sc/600.css';

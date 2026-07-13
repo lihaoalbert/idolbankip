@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { useDarkMode } from './composables/useDarkMode';
+import './styles/fonts.css';
 import './styles/tailwind.css';
 import './styles/app.css';
 
