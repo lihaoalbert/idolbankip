@@ -357,9 +357,9 @@ const tickerItems = [
             </div>
             <div class="catalog-no text-ink/40 mb-3">{{ step.label }}</div>
             <h3 class="font-display text-xl md:text-2xl text-ink mb-3 leading-tight">{{ step.title }}</h3>
-            <p class="text-sm text-ink/60 leading-relaxed">{{ step.desc }}</p>
+            <p class="text-sm text-ink/60 dark:text-cream/55 leading-relaxed">{{ step.desc }}</p>
             <!-- hairline -->
-            <div class="mt-8 pt-4 hairline-t border-line flex items-center gap-2 catalog-no text-ink/30">
+            <div class="mt-8 pt-4 hairline-t border-line dark:border-cream/15 flex items-center gap-2 catalog-no text-ink/30 dark:text-cream/40">
               <span class="inline-block w-1 h-1 bg-gold rounded-full" />
               <span>{{ String(i + 1).padStart(2, '0') }} / 04</span>
             </div>
@@ -407,17 +407,17 @@ const tickerItems = [
               </div>
 
               <h3 class="font-display text-2xl md:text-3xl text-ink mb-4 leading-tight">{{ layer.title }}</h3>
-              <p class="text-sm text-ink/65 leading-relaxed mb-8">{{ layer.desc }}</p>
+              <p class="text-sm text-ink/65 dark:text-cream/60 leading-relaxed mb-8">{{ layer.desc }}</p>
 
-              <div class="pt-6 hairline-t border-line/60">
-                <div class="catalog-no text-ink/40 mb-3">FORMAT</div>
-                <div class="font-mono text-xs text-ink/80 mb-6">{{ layer.format }}</div>
-                <div class="catalog-no text-ink/40 mb-2">CONTAINS</div>
-                <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink/70">
+              <div class="pt-6 hairline-t border-line/60 dark:border-cream/15">
+                <div class="catalog-no text-ink/40 dark:text-cream/45 mb-3">FORMAT</div>
+                <div class="font-mono text-xs text-ink/80 dark:text-cream/80 mb-6">{{ layer.format }}</div>
+                <div class="catalog-no text-ink/40 dark:text-cream/45 mb-2">CONTAINS</div>
+                <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink/70 dark:text-cream/65">
                   <span v-for="(item, idx) in layer.items" :key="item" class="flex items-center gap-2">
                     <span class="text-gold">·</span>
                     <span>{{ item }}</span>
-                    <span v-if="idx < layer.items.length - 1" class="text-ink/20">|</span>
+                    <span v-if="idx < layer.items.length - 1" class="text-ink/20 dark:text-cream/20">|</span>
                   </span>
                 </div>
               </div>
