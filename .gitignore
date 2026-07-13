@@ -68,3 +68,7 @@ apps/admin/test-results/
 # 广告法违禁词真词表(购买,商业授权,不入仓)
 # 骨架在 ad-law-words.example.json 入仓, 真词表替换同名文件不入仓
 apps/api/src/moderation/keywords/ad-law-words.json
+
+# Claude Code taste-skill 本地安装产物 (.agents/skills/* + 锁文件)
+.agents/
+skills-lock.json
