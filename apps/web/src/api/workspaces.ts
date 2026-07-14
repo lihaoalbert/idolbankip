@@ -50,4 +50,13 @@ export const workspacesApi = {
     );
     return unwrap(r.data);
   },
+
+  /**
+   * R11.1 P0-2: 创作者中标 workspace 列表(我接的活儿)
+   * GET /creator/workspaces
+   */
+  async listForCreator(): Promise<Array<Workspace & { brief?: { id: string; title: string; status: string; budgetMax: any; deadlineAt: string } }>> {
+    const r = await apiClient.get<{ items: any[] }>(`/creator/workspaces`);
+    return r.data?.items ?? [];
+  },
 };

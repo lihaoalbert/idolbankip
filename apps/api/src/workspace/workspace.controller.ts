@@ -62,6 +62,13 @@ export class CreatorWorkspaceController {
     return { workspace: ws };
   }
 
+  // R11.1 P0-2: 创作者中标 workspace 列表(我接的活儿) — 解决投标后失联
+  @Roles(UserRole.CREATOR)
+  @Get()
+  async list(@CurrentUser() u: JwtUser) {
+    return this.workspaces.listForCreator(u.id);
+  }
+
   // 创作者改工具链 {sora:true, kling:false, ...}
   @Roles(UserRole.CREATOR)
   @Patch(':id/toolchain')

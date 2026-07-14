@@ -89,6 +89,20 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
   },
   {
+    // R11.1 P0-2: 创作者中标 workspace 列表(我接的活儿) — 解决投标后失联
+    path: '/creator/workspaces',
+    name: 'creator-workspaces',
+    component: () => import('@/pages/creator/CreatorWorkspacesPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  {
+    // R11.2 P1-1: 创作者 IP 列表 — 上传后可查/管理
+    path: '/creator/ips-list',
+    name: 'creator-ips-list',
+    component: () => import('@/pages/creator/CreatorIpsPage.vue'),
+    meta: { requiresAuth: true, roles: ['CREATOR'] as UserRole[] },
+  },
+  {
     path: '/creator/ips/new',
     name: 'ip-create',
     component: () => import('@/pages/creator/IpWizard.vue'),

@@ -27,12 +27,21 @@ const isCreator = computed(() => auth.user?.roles?.includes('CREATOR'));
 const navItems = [
   { label: 'AI 助手（chat）', icon: '💬', route: '/creator/chat' },
   { label: '可接发包（任务板）', icon: '📋', route: '/creator/briefs' },
-  { label: '我的任务', icon: '📦', route: '/creator/tasks' },
+  // R11.1 P0-2: 「我的任务」归位 → 我中标的 workspace 列表(投标后失联的修复)
+  { label: '我的任务（活儿）', icon: '📦', route: '/creator/workspaces' },
   { label: '上传新 IP', icon: '➕', route: '/creator/ips/new' },
-  { label: '我的资产', icon: '🎨', route: '/creator/assets' },
+  // R11.3 P2-2: 改名区分 — 创作者素材库 ≠ 买家授权包(IP)
+  { label: '我的素材库', icon: '🎨', route: '/creator/assets' },
   { label: 'API Key 管理', icon: '🔑', route: '/creator/api-keys' },
   { label: '实名 (KYC)', icon: '🆔', route: '/creator/onboard' },
+  // 原官方征集板挪到底部次要位置(保留路由,不删)
+  { label: '— 官方征集（次要）', icon: '📜', route: '/creator/tasks' },
+  // R11.2 P1-1: IP 库入口
+  { label: '我的 IP 库', icon: '🗂️', route: '/creator/ips-list' },
 ];
+
+// R11.3 P2-3: dev 脚注 — 只在开发模式显示
+const isDev = import.meta.env.DEV;
 
 if (auth.isAuthenticated && !isCreator.value) {
   router.replace('/');
@@ -58,7 +67,7 @@ if (auth.isAuthenticated && !isCreator.value) {
           <span class="text-xs">{{ item.label }}</span>
         </RouterLink>
       </nav>
-      <div class="border-t border-line px-3 py-2.5 text-[10px] text-ink/40 leading-relaxed">
+      <div v-if="isDev" class="border-t border-line px-3 py-2.5 text-[10px] text-ink/40 leading-relaxed">
         R3 三分屏 chat · AI 工具待开放
       </div>
     </template>

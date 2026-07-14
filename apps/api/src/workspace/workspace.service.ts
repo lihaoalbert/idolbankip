@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Workspace, WorkspaceMessage } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // W3 W2 Workspace 状态机
 // active → submitted → (approved | revision) → submitted → ...
@@ -38,7 +39,10 @@ export interface ToolchainMap {
 export class WorkspaceService {
   private readonly logger = new Logger(WorkspaceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * 在 BidService.accept 事务里创建 workspace
@@ -92,6 +96,18 @@ export class WorkspaceService {
             budgetMax: true,
             deadlineAt: true,
             description: true,
+            // R11.1 P0-1: 关联订单,买家侧顶栏「去支付」CTA 用
+            // 一个 brief 对应一个 Order,只取最新一笔
+            orders: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                amountFen: true,
+                paidAt: true,
+              },
+            },
           },
         },
       },
@@ -110,8 +126,32 @@ export class WorkspaceService {
         budgetMax: any;
         deadlineAt: Date;
         description: string | null;
+        orders: Array<{ id: string; status: string; amountFen: number; paidAt: Date | null }>;
       };
     };
+  }
+
+  /**
+   * R11.1 P0-2: 创作者中标 workspace 列表(我接的活儿)
+   * 命中 @@index([creatorId, status])
+   */
+  async listForCreator(creatorId: string) {
+    const items = await this.prisma.workspace.findMany({
+      where: { creatorId },
+      orderBy: { startedAt: 'desc' },
+      include: {
+        brief: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            budgetMax: true,
+            deadlineAt: true,
+          },
+        },
+      },
+    });
+    return { items };
   }
 
   /**
@@ -149,9 +189,28 @@ export class WorkspaceService {
    */
   async submit(workspaceId: string, creatorId: string): Promise<Workspace> {
     await this.assertCreator(workspaceId, creatorId);
-    return this.transition(workspaceId, WS_STATUS.SUBMITTED, {
+    const ws = await this.transition(workspaceId, WS_STATUS.SUBMITTED, {
       submittedAt: new Date(),
     });
+    // R11.2 P1-4: 提交 → 通知买家审
+    const brief = await this.prisma.brief.findUnique({
+      where: { id: ws.briefId },
+      select: { buyerId: true, title: true },
+    });
+    if (brief) {
+      this.notifications
+        .create({
+          userId: brief.buyerId,
+          type: 'WORKSPACE_SUBMITTED',
+          title: '创作者已提交',
+          body: `${brief.title} — 创作者已提交工作区,等待你审核`,
+          link: `/buyer/workspaces/${workspaceId}`,
+        })
+        .catch((e) =>
+          this.logger.warn(`notify buyer (WORKSPACE_SUBMITTED) failed: ${e?.message ?? e}`),
+        );
+    }
+    return ws;
   }
 
   /**
@@ -159,9 +218,26 @@ export class WorkspaceService {
    */
   async approve(workspaceId: string, buyerId: string): Promise<Workspace> {
     await this.assertBuyer(workspaceId, buyerId);
-    return this.transition(workspaceId, WS_STATUS.APPROVED, {
+    const ws = await this.transition(workspaceId, WS_STATUS.APPROVED, {
       finishedAt: new Date(),
     });
+    // R11.2 P1-4: 通过 → 通知创作者(协作完结)
+    const brief = await this.prisma.brief.findUnique({
+      where: { id: ws.briefId },
+      select: { title: true },
+    });
+    this.notifications
+      .create({
+        userId: ws.creatorId,
+        type: 'WORKSPACE_APPROVED',
+        title: '工作区已通过',
+        body: `${brief?.title ?? ''} — 买家已通过审核,可上传交付物`,
+        link: `/workspaces/${workspaceId}`,
+      })
+      .catch((e) =>
+        this.logger.warn(`notify creator (WORKSPACE_APPROVED) failed: ${e?.message ?? e}`),
+      );
+    return ws;
   }
 
   /**
@@ -172,11 +248,28 @@ export class WorkspaceService {
     buyerId: string,
   ): Promise<Workspace> {
     await this.assertBuyer(workspaceId, buyerId);
-    await this.transition(workspaceId, WS_STATUS.REVISION);
-    return this.prisma.workspace.update({
+    const ws = await this.transition(workspaceId, WS_STATUS.REVISION);
+    const updated = await this.prisma.workspace.update({
       where: { id: workspaceId },
       data: { revisionCount: { increment: 1 } },
     });
+    // R11.2 P1-4: 打回 → 通知创作者改
+    const brief = await this.prisma.brief.findUnique({
+      where: { id: ws.briefId },
+      select: { title: true },
+    });
+    this.notifications
+      .create({
+        userId: ws.creatorId,
+        type: 'WORKSPACE_REVISION',
+        title: '工作区被打回',
+        body: `${brief?.title ?? ''} — 买家打回,请按要求修改后重新提交`,
+        link: `/workspaces/${workspaceId}`,
+      })
+      .catch((e) =>
+        this.logger.warn(`notify creator (WORKSPACE_REVISION) failed: ${e?.message ?? e}`),
+      );
+    return updated;
   }
 
   private async transition(
