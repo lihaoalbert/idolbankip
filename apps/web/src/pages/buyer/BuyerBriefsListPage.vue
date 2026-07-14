@@ -33,12 +33,12 @@ const STATUS_LABEL: Record<string, string> = {
   disputed: '争议中',
 };
 function statusChipClass(s: string): string {
-  if (s === 'bidding') return 'bg-gold/15 text-gold border-gold';
-  if (s === 'in_progress') return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (s === 'delivered') return 'bg-success/15 text-success border-success';
-  if (s === 'closed') return 'bg-ink/10 text-ink/50 border-ink/20';
-  if (s === 'disputed') return 'bg-stamp-red/15 text-stamp-red border-stamp-red/40';
-  return 'bg-cream/40 text-ink/70 border-line';
+  if (s === 'bidding') return 'bg-r12-warning-soft text-r12-warning border-r12-warning';
+  if (s === 'in_progress') return 'bg-r12-cobalt-soft text-r12-cobalt border-r12-cobalt';
+  if (s === 'delivered') return 'bg-r12-success-soft text-r12-success border-r12-success';
+  if (s === 'closed') return 'bg-r12-line text-r12-ink-tertiary border-r12-line-strong';
+  if (s === 'disputed') return 'bg-r12-danger-soft text-r12-danger border-r12-danger';
+  return 'bg-r12-line text-r12-ink-secondary border-r12-line';
 }
 
 // URL query 同步 — ?status=&sort=&page=
@@ -132,25 +132,25 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen bg-cream dark:bg-ink paper-grain">
+  <div class="min-h-screen bg-r12-canvas">
     <div class="max-w-[1100px] mx-auto px-6 lg:px-10 py-10 md:py-14">
 
       <!-- 顶部标题 + CTA -->
-      <header class="flex items-end justify-between gap-6 mb-8 pb-6 hairline-b border-line">
+      <header class="flex items-end justify-between gap-6 mb-8 pb-6 border-b border-r12-line">
         <div>
-          <div class="catalog-no text-gold mb-2">— BUYER · BRIEFS —</div>
-          <h1 class="font-display text-4xl md:text-5xl leading-[1.05] text-ink">
-            我的<span class="font-display-italic text-gold">发包</span>
+          <div class="catalog-no text-r12-ink-tertiary mb-2">— BUYER · BRIEFS —</div>
+          <h1 class="font-r12-sans text-r12-h1 md:text-r12-display font-semibold leading-tight text-r12-ink-primary">
+            我的<span class="text-r12-cobalt">发包</span>
           </h1>
-          <p class="mt-3 text-sm text-ink/60 dark:text-cream/55">
+          <p class="mt-3 text-r12-caption text-r12-ink-secondary">
             共 {{ total }} 条发包 · 投标中由创作者竞标, 已选标进入 workspace
           </p>
         </div>
         <RouterLink
           to="/buyer/brief/new"
-          class="inline-flex items-center gap-2 px-6 py-3 bg-ink text-cream hover:bg-gold hover:text-ink transition-colors duration-500 shrink-0"
+          class="inline-flex items-center gap-2 px-6 py-3 bg-r12-ink-primary text-white hover:bg-r12-cobalt hover:text-white transition-colors duration-500 shrink-0"
         >
-          <span class="catalog-no text-cream/60 group-hover:text-ink/60">NEW</span>
+          <span class="catalog-no text-white/60 group-hover:text-white/80">NEW</span>
           <span class="text-sm font-medium tracking-wide">新建发包</span>
           <span>→</span>
         </RouterLink>
@@ -164,10 +164,10 @@ onMounted(load);
           type="button"
           @click="setStatus(opt.value)"
           :class="[
-            'text-[11px] px-3 py-1.5 border hairline transition',
+            'text-[11px] px-3 py-1.5 border hairline transition rounded-r8-sm',
             statusFilter === opt.value
-              ? 'bg-ink text-cream border-ink'
-              : 'border-line text-ink/70 hover:border-gold hover:text-gold',
+              ? 'bg-r12-cobalt text-white border-r12-cobalt'
+              : 'border-r12-line text-r12-ink-secondary hover:border-r12-cobalt hover:text-r12-cobalt',
           ]"
         >
           {{ opt.label }}
@@ -175,10 +175,10 @@ onMounted(load);
 
         <!-- 排序 · 右上 -->
         <div class="ml-auto flex items-center gap-2">
-          <span class="text-[10px] catalog-no text-ink/50">SORT</span>
+          <span class="catalog-no text-r12-ink-tertiary">SORT</span>
           <select
             v-model="sortKey"
-            class="text-[11px] px-2 py-1 border hairline border-line bg-surface text-ink"
+            class="text-[11px] px-2 py-1 border border-r12-line bg-r12-surface text-r12-ink-primary"
           >
             <option v-for="o in sortOptions" :key="o.value" :value="o.value">
               {{ o.label }}
@@ -189,20 +189,20 @@ onMounted(load);
 
       <!-- 列表 -->
       <div v-if="loading" class="grid gap-3">
-        <div v-for="i in 4" :key="i" class="h-20 bg-surface hairline border-line animate-pulse" />
+        <div v-for="i in 4" :key="i" class="h-20 bg-r12-surface border-r12-line animate-pulse" />
       </div>
 
       <div v-else-if="error" class="text-center py-12 text-danger">{{ error }}</div>
 
       <div v-else-if="sorted.length === 0" class="text-center py-20">
-        <div class="font-display text-6xl text-ink/15 mb-4">∅</div>
-        <p class="text-sm text-ink/50 dark:text-ink/40 mb-6">
+        <div class="font-r12-sans text-6xl text-r12-ink-tertiary font-light mb-4">∅</div>
+        <p class="text-r12-caption text-r12-ink-tertiary mb-6">
           {{ statusFilter === 'all' ? '还没有发包 · 点上方「新建发包」开始' : `没有「${statusOptions.find(o => o.value === statusFilter)?.label}」状态的发包` }}
         </p>
         <RouterLink
           v-if="statusFilter === 'all'"
           to="/buyer/brief/new"
-          class="inline-flex items-center gap-2 px-5 py-2.5 border-0.5 border-ink text-ink hover:bg-ink hover:text-cream transition-colors duration-500 text-sm"
+          class="inline-flex items-center gap-2 px-5 py-2.5 border border-r12-ink-primary text-r12-ink-primary hover:bg-r12-ink-primary hover:text-white transition-colors duration-500 text-sm"
         >
           新建第一条发包 →
         </RouterLink>
@@ -213,19 +213,19 @@ onMounted(load);
           v-for="b in sorted"
           :key="b.id"
           :to="`/buyer/briefs/${b.id}`"
-          class="block border hairline border-line p-4 bg-surface hover:border-gold transition group"
+          class="block border border-r12-line p-4 bg-r12-surface hover:border-r12-cobalt transition group"
         >
           <div class="flex items-start justify-between gap-3 mb-2">
-            <h3 class="font-display text-lg text-ink group-hover:text-gold transition leading-snug">
+            <h3 class="font-r12-sans text-r12-h3 font-semibold text-r12-ink-primary group-hover:text-r12-cobalt transition leading-snug">
               {{ b.title }}
             </h3>
             <span
-              class="text-[10px] px-2 py-0.5 border hairline shrink-0"
+              class="text-[10px] px-2 py-0.5 border rounded-r8-sm shrink-0"
               :class="statusChipClass(b.status)"
             >{{ STATUS_LABEL[b.status] ?? b.status }}</span>
           </div>
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink/60 dark:text-cream/50 font-mono">
-            <span class="text-ink/80">¥{{ b.budgetMin }}–¥{{ b.budgetMax }}</span>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-r12-micro-num text-r12-ink-secondary font-r12-mono">
+            <span class="text-r12-ink-primary font-medium">¥{{ b.budgetMin }}–¥{{ b.budgetMax }}</span>
             <span>·</span>
             <span>{{ b.platformSet.length }} 平台</span>
             <span v-if="b.bidsCount !== undefined">·</span>
@@ -235,7 +235,7 @@ onMounted(load);
             <span :class="b.status === 'bidding' && new Date(b.deadlineAt) < new Date() ? 'text-stamp-red' : ''">
               {{ formatDeadline(b.deadlineAt) }}
             </span>
-            <span class="ml-auto text-ink/40">{{ formatRelative(b.createdAt) }}</span>
+            <span class="ml-auto text-r12-ink-tertiary">{{ formatRelative(b.createdAt) }}</span>
           </div>
         </RouterLink>
       </div>
@@ -243,10 +243,10 @@ onMounted(load);
       <!-- 分页 -->
       <div
         v-if="!loading && !error && total > PAGE_SIZE"
-        class="flex items-center justify-between mt-6 text-[11px] catalog-no text-ink/60"
+        class="flex items-center justify-between mt-6 text-[11px] catalog-no text-r12-ink-tertiary"
       >
         <button
-          class="px-3 py-1 border hairline border-line hover:border-ink disabled:opacity-30 disabled:cursor-not-allowed"
+          class="px-3 py-1.5 border border-r12-line hover:border-r12-ink-primary rounded-r8-sm disabled:opacity-30 disabled:cursor-not-allowed"
           :disabled="page <= 1"
           @click="goPage(page - 1)"
         >
@@ -254,7 +254,7 @@ onMounted(load);
         </button>
         <span>第 {{ page }} / {{ totalPages }} 页 · 共 {{ total }} 条</span>
         <button
-          class="px-3 py-1 border hairline border-line hover:border-ink disabled:opacity-30 disabled:cursor-not-allowed"
+          class="px-3 py-1.5 border border-r12-line hover:border-r12-ink-primary rounded-r8-sm disabled:opacity-30 disabled:cursor-not-allowed"
           :disabled="page >= totalPages"
           @click="goPage(page + 1)"
         >
