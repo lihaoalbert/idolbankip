@@ -21,6 +21,8 @@ interface BriefSummary {
   budgetMax: string;
   deadlineAt: string;
   description: string | null;
+  // R11.1 P0-1: 关联订单(最新一笔),买家侧顶栏「去支付」CTA 用
+  orders?: Array<{ id: string; status: string; amountFen: number; paidAt: string | null }>;
 }
 
 interface Workspace {
@@ -99,6 +101,23 @@ const submissions = ref<SubmissionItem[]>([]);
 const loading = ref(true);
 const sending = ref(false);
 const acting = ref(false);
+
+// R11.1 P0-1: workspace 顶栏「去支付」主入口
+const payingWs = ref(false);
+async function payWorkspaceOrder() {
+  if (!workspace.value?.brief?.orders?.[0]) return;
+  const orderId = workspace.value.brief.orders[0].id;
+  payingWs.value = true;
+  try {
+    await apiClient.post(`/orders/${orderId}/pay`, { channel: 'mock_alipay' });
+    toast.success('支付成功 — 创作者已收到通知,可开始上传中间稿');
+    await fetchWorkspace();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? '支付失败');
+  } finally {
+    payingWs.value = false;
+  }
+}
 
 // D5 中间稿上传
 const subNotes = ref('');
@@ -506,6 +525,31 @@ watch([genTool, genDuration], () => {
         截止 {{ new Date(workspace.brief.deadlineAt).toLocaleDateString() }} ·
         第 {{ workspace.revisionCount }} 次打回
       </p>
+      <!-- R11.1 P0-1: 买家侧「去支付」主入口 — 决策中心 -->
+      <div
+        v-if="role === 'buyer' && workspace.brief.orders?.[0]?.status === 'CREATED'"
+        class="ws-pay-cta"
+      >
+        <span class="ws-pay-label">💳 买家尚未支付定金</span>
+        <button class="ws-btn ws-btn-primary" :disabled="payingWs" @click="payWorkspaceOrder">
+          {{ payingWs ? '支付中…' : `去支付 ¥${(workspace.brief.orders[0].amountFen / 100).toFixed(0)} →` }}
+        </button>
+      </div>
+      <div
+        v-else-if="role === 'buyer' && workspace.brief.orders?.[0]?.status === 'DOWNLOAD_UNLOCKED'"
+        class="ws-pay-cta ws-pay-cta-done"
+      >
+        <span class="ws-pay-label">✓ 定金已付 — 协作已激活</span>
+      </div>
+      <!-- R11.2 P1-2: 顶栏审核快捷 CTA,创作者已提交时显眼 -->
+      <div
+        v-if="role === 'buyer' && workspace.status === 'submitted'"
+        class="ws-pay-cta"
+        style="background: rgba(220, 38, 38, 0.06); border-color: #dc2626;"
+      >
+        <span class="ws-pay-label" style="color: #dc2626;">📩 创作者已提交 — 等待你审核</span>
+        <button class="ws-btn ws-btn-primary" :disabled="acting" @click="approve">通过 / 打回</button>
+      </div>
     </header>
 
     <div v-if="loading" class="ws-loading">加载中…</div>
@@ -826,6 +870,27 @@ watch([genTool, genDuration], () => {
   font-size: 13px;
   margin: 8px 0 0;
 }
+/* R11.1 P0-1: workspace 顶栏「去支付」CTA */
+.ws-pay-cta {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 0.5px solid #dc2626;
+  border-radius: 4px;
+}
+.ws-pay-cta-done {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: #10b981;
+}
+.ws-pay-label {
+  font-size: 13px;
+  color: #dc2626;
+  font-weight: 500;
+}
+.ws-pay-cta-done .ws-pay-label { color: #047857; }
 .ws-loading, .ws-error {
   text-align: center;
   padding: 60px 0;

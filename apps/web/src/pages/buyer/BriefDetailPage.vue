@@ -159,7 +159,34 @@ onMounted(async () => {
   await loadBrief();
   await loadBids();
   await loadReviews();
+  await loadMyOrder();
 });
+
+// R11.1 P0-1: 顶部「去支付」兜底 — 我在该 brief 的最新订单
+const myOrder = ref<{ id: string; status: string; amountFen: number; paidAt: string | null } | null>(null);
+const payingOrder = ref(false);
+async function loadMyOrder() {
+  try {
+    const { data } = await apiClient.get('/orders/mine/list');
+    const items: any[] = data?.items ?? [];
+    myOrder.value = items.find((o) => o.brief?.id === route.params.id) ?? null;
+  } catch {
+    myOrder.value = null;
+  }
+}
+async function payFromBrief() {
+  if (!myOrder.value) return;
+  payingOrder.value = true;
+  try {
+    await apiClient.post(`/orders/${myOrder.value.id}/pay`, { channel: 'mock_alipay' });
+    toast.success('支付成功 — 创作者已收到通知');
+    await loadMyOrder();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? '支付失败');
+  } finally {
+    payingOrder.value = false;
+  }
+}
 
 async function loadBrief() {
   loading.value = true;
@@ -462,6 +489,44 @@ async function submitReview() {
           <div v-else class="text-xs text-ink/50">
             工作区尚未创建(等待创作者开启协作)
           </div>
+        </section>
+
+        <!-- R11.1 P0-1: brief 详情页顶部「去支付」兜底入口(workspace 是主入口,这里是第二入口) -->
+        <section
+          v-if="myOrder && myOrder.status === 'CREATED'"
+          class="plate p-6 border-0.5 border-stamp-red bg-stamp-red/5"
+        >
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div class="catalog-no text-stamp-red mb-1">AWAITING PAYMENT · 待支付定金</div>
+              <div class="font-display text-lg">
+                订单金额 <span class="text-stamp-red font-mono">¥{{ (myOrder.amountFen / 100).toFixed(0) }}</span>
+              </div>
+              <p class="text-xs text-ink/60 mt-1">支付后系统将通知创作者激活协作工作区</p>
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="payFromBrief"
+                :disabled="payingOrder"
+                class="px-6 py-3 bg-stamp-red text-cream text-sm font-medium tracking-widest uppercase hover:bg-ink transition disabled:opacity-50"
+              >
+                {{ payingOrder ? '支付中…' : '💳 去支付 →' }}
+              </button>
+              <RouterLink
+                v-if="brief.workspace"
+                :to="`/workspaces/${brief.workspace.id}`"
+                class="px-6 py-3 border-0.5 border-ink/30 text-sm hover:border-ink transition"
+              >
+                去工作区 →
+              </RouterLink>
+            </div>
+          </div>
+        </section>
+        <section
+          v-else-if="myOrder && myOrder.status === 'DOWNLOAD_UNLOCKED'"
+          class="plate p-4 border-0.5 border-success/30 bg-success/5"
+        >
+          <div class="text-xs text-success font-mono">✓ 定金已付 · 协作已激活</div>
         </section>
 
         <!-- W2 #30 — 创作者报价(按价格升序) -->

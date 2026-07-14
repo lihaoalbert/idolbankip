@@ -64,13 +64,30 @@ async function downloadContract() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${order.value.ip.code}-${order.value.contract.templateCode}-${order.value.contract.id.slice(-6)}.pdf`;
+    const codePrefix = order.value.ip?.code || order.value.brief?.id?.slice(-6) || 'doc';
+    a.download = `${codePrefix}-${order.value.contract.templateCode}-${order.value.contract.id.slice(-6)}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '下载失败');
+  }
+}
+
+// R11.1 P0-1: 订单支付(主入口,workspace 顶栏也调它,这里是兜底)
+const paying = ref(false);
+async function payOrder() {
+  if (!order.value) return;
+  paying.value = true;
+  try {
+    await apiClient.post(`/orders/${order.value.id}/pay`, { channel: 'mock_alipay' });
+    toast.success('支付成功 — 协作已激活');
+    await fetchOrder();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '支付失败');
+  } finally {
+    paying.value = false;
   }
 }
 
@@ -166,6 +183,26 @@ onMounted(async () => {
 
       <div v-else-if="order" class="space-y-10">
 
+        <!-- R11.1 P0-1: 待支付 CTA 兜底(workspace 顶栏是主入口,这里是订单详情页兜底) -->
+        <section v-if="order.status === 'CREATED'" class="plate p-6 border-0.5 border-stamp-red bg-stamp-red/5 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="text-xs text-stamp-red font-mono mb-1">AWAITING PAYMENT · 待支付</div>
+            <div class="font-display text-lg">
+              订单金额 <span class="text-stamp-red font-mono">{{ formatFen(order.amountFen) }}</span>
+            </div>
+            <p class="text-xs text-ink/60 mt-1">
+              {{ order.brief ? '支付后系统将通知创作者激活协作工作区' : '支付后将生成电子授权合同' }}
+            </p>
+          </div>
+          <button
+            @click="payOrder"
+            :disabled="paying"
+            class="px-8 py-3 bg-stamp-red text-cream text-sm font-medium tracking-widest uppercase hover:bg-ink transition disabled:opacity-50"
+          >
+            {{ paying ? '支付中…' : '💳 去支付 →' }}
+          </button>
+        </section>
+
         <!-- 进度时间线 · 像图录的工序进度 -->
         <section>
           <div class="catalog-no text-ink/50 mb-4 pb-3 hairline-b border-line">
@@ -210,10 +247,21 @@ onMounted(async () => {
             — 02 — ORDER DETAILS · 订单详情
           </div>
           <div class="bg-surface border-0.5 border-ink p-8 md:p-10 grid md:grid-cols-2 gap-y-5 gap-x-8">
-            <div>
+            <!-- R11.1 P0-1: ip 与 brief 二选一;brief 单显示发包标题 + 跳转 -->
+            <div v-if="order.ip">
               <div class="catalog-no text-ink/50 mb-2">IP</div>
               <div class="font-display text-lg text-ink">{{ order.ip.displayName }}</div>
               <div class="font-mono text-xs text-ink/40 mt-1">{{ order.ip.code }}</div>
+            </div>
+            <div v-else-if="order.brief">
+              <div class="catalog-no text-ink/50 mb-2">BRIEF · 发包</div>
+              <RouterLink
+                :to="`/buyer/briefs/${order.brief.id}`"
+                class="font-display text-lg text-ink hover:text-gold transition"
+              >{{ order.brief.title }}</RouterLink>
+              <div class="font-mono text-xs text-ink/40 mt-1">
+                {{ order.brief.status === 'in_progress' ? '协作中' : order.brief.status }}
+              </div>
             </div>
             <div>
               <div class="catalog-no text-ink/50 mb-2">AMOUNT</div>

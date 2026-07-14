@@ -13,6 +13,7 @@ import { IpsService } from '../ips/ips.service';
 import { PaymentService } from '../payment/payment.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { HonorService } from '../honor/honor.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const PLATFORM_FEE_RATE = 0.15; // 15%
 
@@ -27,6 +28,7 @@ export class OrdersService {
     private readonly contracts: ContractsService,
     private readonly audit: AuditService,
     private readonly honor: HonorService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(params: {
@@ -92,16 +94,94 @@ export class OrdersService {
     if (order.buyerId !== buyerId) throw new ForbiddenException();
     if (order.status !== 'CREATED') throw new BadRequestException(`订单当前状态 ${order.status} 不允许支付`);
 
+    // R11.1 P0-1: brief 中标订单走不同分支 — 不生成合同,直接 DOWNLOAD_UNLOCKED,通知创作者
+    if (order.briefId) {
+      return this.payBriefOrder(order, buyerId, channel);
+    }
+    return this.payIpOrder(order, buyerId, channel);
+  }
+
+  /**
+   * R11.1 P0-1: brief 中标订单支付 — 创作者在 bid.acceptBid 时建了 Order 但没建 charge,
+   * 这里 lazy create charge → markPaid → status DOWNLOAD_UNLOCKED → 通知创作者。
+   * 不生成合同(brief 协作走 workspace 内的 approval,不走 IP 授权合同)。
+   */
+  private async payBriefOrder(order: Order, buyerId: string, channel: PaymentChannel): Promise<Order> {
+    let paymentRef = order.paymentRef;
+    if (!paymentRef) {
+      const brief = await this.prisma.brief.findUnique({
+        where: { id: order.briefId! },
+        select: { id: true, title: true },
+      });
+      const charge = await this.payment.createCharge({
+        orderId: order.id,
+        buyerId,
+        amountFen: order.amountFen,
+        subject: `发包协作定金 - ${brief?.title ?? 'brief'}`,
+        channel,
+      });
+      paymentRef = charge.chargeId;
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { paymentRef },
+      });
+    }
+
+    const paid = await this.payment.markPaid(paymentRef, channel);
+    if (!paid.paid) throw new BadRequestException('支付失败');
+
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'DOWNLOAD_UNLOCKED',
+        paidAt: new Date(),
+        paymentChannel: channel,
+      },
+    });
+
+    // 通知中标的创作者
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { briefId: order.briefId! },
+      select: { creatorId: true, id: true },
+    });
+    if (workspace) {
+      const brief = await this.prisma.brief.findUnique({
+        where: { id: order.briefId! },
+        select: { title: true },
+      });
+      this.notifications.create({
+        userId: workspace.creatorId,
+        type: 'ORDER_DEPOSIT_PAID',
+        title: '买家已支付定金',
+        body: `${brief?.title ?? '你的中标发包'} — 协作已激活,可上传中间稿`,
+        link: `/creator/workspace/${workspace.id}`,
+      }).catch((e) =>
+        this.logger.warn(`notify creator (ORDER_DEPOSIT_PAID) failed: ${e?.message ?? e}`),
+      );
+    }
+
+    await this.audit.log({
+      actorId: buyerId,
+      action: 'ORDER_PAID',
+      targetType: 'Order',
+      targetId: order.id,
+      payload: { orderType: 'BRIEF_DEPOSIT', amountFen: order.amountFen, channel },
+    });
+
+    return updated;
+  }
+
+  /**
+   * 原有 IP 授权订单支付流: 走合同生成 + 创作者荣誉。
+   */
+  private async payIpOrder(order: Order, buyerId: string, channel: PaymentChannel): Promise<Order> {
+    if (!order.ipId) throw new BadRequestException('订单缺少 IP 关联');
     const result = await this.payment.markPaid(order.paymentRef!, channel);
     if (!result.paid) throw new BadRequestException('支付失败');
 
-    // R10 P0-3: brief 中标订单 ipId 为 null, 不走 IP 授权支付流;brief 订单支付走 /buyer/briefs/:id 工作台
-    if (!order.ipId) throw new BadRequestException('发包中标的订单请在工作台完成付款');
     const ip = await this.ips.requireById(order.ipId);
-
-    // 如果是 DEPOSIT_INTENT,需要买方接受附条件风险才能继续
     const updated = await this.prisma.order.update({
-      where: { id: orderId },
+      where: { id: order.id },
       data: {
         status: 'CONTRACT_PENDING',
         paidAt: new Date(),
@@ -109,22 +189,19 @@ export class OrdersService {
       },
     });
 
-    // 自动生成合同
     await this.contracts.generateFromOrder(updated, ip);
 
     await this.audit.log({
       actorId: buyerId,
       action: 'ORDER_PAID',
       targetType: 'Order',
-      targetId: orderId,
+      targetId: order.id,
       payload: { amountFen: order.amountFen, channel },
     });
 
-    // 荣誉流水 — IP 创作者获得 IP_ORDERED 奖励 (+1000 基础 + 订单金额元数 × 10)
-    // monetaryValueFen 留作未来 ¥ 分润 (现在 HonorRule 里 IP_ORDERED delta=1000, monetaryValueFen 仅记录)
     this.honor.record(ip.creatorId, HonorAction.IP_ORDERED, {
       refType: 'Order',
-      refId: orderId,
+      refId: order.id,
       monetaryValueFen: order.amountFen,
       metadata: { ipCode: ip.code, amountFen: order.amountFen, channel },
     }).catch((e) =>
@@ -171,6 +248,7 @@ export class OrdersService {
       where: { id },
       include: {
         ip: true,
+        brief: { select: { id: true, title: true, status: true } },
         contract: true,
       },
     });
