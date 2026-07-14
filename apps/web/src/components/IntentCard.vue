@@ -18,6 +18,7 @@
  */
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import type { AssistantMessage } from '@/composables/useAssistant';
 import { useIntentExecutor } from '@/composables/useIntentExecutor';
 import { aiToolsApi, type VideoToolName } from '@/api/ai-tools';
@@ -26,7 +27,13 @@ const props = defineProps<{ message: AssistantMessage }>();
 
 const router = useRouter();
 const route = useRoute();
+const auth = useAuthStore();
 const { execute } = useIntentExecutor();
+
+/** R10.3 P2: 角色错位按钮过滤 — LIST_BRIEFS 的两个 CTA 按钮按角色显示,
+ * 避免创作者在 chat 里被引导到 /buyer 控制台,反之亦然。 */
+const isBuyerSession = computed(() => auth.isBuyer ?? false);
+const isCreatorSession = computed(() => auth.isCreator ?? false);
 
 const executing = computed(() => props.message.intentStatus === 'executing');
 const success = computed(() => props.message.intentStatus === 'success');
@@ -294,13 +301,16 @@ onMounted(async () => {
     <template v-else-if="message.intent === 'LIST_BRIEFS'">
       <p class="text-ink/70">点击下方按钮打开可接发包列表或买家控制台。</p>
       <div class="mt-2 flex gap-2">
+        <!-- R10.3 P2: 按角色过滤 CTA — 创作者 session 不显示买家控制台按钮,反之亦然 -->
         <button
+          v-if="isBuyerSession"
           class="text-[10px] px-2 py-1 rounded-full border border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
           @click="router.push('/buyer')"
         >
           买家控制台 →
         </button>
         <button
+          v-if="isCreatorSession"
           class="text-[10px] px-2 py-1 rounded-full border border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
           @click="router.push('/creator/briefs')"
         >

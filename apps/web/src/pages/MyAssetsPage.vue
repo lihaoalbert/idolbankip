@@ -111,7 +111,7 @@ onMounted(fetchOrders);
         v-else-if="orders.length === 0"
         icon="◇"
         title="— No plates in collection —"
-        description="完成订单支付 + 合同签署后, 这里会出现可下载的完整资产包"
+        description="买下 IP 授权并完成合同签署后, 完整资产包可从这里下载"
         action-label="BROWSE CATALOGUE"
         action-to="/ips"
       />

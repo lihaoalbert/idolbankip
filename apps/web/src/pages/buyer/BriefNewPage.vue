@@ -145,6 +145,11 @@ interface PricingEstimate {
 const aiEstimating = ref(false);
 const aiPricing = ref<PricingEstimate | null>(null);
 
+// R10.3 P2: AI 估价守卫 — 标题或描述为空时按钮 disabled,hover 提示原因
+const canEstimate = computed(
+  () => !!form.value.title.trim() && !!form.value.description.trim(),
+);
+
 async function aiEstimate() {
   if (!form.value.title) {
     toast.error('请先填标题');
@@ -400,6 +405,7 @@ async function submit(action: 'draft' | 'publish') {
               v-for="c in CATEGORIES"
               :key="c.value"
               type="button"
+              :aria-pressed="form.category === c.value"
               @click="onCategoryChange(); form.category = c.value"
               class="plate p-4 text-left border-0.5 transition"
               :class="form.category === c.value
@@ -420,6 +426,7 @@ async function submit(action: 'draft' | 'publish') {
               v-for="p in PLATFORMS"
               :key="p.value"
               type="button"
+              :aria-pressed="form.platformSet.includes(p.value)"
               @click="togglePlatform(p.value)"
               class="px-4 py-2 border-0.5 text-sm transition"
               :class="form.platformSet.includes(p.value)
@@ -441,6 +448,8 @@ async function submit(action: 'draft' | 'publish') {
               v-for="ip in myIPs"
               :key="ip.id"
               type="button"
+              :aria-pressed="form.ipIds.includes(ip.id)"
+              :aria-label="`${form.ipIds.includes(ip.id) ? '取消选择' : '选择'} IP ${ip.displayName}`"
               @click="toggleIp(ip.id)"
               class="plate-frame border-0.5 p-2 transition"
               :class="form.ipIds.includes(ip.id) ? 'border-gold bg-gold/5' : 'border-line bg-surface'"
@@ -467,7 +476,9 @@ async function submit(action: 'draft' | 'publish') {
               <button
                 type="button"
                 class="px-3 py-1.5 bg-stamp-red text-white text-xs rounded hover:bg-stamp-red/90 disabled:opacity-50"
-                :disabled="aiEstimating"
+                :disabled="aiEstimating || !canEstimate"
+                :title="!canEstimate ? '请先填标题与描述' : '基于 brief 内容推荐 3 档价格 + 推荐套餐'"
+                :aria-label="!canEstimate ? '请先填标题与描述再估价' : 'AI 估价'"
                 @click="aiEstimate"
               >
                 {{ aiEstimating ? '估价中…' : '✦ AI 估价' }}
@@ -508,6 +519,7 @@ async function submit(action: 'draft' | 'publish') {
               v-for="pkg in PACKAGES"
               :key="pkg.value"
               type="button"
+              :aria-pressed="form.packageTier === pkg.value"
               @click="form.packageTier = pkg.value"
               class="plate p-5 text-left border-0.5 transition"
               :class="form.packageTier === pkg.value

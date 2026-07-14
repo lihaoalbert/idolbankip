@@ -108,7 +108,7 @@ onMounted(fetchOrders);
         <EmptyState
           icon="◇"
           title="— No entries yet —"
-          description="去形象库挑选一个数字人 IP, 完成支付后会自动生成授权订单"
+          description="买 IP 或 brief 中标后, 支付与合同状态都会显示在这里"
           action-label="BROWSE CATALOGUE"
           action-to="/ips"
         />
