@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+// (useToast imported below)
 import { apiClient, formatFen, ossUrl } from '@/api/client';
 import Skeleton from '@/components/Skeleton.vue';
 import EmptyState from '@/components/EmptyState.vue';
+import { formatDateTime } from '@/utils/formatDate';
 
 const orders = ref<any[]>([]);
 const loading = ref(true);
+const route = useRoute();
+const router = useRouter();
 
 function thumbUrl(key?: string): string {
   return key ? ossUrl(key) : '';
@@ -32,19 +37,6 @@ function statusLabel(s: string): string {
   }[s] || s;
 }
 
-function statusRoman(s: string): string {
-  return {
-    CREATED: 'I',
-    PAID: 'II',
-    CONTRACT_PENDING: 'III',
-    CONTRACT_SIGNED: 'IV',
-    DOWNLOAD_UNLOCKED: 'V',
-    DELIVERED: 'VI',
-    REFUNDED: '—',
-    CANCELLED: '×',
-  }[s] || '?';
-}
-
 function statusVariant(s: string): 'pending' | 'success' | 'danger' | 'neutral' {
   if (['DOWNLOAD_UNLOCKED', 'DELIVERED', 'CONTRACT_SIGNED'].includes(s)) return 'success';
   if (['CREATED', 'REFUNDED', 'CANCELLED'].includes(s)) return 'danger';
@@ -52,7 +44,54 @@ function statusVariant(s: string): 'pending' | 'success' | 'danger' | 'neutral' 
   return 'neutral';
 }
 
+// R11.2 P1-5: 状态 tab(URL query 同步)
+// 全部 / 待支付 / 进行中(签约) / 已完成(下载/交付)
+const TABS = [
+  { key: 'all',     label: '全部',     match: () => true },
+  { key: 'pending', label: '待支付',   match: (s: string) => s === 'CREATED' },
+  { key: 'active',  label: '进行中',   match: (s: string) => s === 'CONTRACT_PENDING' || s === 'CONTRACT_SIGNED' || s === 'PAID' },
+  { key: 'done',    label: '已完成',   match: (s: string) => s === 'DOWNLOAD_UNLOCKED' || s === 'DELIVERED' },
+  { key: 'closed',  label: '退款/取消',match: (s: string) => s === 'REFUNDED' || s === 'CANCELLED' },
+] as const;
+type TabKey = typeof TABS[number]['key'];
+
+const activeTab = computed<TabKey>(() => {
+  const q = String(route.query.tab ?? 'all');
+  return (TABS.find((t) => t.key === q)?.key ?? 'all') as TabKey;
+});
+const filteredOrders = computed(() => {
+  const tab = TABS.find((t) => t.key === activeTab.value)!;
+  return orders.value.filter((o) => tab.match(o.status));
+});
+const tabCount = (key: TabKey) => {
+  const tab = TABS.find((t) => t.key === key)!;
+  return orders.value.filter((o) => tab.match(o.status)).length;
+};
+function setTab(key: TabKey) {
+  router.replace({ query: key === 'all' ? {} : { tab: key } });
+}
+
 onMounted(fetchOrders);
+
+// R11.1 P0-1: 行内快捷支付(不进详情直接调)
+import { useToast } from '@/composables/useToast';
+const toast = useToast();
+const payingId = ref<string | null>(null);
+async function payInline(orderId: string) {
+  payingId.value = orderId;
+  try {
+    await apiClient.post(`/orders/${orderId}/pay`, { channel: 'mock_alipay' });
+    toast.success('支付成功');
+    await fetchOrders();
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || '支付失败');
+  } finally {
+    payingId.value = null;
+  }
+}
+
+// 当 tab 改变时刷新(下拉时拉新数据)— 这里只切换本地过滤,不需要重拉
+watch(activeTab, () => {});
 </script>
 
 <template>
@@ -86,6 +125,24 @@ onMounted(fetchOrders);
         </p>
       </div>
 
+      <!-- R11.2 P1-5: 状态 tab(URL query 同步) -->
+      <div class="flex items-center gap-1 mb-6 border-b-0.5 border-line">
+        <button
+          v-for="t in TABS"
+          :key="t.key"
+          @click="setTab(t.key)"
+          :class="[
+            'px-4 py-2 catalog-no text-sm transition border-b-2 -mb-0.5',
+            activeTab === t.key
+              ? 'border-gold text-ink'
+              : 'border-transparent text-ink/50 hover:text-ink'
+          ]"
+        >
+          {{ t.label }}
+          <span v-if="tabCount(t.key) > 0" class="ml-1 text-ink/40">({{ tabCount(t.key) }})</span>
+        </button>
+      </div>
+
       <!-- 内容 -->
       <div v-if="loading" class="bg-surface border-0.5 border-ink p-6">
         <div class="flex items-baseline justify-between mb-6 pb-3 hairline-b border-line">
@@ -114,6 +171,13 @@ onMounted(fetchOrders);
         />
       </div>
 
+      <div v-else-if="filteredOrders.length === 0" class="py-16 text-center catalog-no text-ink/40">
+        — 该 tab 下暂无订单 —
+        <button class="block mx-auto mt-3 text-sm text-gold hover:text-ink transition" @click="setTab('all')">
+          ← 查看全部
+        </button>
+      </div>
+
       <!-- 订单列表 · 像图录的条目 -->
       <div v-else class="bg-surface border-0.5 border-ink">
         <!-- 表头 -->
@@ -126,9 +190,9 @@ onMounted(fetchOrders);
         </div>
 
         <RouterLink
-          v-for="(o, idx) in orders"
+          v-for="(o, idx) in filteredOrders"
           :key="o.id"
-          :to="o.ip ? `/orders/${o.id}` : (o.brief ? `/buyer/briefs/${o.brief.id}` : `/orders/${o.id}`)"
+          :to="`/orders/${o.id}`"
           class="block grid grid-cols-12 gap-4 px-6 py-5 hairline-b border-line items-center hover:bg-gold/5 transition group"
         >
           <!-- IP / Brief 标题 -->
@@ -180,24 +244,32 @@ onMounted(fetchOrders);
           </div>
 
           <!-- 状态 -->
-          <div class="col-span-6 md:col-span-2">
+          <div class="col-span-6 md:col-span-2 flex flex-col gap-2">
             <span
               :class="[
-                'inline-flex items-center gap-2 px-2 py-1 text-xs catalog-no',
+                'inline-flex items-center gap-2 px-2 py-1 text-xs catalog-no w-fit',
                 statusVariant(o.status) === 'success' ? 'bg-success/10 text-success' :
                 statusVariant(o.status) === 'danger' ? 'bg-danger/10 text-danger' :
                 statusVariant(o.status) === 'pending' ? 'bg-gold/15 text-ink' :
                 'bg-ink/5 text-ink/60'
               ]"
             >
-              <span class="text-gold">{{ statusRoman(o.status) }}</span>
               <span>{{ statusLabel(o.status) }}</span>
             </span>
+            <!-- R11.1 P0-1: 行内快捷支付 -->
+            <button
+              v-if="o.status === 'CREATED'"
+              @click.prevent="payInline(o.id)"
+              :disabled="payingId === o.id"
+              class="text-xs px-2 py-1 bg-stamp-red text-cream hover:bg-ink transition w-fit disabled:opacity-50"
+            >
+              {{ payingId === o.id ? '支付中…' : '💳 去支付' }}
+            </button>
           </div>
 
-          <!-- 时间 -->
+          <!-- 时间 · R11.3 P2-1 统一 -->
           <div class="col-span-6 md:col-span-2 md:text-right text-xs text-ink/60 font-mono">
-            {{ new Date(o.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
+            {{ formatDateTime(o.createdAt) }}
           </div>
         </RouterLink>
 
