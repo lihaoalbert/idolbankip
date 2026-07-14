@@ -119,13 +119,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-4rem)] bg-cream dark:bg-ink overflow-hidden">
+  <div class="flex h-[calc(100vh-4rem)] bg-r12-canvas overflow-hidden">
     <!-- 左栏 (fullscreen 时也保留, 方便用户点击「AI 助手」切回) -->
     <!-- R9.2: 加 relative z-10 确保 sidebar 内部 RouterLink 永远在中栏 overlay 之上,
        之前 fixed toggle 按钮 (z-30) + 中栏 overlay 一起拦了 pointer events。 -->
     <aside
       :class="[
-        'border-r hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 transition-all duration-200 overflow-hidden relative z-10',
+        'border-r border-r12-line bg-r12-canvas flex flex-col shrink-0 transition-all duration-200 overflow-hidden relative z-10',
         effectiveCollapsed ? 'w-0' : 'w-60',
       ]"
     >
@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
       type="button"
       @click="toggleSidebar"
       :class="[
-        'fixed top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-cream dark:bg-ink border hairline border-line dark:border-cream/30 rounded-none flex items-center justify-center text-ink/60 dark:text-cream/60 hover:bg-gold hover:text-ink hover:border-gold transition',
+        'fixed top-1/2 -translate-y-1/2 z-30 w-6 h-14 bg-r12-canvas border border-r12-line rounded-none flex items-center justify-center text-r12-ink-tertiary hover:bg-r12-cobalt hover:text-white hover:border-r12-cobalt transition',
         effectiveCollapsed ? 'left-0' : 'left-60',
       ]"
       :aria-label="effectiveCollapsed ? '展开侧栏' : '折叠侧栏'"
@@ -155,16 +155,16 @@ onBeforeUnmount(() => {
     <div
       v-show="!isFullscreen"
       @mousedown="startRightDrag"
-      class="w-1 shrink-0 cursor-col-resize hover:bg-gold transition-colors relative group"
+      class="w-1 shrink-0 cursor-col-resize hover:bg-r12-cobalt transition-colors relative group"
       :title="'拖动调整右屏宽度 (当前 ' + Math.round(rightWidthPx) + 'px)'"
     >
-      <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-gold/40 group-hover:bg-gold transition-colors" />
+      <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-r12-cobalt-soft group-hover:bg-r12-cobalt transition-colors" />
     </div>
 
     <!-- 右栏 (results) — fullscreen 占满; 否则按 rightWidthPx -->
     <aside
       :class="[
-        'border-l hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 overflow-y-auto transition-[width] duration-150',
+        'border-l border-r12-line bg-r12-canvas flex flex-col shrink-0 overflow-y-auto transition-[width] duration-150',
         isFullscreen ? 'flex-1 max-w-none' : '',
       ]"
       :style="isFullscreen ? undefined : { width: rightWidthPx + 'px', maxWidth: '80vw' }"
@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
       v-show="!isFullscreen && rightWidthPx !== 400"
       type="button"
       @click="resetRightWidth"
-      class="fixed right-2 bottom-16 z-20 text-[10px] px-2 py-1 rounded-none bg-cream dark:bg-ink border hairline border-line dark:border-cream/30 text-ink/60 dark:text-cream/60 hover:border-gold hover:text-gold transition"
+      class="fixed right-2 bottom-16 z-20 text-[10px] px-2 py-1 rounded-none bg-r12-canvas border border-r12-line text-r12-ink-tertiary hover:border-r12-cobalt hover:text-r12-cobalt transition"
       :title="'重置右屏宽度 (' + Math.round(rightWidthPx) + 'px → 400px)'"
     >
       ↺ 重置右屏

@@ -51,23 +51,23 @@ if (auth.isAuthenticated && !isCreator.value) {
 <template>
   <ChatWorkspace>
     <template #sidebar>
-      <div class="px-3 py-3 border-b border-line">
-        <div class="text-[10px] text-ink/50 uppercase tracking-wider">创作者控制台</div>
-        <div class="text-xs font-medium mt-1">chat-first</div>
+      <div class="px-3 py-3 border-b border-r12-line">
+        <div class="catalog-no text-r12-ink-tertiary">创作者控制台</div>
+        <div class="font-r12-sans text-r12-caption font-medium mt-1 text-r12-ink-primary">chat-first</div>
       </div>
       <nav class="flex-1 overflow-y-auto py-2">
         <RouterLink
           v-for="(item, i) in navItems"
           :key="i"
           :to="item.route"
-          class="nav-item flex items-center gap-2 px-3 py-2 text-xs transition border-l-2 border-transparent text-ink/70 hover:bg-cream/70 dark:hover:bg-surface-2"
-          active-class="nav-item-active bg-gold/15 text-gold border-gold"
+          class="nav-item flex items-center gap-2 px-3 py-2 text-xs transition border-l-2 border-transparent text-r12-ink-secondary hover:bg-r12-surface-2"
+          active-class="nav-item-active bg-r12-cobalt-soft text-r12-cobalt border-r12-cobalt"
         >
           <span class="text-base">{{ item.icon }}</span>
           <span class="text-xs">{{ item.label }}</span>
         </RouterLink>
       </nav>
-      <div v-if="isDev" class="border-t border-line px-3 py-2.5 text-[10px] text-ink/40 leading-relaxed">
+      <div v-if="isDev" class="border-t border-r12-line px-3 py-2.5 catalog-no text-r12-ink-tertiary leading-relaxed">
         R3 三分屏 chat · AI 工具待开放
       </div>
     </template>

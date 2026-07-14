@@ -150,20 +150,20 @@ function autosize(e: Event) {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-cream dark:bg-ink">
+  <div class="flex flex-col h-full bg-r12-canvas">
     <!-- header (panel variant only, full variant is page-level) -->
-    <div v-if="variant === 'panel'" class="px-4 py-2.5 border-b hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex items-center justify-between">
+    <div v-if="variant === 'panel'" class="px-4 py-2.5 border-b border-r12-line bg-r12-canvas flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-ink dark:bg-cream text-cream dark:text-ink flex items-center justify-center text-xs font-mono">AI</div>
+        <div class="w-7 h-7 rounded-full bg-r12-ink-primary text-white flex items-center justify-center text-xs font-mono">AI</div>
         <div>
           <div class="text-sm font-medium leading-none">IBIren 助手</div>
-          <div class="text-[10px] text-ink/50 dark:text-ink/40 leading-none mt-0.5">问答 · 业务执行 · 需要时弹卡片让你确认</div>
+          <div class="text-r12-micro text-r12-ink-tertiary leading-none mt-0.5">问答 · 业务执行 · 需要时弹卡片让你确认</div>
         </div>
       </div>
       <button
         v-if="messages.length > 0"
         @click="clearMessages"
-        class="text-[10px] text-ink/50 dark:text-ink/40 hover:text-danger border hairline border-line dark:border-cream/30 px-2 py-1 rounded-none hover:border-danger transition"
+        class="text-r12-micro text-r12-ink-tertiary hover:text-r12-danger border border-r12-line px-2 py-1 hover:border-r12-danger transition"
       >
         清空
       </button>
@@ -175,10 +175,10 @@ function autosize(e: Event) {
       <div v-if="messages.length === 0" class="h-full flex flex-col items-center justify-center text-center py-10">
         <div class="text-4xl mb-3">👋</div>
         <h2 class="text-base font-medium mb-2">你好, 我是 IBIren 的 AI 助手</h2>
-        <p class="text-xs text-ink/60 dark:text-ink/50 mb-2 max-w-md leading-relaxed">
+        <p class="text-r12-caption text-r12-ink-secondary mb-2 max-w-md leading-relaxed">
           我能帮你解读订单/合同状态、指路到对应页面、执行发包/接单等写操作（需要你确认）。
         </p>
-        <p class="text-[10px] text-gold mb-5 max-w-md leading-relaxed">
+        <p class="text-r12-micro text-r12-cobalt mb-5 max-w-md leading-relaxed">
           助手回答仅供参考。涉及钱/合同/合规问题, 以页面/PDF 原文为准。
         </p>
         <div class="w-full max-w-md space-y-2">
@@ -186,7 +186,7 @@ function autosize(e: Event) {
             v-for="(p, i) in quickPrompts"
             :key="i"
             @click="input = p; submit()"
-            class="block w-full text-left text-xs px-3 py-2.5 border hairline border-line dark:border-cream/20 hover:border-gold hover:bg-cream/40 dark:hover:bg-ink/40 transition rounded-r8-sm"
+            class="block w-full text-left text-r12-caption px-3 py-2.5 border border-r12-line hover:border-r12-cobalt hover:bg-r12-surface-2 transition rounded-r8-sm"
           >
             {{ p }}
           </button>
@@ -204,8 +204,8 @@ function autosize(e: Event) {
               :class="[
                 'rounded-r8-md px-3.5 py-2.5 text-sm leading-relaxed border hairline',
                 m.role === 'user'
-                  ? 'bg-ink text-cream border-ink rounded-tr-r8-sm'
-                  : (m.fallback ? 'bg-gold/10 dark:bg-gold/20 text-ink dark:text-cream border-gold/30' : 'bg-surface dark:bg-ink/40 text-ink dark:text-cream border-line dark:border-cream/20 rounded-tl-r8-sm'),
+                  ? 'bg-r12-ink-primary text-white border-r12-ink-primary rounded-tr-r8-sm'
+                  : (m.fallback ? 'bg-r12-cobalt-soft text-r12-ink-primary border-r12-cobalt-soft' : 'bg-r12-surface text-r12-ink-primary border-r12-line rounded-tl-r8-sm'),
               ]"
             >
               <!-- W6-R7: 附件预览 chips (上传后回填到 user 消息,持久化显示) -->
@@ -217,12 +217,12 @@ function autosize(e: Event) {
                   target="_blank"
                   rel="noopener"
                   :title="att.filename"
-                  class="inline-flex items-center gap-1 px-2 py-1 border hairline border-line dark:border-cream/20 bg-cream/30 dark:bg-ink/40 text-[10px] max-w-[180px] hover:bg-cream/50 transition rounded-r8-sm"
+                  class="inline-flex items-center gap-1 px-2 py-1 border border-r12-line bg-r12-surface-2 text-[10px] max-w-[180px] hover:bg-r12-surface-2 transition rounded-r8-sm"
                 >
                   <span v-if="att.mimeType.startsWith('image/')">📎</span>
                   <span v-else>📄</span>
                   <span class="truncate">{{ att.filename }}</span>
-                  <span class="text-ink/40 shrink-0">· {{ fmtSize(att.sizeBytes) }}</span>
+                  <span class="text-r12-ink-tertiary shrink-0">· {{ fmtSize(att.sizeBytes) }}</span>
                 </a>
               </div>
               <div class="whitespace-pre-wrap break-words">{{ m.content }}</div>
@@ -234,7 +234,7 @@ function autosize(e: Event) {
                   v-for="(a, i) in m.suggestedActions"
                   :key="i"
                   @click="handleAction(a.href)"
-                  class="text-[11px] px-2.5 py-1 rounded-r8-sm border hairline border-gold/40 text-gold hover:bg-gold hover:text-ink transition"
+                  class="text-r12-micro px-2 py-0.5 rounded-r8-sm border border-r12-cobalt text-r12-cobalt hover:bg-r12-cobalt hover:text-white transition"
                 >
                   {{ a.label }} →
                 </button>
@@ -250,9 +250,9 @@ function autosize(e: Event) {
         <div v-if="loading" class="flex justify-start">
           <div class="bg-surface dark:bg-ink/40 border hairline border-line dark:border-cream/20 rounded-r8-md rounded-tl-r8-sm px-3 py-2">
             <div class="flex gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-ink/40 dark:bg-cream/40 animate-pulse"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-ink/40 dark:bg-cream/40 animate-pulse" style="animation-delay: 0.2s"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-ink/40 dark:bg-cream/40 animate-pulse" style="animation-delay: 0.4s"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-r12-ink-tertiary animate-pulse"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-r12-ink-tertiary animate-pulse" style="animation-delay: 0.2s"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-r12-ink-tertiary animate-pulse" style="animation-delay: 0.4s"></span>
             </div>
           </div>
         </div>
@@ -260,8 +260,8 @@ function autosize(e: Event) {
     </div>
 
     <!-- input -->
-    <div class="border-t hairline border-line dark:border-cream/15 px-3 py-2.5 bg-cream dark:bg-ink">
-      <div v-if="!canSend" class="text-xs text-ink/50 dark:text-ink/40 text-center py-2">
+    <div class="border-t border-r12-line px-3 py-2.5 bg-r12-canvas">
+      <div v-if="!canSend" class="text-r12-caption text-r12-ink-tertiary text-center py-2">
         请先 <RouterLink to="/login" class="text-gold hover:underline">登录</RouterLink>
       </div>
       <div v-else>
@@ -270,7 +270,7 @@ function autosize(e: Event) {
           <div
             v-for="(f, i) in attachments"
             :key="i"
-            class="relative group flex items-center gap-1.5 px-2 py-1 bg-cream dark:bg-ink/40 border hairline border-line dark:border-cream/20 text-[10px] rounded-r8-sm"
+            class="relative group flex items-center gap-1.5 px-2 py-1 bg-r12-surface border border-r12-line text-[10px] rounded-r8-sm"
           >
             <img
               v-if="attachmentPreviews[f.name + f.size]"
@@ -280,13 +280,13 @@ function autosize(e: Event) {
             />
             <span v-else class="w-8 h-8 rounded bg-line flex items-center justify-center shrink-0">📄</span>
             <div class="min-w-0 max-w-[140px]">
-              <div class="truncate text-ink/80 dark:text-cream/80">{{ f.name }}</div>
-              <div class="text-ink/40 dark:text-cream/40">{{ fmtSize(f.size) }}</div>
+              <div class="truncate text-r12-ink-primary">{{ f.name }}</div>
+              <div class="text-r12-ink-tertiary">{{ fmtSize(f.size) }}</div>
             </div>
             <button
               type="button"
               @click="removeAttachment(i)"
-              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-danger text-cream text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-r12-danger text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
               title="移除"
             >×</button>
           </div>
@@ -305,7 +305,7 @@ function autosize(e: Event) {
             type="button"
             @click="pickAttachments"
             :disabled="loading || attachments.length >= 5"
-            class="w-10 h-10 rounded-none border hairline border-line dark:border-cream/30 bg-surface dark:bg-ink/40 text-ink/60 dark:text-cream/60 hover:border-gold hover:text-gold transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center"
+            class="w-10 h-10 rounded-r8-sm border border-r12-line bg-r12-surface text-r12-ink-secondary hover:border-r12-cobalt hover:text-r12-cobalt transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center"
             :title="attachments.length >= 5 ? '最多 5 个附件' : '上传图片/文档 (jpg/png/pdf/docx, ≤50MB/文件)'"
             aria-label="上传附件"
           >
@@ -318,13 +318,13 @@ function autosize(e: Event) {
             placeholder="问点什么… (Enter 发送, Shift+Enter 换行)"
             rows="1"
             :disabled="loading"
-            class="flex-1 resize-none bg-surface dark:bg-ink/40 text-sm px-3 py-2 border hairline border-line dark:border-cream/20 rounded-r8-md focus:outline-none focus:border-gold disabled:opacity-50"
+            class="flex-1 resize-none bg-r12-surface text-r12-body px-3 py-2 border border-r12-line rounded-r8-md focus:outline-none focus:border-r12-cobalt disabled:opacity-50"
             style="min-height: 36px"
           />
           <button
             @click="submit"
             :disabled="loading || (!input.trim() && attachments.length === 0)"
-            class="w-10 h-10 rounded-none bg-ink text-cream flex items-center justify-center hover:bg-gold hover:text-ink transition disabled:opacity-30 disabled:hover:bg-ink shrink-0"
+            class="w-10 h-10 rounded-r8-sm bg-r12-ink-primary text-white flex items-center justify-center hover:bg-r12-cobalt transition disabled:opacity-30 disabled:hover:bg-ink shrink-0"
             aria-label="发送"
           >
             ↑
