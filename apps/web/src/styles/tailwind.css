@@ -173,18 +173,27 @@
 }
 
 /* ============================================================
-   Stamp / 印记: 档案袋上的橡皮章效果
+   Stamp / 印记 — R12 重定义为 status pill
+   R8 是斜 1.5px 印章 (9px JetBrains Mono 0.28em);R12 走 docs §Pills:
+   24px 高度 · mono micro (12px/0.04em) · 4px 圆角 · 1px 同色描边 · 无旋转
+   "stamp" 类名保留,IpCard.vue / 详情页 status 用 0 模板改动即可生效。
    ============================================================ */
 .stamp {
-  display: inline-block;
-  padding: 4px 10px;
-  border: 1.5px solid currentColor;
-  font-family: '"JetBrains Mono"', monospace;
-  font-size: 9px;
-  letter-spacing: 0.28em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  transform: rotate(-3deg);
-  opacity: 0.85;
+  transform: none;
+  opacity: 1;
+  background-color: var(--color-surface);
 }
 
 /* ============================================================
