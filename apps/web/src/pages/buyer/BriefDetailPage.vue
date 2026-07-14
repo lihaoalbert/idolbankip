@@ -439,6 +439,31 @@ async function submitReview() {
           </div>
         </section>
 
+        <!-- R10 P0-1: 中标后工作区入口 — 之前数据已就绪 (brief.workspace),
+          但模板没消费,中标后买家无 workspace 入口,核心业务流断裂 -->
+        <section v-if="brief.status === 'in_progress' || brief.status === 'delivered'" class="plate p-6 border-stamp-red/30">
+          <div class="catalog-no mb-3 text-stamp-red">WORKSPACE · 协作中</div>
+          <div v-if="brief.workspace" class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-xs text-ink/60 mb-1">
+                {{ brief.status === 'in_progress' ? '订单进行中,创作者已进入工作区' : '创作者已交付,等待你验收' }}
+              </div>
+              <div class="text-[10px] text-ink/40 font-mono">
+                workspace · {{ brief.workspace.id.slice(-12) }} · {{ brief.workspace.status }}
+              </div>
+            </div>
+            <RouterLink
+              :to="`/workspaces/${brief.workspace.id}`"
+              class="inline-block px-5 py-2.5 bg-ink text-cream text-xs font-medium tracking-widest uppercase hover:bg-stamp-red shrink-0"
+            >
+              {{ brief.status === 'in_progress' ? '进入工作区 →' : '去验收 →' }}
+            </RouterLink>
+          </div>
+          <div v-else class="text-xs text-ink/50">
+            工作区尚未创建(等待创作者开启协作)
+          </div>
+        </section>
+
         <!-- W2 #30 — 创作者报价(按价格升序) -->
         <section class="plate p-6">
           <div class="flex items-center justify-between mb-3">

@@ -210,7 +210,8 @@ export class ContractsService implements OnModuleInit {
     const c = await this.requireById(contractId);
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: c.orderId },
-      include: { ip: true },
+      // R10 P0-3: brief 中标订单 ip 为 null,下载兜底用 brief 标题
+      include: { ip: true, brief: { select: { id: true, title: true } } },
     });
     if (order.buyerId !== requesterId) {
       const user = await this.prisma.user.findUniqueOrThrow({ where: { id: requesterId } });

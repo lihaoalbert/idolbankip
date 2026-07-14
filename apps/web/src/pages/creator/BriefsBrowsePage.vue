@@ -45,8 +45,12 @@ const loading = ref(false);
 const filterCategory = ref<string>('');
 
 const visibleBriefs = computed(() => {
-  if (!filterCategory.value) return briefs.value;
-  return briefs.value.filter((b) => b.category === filterCategory.value);
+  // R10 P0-4: 前端兜底过滤 EXPIRED — 后端 listPublic 已加 deadlineAt >= now() 硬过滤,
+  //   但用户可能在两轮请求之间碰到临界值过期,前端再兜一刀保证列表永远不显示已截止 brief
+  const nowMs = Date.now();
+  return briefs.value
+    .filter((b) => new Date(b.deadlineAt).getTime() > nowMs)
+    .filter((b) => !filterCategory.value || b.category === filterCategory.value);
 });
 
 const now = ref(Date.now());

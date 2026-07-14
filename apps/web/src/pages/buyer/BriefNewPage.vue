@@ -324,7 +324,7 @@ async function submit(action: 'draft' | 'publish') {
           <p class="text-xs text-ink/50 mt-1">填写需求 → 选择 IP / 平台 → 平台匹配创作者 24h 内报价</p>
         </div>
         <RouterLink
-          to="/buyer/orders"
+          to="/orders"
           class="text-xs font-mono tracking-widest uppercase text-ink/60 hover:text-gold"
         >
           ← 我的订单

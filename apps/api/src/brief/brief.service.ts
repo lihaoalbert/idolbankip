@@ -225,11 +225,16 @@ export class BriefService {
 
   /**
    * 创作者查公开的 bidding brief(排除自己发的)
+   * R10 P0-4: 加 deadlineAt >= now() 过滤 — 后端硬过滤,前端 brief 列表不再显示 EXPIRED brief
+   *   (autoCloseExpired cron 每小时跑一次,但用户在前一刻可能还在浏览;后端兜底永远返回可投 brief)
    */
   async listPublic(filter: BriefFilter): Promise<{ items: Brief[]; total: number; page: number; size: number }> {
     const page = filter.page ?? 1;
     const size = filter.size ?? 20;
-    const where: any = { status: filter.status ?? 'bidding' };
+    const where: any = {
+      status: filter.status ?? 'bidding',
+      deadlineAt: { gte: new Date() },
+    };
     if (filter.excludeBuyerId) {
       where.buyerId = { not: filter.excludeBuyerId };
     }
@@ -265,7 +270,11 @@ export class BriefService {
   }
 
   /**
-   * 创作者查公开 brief 详情(只能看 bidding 状态)
+   * 创作者查公开 brief 详情
+   * R10 P0-2: 放宽状态限制 — 允许 bidding / in_progress / delivered / closed 四态(都返回只读视图)
+   *   - bidding: 正常接单,显示完整信息
+   *   - in_progress / delivered: 已中标,前端 403 catch 后跳 workspace(中标后入口)
+   *   - closed: 已关闭,只读
    * 3 道软护栏之三:创作者端只显示 currentPrice,不显示 bumpHistory(避免歧视老买家 vs 加价老买家)
    */
   async getPublicById(id: string) {
@@ -276,8 +285,9 @@ export class BriefService {
       },
     });
     if (!brief) throw new NotFoundException('brief 不存在');
-    if (brief.status !== 'bidding') {
-      throw new ForbiddenException('该 brief 不可接单');
+    const VISIBLE_STATUSES = ['bidding', 'in_progress', 'delivered', 'closed'];
+    if (!VISIBLE_STATUSES.includes(brief.status)) {
+      throw new ForbiddenException('该 brief 暂不可查看');
     }
     // 脱敏:剥离 bumpHistory,创作者端只看到当前价
     const { bumpHistory: _omit, ...sanitized } = brief;

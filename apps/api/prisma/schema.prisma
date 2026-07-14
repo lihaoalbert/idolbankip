@@ -604,8 +604,11 @@ model Order {
   id      String  @id @default(cuid())
   buyerId String
   buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
-  ipId    String
-  ip      IpAsset @relation(fields: [ipId], references: [id])
+  // R10 P0-3: ipId/briefId 二选一(买 IP → ipId; brief 中标 → briefId)
+  ipId    String?
+  ip      IpAsset? @relation(fields: [ipId], references: [id])
+  briefId String?
+  brief   Brief?   @relation(fields: [briefId], references: [id])
 
   orderType      OrderType
   licenseScope   LicenseScope?
@@ -629,6 +632,7 @@ model Order {
 
   @@index([buyerId, status])
   @@index([ipId, status])
+  @@index([briefId, status])
 }
 
 model Contract {
@@ -1127,6 +1131,8 @@ model Brief {
   platformJudgments PlatformJudgment[]
   qualityEvals  QualityEval[]
   royaltyRecords RoyaltyRecord[]
+  // R10 P0-3: brief 中标时同步创建 Order,一个 brief 对应一笔订单
+  orders        Order[]
 
   @@index([buyerId, status])
   @@index([category, status])

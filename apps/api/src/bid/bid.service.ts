@@ -71,6 +71,7 @@ export class BidService {
    *   3. bid → accepted
    *   4. 其他 bid → rejected
    *   5. 创建 Workspace(创作者工作台)
+   *   6. R10 P0-3: 同步创建 Order 记录(brief 中标 → /orders 列表出现「中标待付」订单)
    */
   async accept(bidId: string, buyerId: string, briefId: string) {
     const bid = await this.prisma.bid.findUnique({ where: { id: bidId } });
@@ -117,7 +118,24 @@ export class BidService {
         bid.creatorId,
       );
 
-      return { bid: accepted, brief: updatedBrief, workspaceId: workspace.id };
+      // 5. R10 P0-3: 同步创建 Order 记录(brief 中标链路打通 /orders)
+      //   - ipId = null: brief 中标非 IP 直购
+      //   - orderType = DEPOSIT_INTENT: 暂复用,后续补 BRIEF_DEPOSIT 枚举
+      //   - amountFen: bid.amount 是元(Double),转分需 Math.round(amount * 100)
+      //   - status = CREATED: 待支付;买家在工作台走付款流后 → PAID
+      const order = await tx.order.create({
+        data: {
+          buyerId,
+          briefId,
+          ipId: null,
+          orderType: 'DEPOSIT_INTENT',
+          amountFen: Math.round(Number(accepted.price) * 100),
+          platformFeeFen: 0,
+          status: 'CREATED',
+        },
+      });
+
+      return { bid: accepted, brief: updatedBrief, workspaceId: workspace.id, orderId: order.id };
     });
   }
 

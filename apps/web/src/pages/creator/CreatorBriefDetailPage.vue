@@ -157,8 +157,25 @@ async function loadBrief() {
       bidForm.value.price = currentPriceNum.value;
     }
   } catch (e: any) {
-    toast.error(e?.response?.data?.message || '加载失败');
-    router.push('/creator/briefs');
+    // R10 P0-2: 区分 403(已中标/已关闭)与 404(真不存在) —
+    //   后端已放宽到 bidding/in_progress/delivered/closed,403 应该没了;
+    //   真 403 兜底为"已被接单"并跳 workspace;404 才回列表
+    const status = e?.response?.status ?? e?.status;
+    if (status === 403) {
+      if (brief.value?.workspace) {
+        toast.info('该 brief 已被接单,请到工作区协作');
+        router.push(`/workspaces/${brief.value.workspace.id}`);
+      } else {
+        toast.info('该 brief 暂不可查看');
+        router.push('/creator/briefs');
+      }
+    } else if (status === 404) {
+      toast.error('brief 不存在');
+      router.push('/creator/briefs');
+    } else {
+      toast.error(e?.response?.data?.message || '加载失败');
+      router.push('/creator/briefs');
+    }
   } finally {
     loading.value = false;
   }
@@ -504,10 +521,14 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
             </div>
           </div>
 
-          <!-- 自己的 brief -->
+          <!-- 自己的 brief (创作者+买家双角色时才会进入;只有 buyer 角色才显示跳转入口) -->
           <div v-else-if="isOwnBrief" class="text-center py-4">
             <div class="text-xs text-ink/50">这是你自己发的需求</div>
-            <RouterLink to="/buyer/orders" class="inline-block mt-3 px-4 py-2 border-0.5 border-ink/30 text-xs hover:border-ink">
+            <RouterLink
+              v-if="auth.hasAnyRole(['BUYER'])"
+              to="/orders"
+              class="inline-block mt-3 px-4 py-2 border-0.5 border-ink/30 text-xs hover:border-ink"
+            >
               前往买家工作台 →
             </RouterLink>
           </div>

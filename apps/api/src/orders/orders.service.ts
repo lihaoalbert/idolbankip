@@ -95,6 +95,8 @@ export class OrdersService {
     const result = await this.payment.markPaid(order.paymentRef!, channel);
     if (!result.paid) throw new BadRequestException('支付失败');
 
+    // R10 P0-3: brief 中标订单 ipId 为 null, 不走 IP 授权支付流;brief 订单支付走 /buyer/briefs/:id 工作台
+    if (!order.ipId) throw new BadRequestException('发包中标的订单请在工作台完成付款');
     const ip = await this.ips.requireById(order.ipId);
 
     // 如果是 DEPOSIT_INTENT,需要买方接受附条件风险才能继续
@@ -146,10 +148,13 @@ export class OrdersService {
 
   async listMine(buyerId: string, status?: OrderStatus) {
     return this.prisma.order.findMany({
-      where: { buyerId, status },
+      where: { buyerId, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
+        // R10 P0-3: brief 中标创建的 Order 没有 ip 关联,前端用 ip=null 兜底显示 brief 标题
         ip: { select: { code: true, displayName: true, tagline: true, thumbnailKey: true } },
+        // R10 P0-3: 关联 brief 摘要,前端显示 brief 标题 + 「中标待付」徽标
+        brief: { select: { id: true, title: true, status: true } },
         contract: { select: { id: true, status: true, ossSignedKey: true } },
       },
     });

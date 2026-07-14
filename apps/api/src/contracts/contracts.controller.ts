@@ -42,7 +42,9 @@ export class ContractsController {
     const ossKey = contract.ossSignedKey || contract.ossTemplateKey;
     if (!ossKey) throw new NotFoundException('合同 PDF 尚未生成');
     const buf = await this.upload.getContractBuffer(ossKey);
-    const baseName = `${order.ip.code}-${contract.templateCode}-${contract.id.slice(-6)}`;
+    // R10 P0-3: brief 中标的订单 ip 为 null, 这种订单不走合同流程;此处 ip 为空直接兜底 brief 标题
+    const ipCode = order.ip?.code ?? (order.brief ? `BRIEF-${order.brief.title.slice(0, 10)}` : 'ORDER');
+    const baseName = `${ipCode}-${contract.templateCode}-${contract.id.slice(-6)}`;
     const safeName = baseName.replace(/[\\/:*?"<>|\r\n\t]/g, '_').slice(0, 200) + '.pdf';
     const encodedName = encodeURIComponent(safeName);
     res.set({

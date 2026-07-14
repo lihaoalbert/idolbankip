@@ -128,30 +128,46 @@ onMounted(fetchOrders);
         <RouterLink
           v-for="(o, idx) in orders"
           :key="o.id"
-          :to="`/orders/${o.id}`"
+          :to="o.ip ? `/orders/${o.id}` : (o.brief ? `/buyer/briefs/${o.brief.id}` : `/orders/${o.id}`)"
           class="block grid grid-cols-12 gap-4 px-6 py-5 hairline-b border-line items-center hover:bg-gold/5 transition group"
         >
-          <!-- IP -->
+          <!-- IP / Brief 标题 -->
           <div class="col-span-12 md:col-span-4 flex items-center gap-4 min-w-0">
             <div class="catalog-no text-gold shrink-0">{{ String(idx + 1).padStart(3, '0') }}</div>
+            <!-- R10 P0-3: ip=null 时显示 brief 缩略占位(发包中标单没缩略图) -->
+            <div
+              v-if="o.brief && !o.ip"
+              class="w-12 h-12 bg-stamp-red/10 text-stamp-red flex items-center justify-center font-display text-lg shrink-0"
+              aria-label="发包中标"
+            >
+              ✉
+            </div>
             <img
-              v-if="o.ip?.thumbnailKey"
+              v-else-if="o.ip?.thumbnailKey"
               :src="thumbUrl(o.ip.thumbnailKey)"
               class="w-12 h-12 object-cover border-0.5 border-line shrink-0"
               :alt="o.ip.displayName"
             />
             <div class="min-w-0">
               <div class="font-display text-base text-ink truncate group-hover:text-gold transition">
-                {{ o.ip?.displayName }}
+                <!-- R10 P0-3: 兼容两种来源(买 IP / brief 中标) -->
+                <span v-if="o.ip">{{ o.ip.displayName }}</span>
+                <span v-else-if="o.brief">{{ o.brief.title }}</span>
+                <span v-else>—</span>
               </div>
-              <div class="font-mono text-xs text-ink/40 truncate">{{ o.ip?.code }}</div>
+              <div class="font-mono text-xs text-ink/40 truncate">
+                <span v-if="o.ip">{{ o.ip.code }}</span>
+                <span v-else-if="o.brief" class="text-stamp-red">发包中标 · BRIEF · {{ o.brief.id.slice(-6) }}</span>
+              </div>
             </div>
           </div>
 
           <!-- 类型 -->
           <div class="col-span-6 md:col-span-2">
             <div class="font-sans text-sm text-ink">
-              {{ o.orderType === 'DEPOSIT_INTENT' ? '意向金 / 测试期' : '正式授权' }}
+              <!-- R10 P0-3: brief 中标订单暂复用 DEPOSIT_INTENT,展示为「中标待付」 -->
+              <span v-if="o.brief && !o.ip">中标待付</span>
+              <span v-else>{{ o.orderType === 'DEPOSIT_INTENT' ? '意向金 / 测试期' : '正式授权' }}</span>
             </div>
             <div v-if="o.licenseScope" class="font-mono text-xs text-ink/40 mt-0.5 truncate">
               {{ o.licenseScope }}
