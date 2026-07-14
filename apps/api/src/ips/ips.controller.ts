@@ -158,6 +158,19 @@ export class IpsController {
   }
 
   /**
+   * R11 P0-3: 买家查自己已授权 / 买过的 IP。
+   * 发包时「04 数字人 IP」章节用 — 让创作者用买家已授权的 IP 出镜。
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.BUYER)
+  @Get('licensed/list')
+  async listLicensed(@CurrentUser() user: JwtUser) {
+    const items = await this.ips.listLicensedForBuyer(user.id);
+    return { items };
+  }
+
+  /**
    * #33 创作者查看自己 IP 的全部 PROCESS_EVIDENCE (带 description + processStep)
    * admin 也可以通过 /admin/ips/:id/files 看到
    */

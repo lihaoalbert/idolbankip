@@ -245,6 +245,36 @@ export class IpsService {
   }
 
   /**
+   * R11 P0-3: 买家查自己已授权 / 买过的 IP。
+   * 发包时「让创作者用我买过的 IP 出镜」章节用。
+   * 走已付款订单 (DOWNLOAD_UNLOCKED / DELIVERED / CONTRACT_SIGNED) 反查 ipId,去重。
+   */
+  async listLicensedForBuyer(buyerId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        buyerId,
+        ipId: { not: null },
+        status: { in: ['CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        ip: {
+          select: { id: true, code: true, displayName: true, tagline: true, thumbnailKey: true },
+        },
+      },
+    });
+    const seen = new Set<string>();
+    const items: Array<{ id: string; code: string; displayName: string; tagline: string | null; thumbnailKey: string }> = [];
+    for (const o of orders) {
+      if (o.ip && !seen.has(o.ip.id)) {
+        seen.add(o.ip.id);
+        items.push(o.ip);
+      }
+    }
+    return items;
+  }
+
+  /**
    * #33 创作者查看自己 IP 的全部 PROCESS_EVIDENCE (description + processStep 完整)
    * 鉴权: 必须是自己 IP, 否则 404
    */

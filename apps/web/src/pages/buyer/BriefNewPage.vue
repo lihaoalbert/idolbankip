@@ -262,12 +262,13 @@ onMounted(async () => {
     router.push('/login');
     return;
   }
-  // 加载自己已有的 IP(用于选择)
+  // 加载买家已授权 / 买过的 IP(用于「让创作者用我的 IP 出镜」)
   try {
-    const { data } = await apiClient.get('/ips/mine/list');
+    const { data } = await apiClient.get('/ips/licensed/list');
     myIPs.value = data?.items ?? [];
-  } catch {
-    /* 静默 */
+  } catch (e) {
+    console.warn('[BriefNew] 加载已授权 IP 失败', e);
+    myIPs.value = [];
   }
   // 默认 deadline 7 天后
   const d = new Date();
@@ -440,10 +441,10 @@ async function submit(action: 'draft' | 'publish') {
         </section>
 
         <!-- 4. 数字人 IP(多选) -->
-        <section v-if="myIPs.length > 0">
+        <section>
           <div class="catalog-no mb-3">04 · 数字人 IP(选填)</div>
-          <p class="text-xs text-ink/50 mb-3">从你已购买的 IP 中选择,创作者将使用这些形象出镜</p>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <p class="text-xs text-ink/50 mb-3">从你已授权的 IP 中选择,创作者将使用这些形象出镜</p>
+          <div v-if="myIPs.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
               v-for="ip in myIPs"
               :key="ip.id"
@@ -459,6 +460,11 @@ async function submit(action: 'draft' | 'publish') {
               </div>
               <div class="text-xs truncate">{{ ip.displayName }}</div>
             </button>
+          </div>
+          <div v-else class="border-0.5 border-line bg-surface p-4 text-xs text-ink/50">
+            你还没有已授权的 IP。可先到
+            <RouterLink to="/ips" class="text-gold underline">形象库</RouterLink>
+            购买授权,再回来指定出镜形象。
           </div>
         </section>
 
