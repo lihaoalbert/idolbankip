@@ -168,7 +168,8 @@ async function loadBrief() {
     brief.value = data;
   } catch (e: any) {
     toast.error(e?.response?.data?.message || '加载失败');
-    router.push('/buyer/orders');
+    // R9.4: 全站统一 /orders, 之前 /buyer/orders 404
+    router.push('/orders');
   } finally {
     loading.value = false;
   }
@@ -349,7 +350,7 @@ async function submitReview() {
           </div>
         </div>
         <RouterLink
-          to="/buyer/orders"
+          to="/orders"
           class="text-xs font-mono tracking-widest uppercase text-ink/60 hover:text-gold"
         >
           ← 我的订单
