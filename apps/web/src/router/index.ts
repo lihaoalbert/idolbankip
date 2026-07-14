@@ -67,7 +67,8 @@ const routes: RouteRecordRaw[] = [
     path: '/creator/onboard',
     name: 'creator-onboard',
     component: () => import('@/pages/creator/OnboardPage.vue'),
-    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+    // R9.3: 解 BUYER-only role 锁 — 创作者 KYC 也走 onboarding, 只是页面里按 role 分支显示不同内容
+    meta: { requiresAuth: true, roles: ['BUYER', 'CREATOR'] as UserRole[] },
   },
   {
     path: '/creator',
@@ -154,6 +155,13 @@ const routes: RouteRecordRaw[] = [
     path: '/buyer/briefs/:id',
     name: 'buyer-brief-detail',
     component: () => import('@/pages/buyer/BriefDetailPage.vue'),
+    meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
+  },
+  // R9.2: /buyer/briefs 独立列表页 (老 /buyer 路径已被 ChatPage 占用, 补独立 list 路由)
+  {
+    path: '/buyer/briefs',
+    name: 'buyer-briefs-list',
+    component: () => import('@/pages/buyer/BuyerBriefsListPage.vue'),
     meta: { requiresAuth: true, roles: ['BUYER'] as UserRole[] },
   },
   // W6-R2 三分屏 chat 主页 — R2 起 /buyer 默认进 chat (R4 上线老路由 302)

@@ -121,9 +121,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-[calc(100vh-4rem)] bg-cream dark:bg-ink overflow-hidden">
     <!-- 左栏 (fullscreen 时也保留, 方便用户点击「AI 助手」切回) -->
+    <!-- R9.2: 加 relative z-10 确保 sidebar 内部 RouterLink 永远在中栏 overlay 之上,
+       之前 fixed toggle 按钮 (z-30) + 中栏 overlay 一起拦了 pointer events。 -->
     <aside
       :class="[
-        'border-r hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 transition-all duration-200 overflow-hidden',
+        'border-r hairline border-line dark:border-cream/15 bg-cream dark:bg-ink flex flex-col shrink-0 transition-all duration-200 overflow-hidden relative z-10',
         effectiveCollapsed ? 'w-0' : 'w-60',
       ]"
     >
