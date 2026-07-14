@@ -174,14 +174,14 @@ const progressLabel = computed(() => {
 </script>
 
 <template>
-  <div class="bg-cream paper-grain min-h-screen">
+  <div class="bg-r12-canvas min-h-screen">
 
     <!-- 顶部条 -->
-    <header class="hairline-b border-line">
+    <header class="border-b border-r12-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">IBIren · CREATOR STUDIO</div>
-        <div class="catalog-no text-ink/40">VOL. I — DASHBOARD</div>
-        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
+        <div class="catalog-no text-r12-ink-tertiary">IBIren · CREATOR STUDIO</div>
+        <div class="catalog-no text-r12-ink-tertiary">VOL. I — DASHBOARD</div>
+        <div class="catalog-no text-r12-ink-tertiary">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
     </header>
 
@@ -189,50 +189,50 @@ const progressLabel = computed(() => {
 
       <!-- 章节头 -->
       <div class="grid grid-cols-12 gap-4 mb-8">
-        <div class="col-span-3 catalog-no text-ink/50">№ 029</div>
-        <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER XXIX — STUDIO</div>
-        <div class="col-span-3 col-start-9 catalog-no text-ink/50">CREATOR ACCESS</div>
-        <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">{{ auth.user?.displayName }}</div>
+        <div class="col-span-3 catalog-no text-r12-ink-tertiary">№ 029</div>
+        <div class="col-span-3 col-start-5 catalog-no text-r12-ink-tertiary">CHAPTER XXIX — STUDIO</div>
+        <div class="col-span-3 col-start-9 catalog-no text-r12-ink-tertiary">CREATOR ACCESS</div>
+        <div class="col-span-3 col-start-12 catalog-no text-r12-ink-tertiary text-right hidden md:block">{{ auth.user?.displayName }}</div>
       </div>
 
       <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
         <div>
-          <h1 class="font-display text-5xl md:text-7xl text-ink leading-[0.95]">
-            捏者<span class="font-display-italic text-gold">中</span>心
+          <h1 class="font-r12-sans text-r12-display md:text-[56px] font-semibold leading-tight text-r12-ink-primary">
+            捏者<span class="text-r12-cobalt">中</span>心
           </h1>
-          <p class="mt-3 text-sm text-ink/60">
-            <span class="font-mono text-xs">{{ auth.user?.email }}</span>
+          <p class="mt-3 text-r12-caption text-r12-ink-secondary">
+            <span class="font-r12-mono text-r12-mono-body">{{ auth.user?.email }}</span>
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <RouterLink
             to="/creator/tasks"
-            class="inline-flex items-center gap-2 px-4 py-2 border-0.5 border-ink hover:bg-ink hover:text-cream transition text-sm"
+            class="inline-flex items-center gap-2 px-4 py-2 border border-r12-ink-primary hover:bg-r12-ink-primary hover:text-white transition text-r12-body rounded-r8-sm"
           >
             <span>任务板</span>
             <span class="font-display-italic">→</span>
           </RouterLink>
           <RouterLink
             to="/creator/api-keys"
-            class="inline-flex items-center gap-2 px-4 py-2 border-0.5 border-ink hover:bg-ink hover:text-cream transition text-sm"
+            class="inline-flex items-center gap-2 px-4 py-2 border border-r12-ink-primary hover:bg-r12-ink-primary hover:text-white transition text-r12-body rounded-r8-sm"
           >
             <span>API Keys</span>
             <span class="font-display-italic">→</span>
           </RouterLink>
           <RouterLink
             to="/creator/ips/new"
-            class="inline-flex items-center gap-3 px-5 py-2.5 bg-gold text-ink hover:bg-ink hover:text-cream transition group"
+            class="inline-flex items-center gap-3 px-5 py-2.5 bg-r12-cobalt text-white hover:bg-r12-ink-primary transition group rounded-r8-sm"
           >
-            <span class="catalog-no text-ink/70 group-hover:text-cream/70 text-[10px]">NEW PLATE</span>
-            <span class="font-display">+ 新建 IP</span>
+            <span class="catalog-no text-white/70 group-hover:text-white/90 text-[10px]">NEW PLATE</span>
+            <span class="font-r12-sans font-medium">+ 新建 IP</span>
           </RouterLink>
         </div>
       </div>
 
       <!-- 荣誉面板 · 暗色卡片 -->
-      <section v-if="honorMe" class="mb-10 bg-ink text-cream p-6 md:p-8 relative overflow-hidden">
-        <div class="absolute top-4 right-4 stamp text-gold border-gold">HONOR</div>
-        <div class="catalog-no text-cream/50 mb-3">— 01 — HONOR PANEL · 捏者荣誉</div>
+      <section v-if="honorMe" class="mb-10 bg-r12-ink-primary text-white p-6 md:p-8 relative overflow-hidden rounded-r8-sm">
+        <div class="absolute top-4 right-4 stamp text-r12-warning border-r12-warning">HONOR</div>
+        <div class="catalog-no text-white/50 mb-3">— 01 — HONOR PANEL · 捏者荣誉</div>
 
         <div class="flex items-center gap-4 flex-wrap mb-6">
           <HonorChip :level="honorMe.level" variant="block" />
@@ -241,19 +241,19 @@ const progressLabel = computed(() => {
             :current="honorMe.streak.current"
             :longest="honorMe.streak.longest"
           />
-          <div class="flex items-baseline gap-2 px-4 py-2 bg-cream/10 border border-gold/30">
-            <span class="font-display-italic text-gold text-2xl">✦</span>
-            <span class="font-mono text-lg">{{ honorMe.totalPoints.toLocaleString() }}</span>
-            <span class="catalog-no text-cream/60">FACE-COIN</span>
+          <div class="flex items-baseline gap-2 px-4 py-2 bg-white/10 border border-r12-warning/40">
+            <span class="text-r12-cobalt text-2xl">✦</span>
+            <span class="font-r12-mono text-r12-mono-num-lg">{{ honorMe.totalPoints.toLocaleString() }}</span>
+            <span class="catalog-no text-white/60">FACE-COIN</span>
           </div>
-          <div class="catalog-no text-cream/60">
-            <span class="text-cream">{{ honorMe.badgesEarned }}</span> 徽章 ·
-            <span class="text-cream">{{ honorMe.ipsCreated }}</span> IP
+          <div class="catalog-no text-white/60">
+            <span class="text-white font-medium">{{ honorMe.badgesEarned }}</span> 徽章 ·
+            <span class="text-white font-medium">{{ honorMe.ipsCreated }}</span> IP
           </div>
           <RouterLink
             v-if="auth.user?.id"
             :to="`/u/${auth.user.id}`"
-            class="ml-auto catalog-no text-gold hover:underline"
+            class="ml-auto catalog-no text-r12-cobalt catalog-no hover:underline"
           >
             VIEW PUBLIC PROFILE →
           </RouterLink>
@@ -261,29 +261,29 @@ const progressLabel = computed(() => {
 
         <!-- 进度条 -->
         <div v-if="honorMe.nextLevel" class="mb-6">
-          <div class="flex items-center justify-between catalog-no text-cream/60 mb-2">
+          <div class="flex items-center justify-between catalog-no text-white/60 mb-2">
             <span>TO NEXT LEVEL · {{ honorMe.nextLevel.icon }} {{ honorMe.nextLevel.title }}</span>
-            <span class="font-mono">{{ progressLabel }}</span>
+            <span class="font-r12-mono text-r12-mono-num">{{ progressLabel }}</span>
           </div>
-          <div class="h-1.5 bg-cream/10 overflow-hidden">
+          <div class="h-1.5 bg-white/10 overflow-hidden rounded-r8-sm">
             <div
-              class="h-full bg-gold transition-all"
+              class="h-full bg-r12-cobalt transition-all"
               :style="{ width: progressToNextPct + '%' }"
             />
           </div>
         </div>
 
         <!-- 最近流水 -->
-        <div v-if="honorMe.recentLedger?.length" class="pt-4 border-t border-cream/15">
-          <div class="catalog-no text-cream/50 mb-3">RECENT LEDGER · 最近荣誉流水</div>
+        <div v-if="honorMe.recentLedger?.length" class="pt-4 border-t border-white/15">
+          <div class="catalog-no text-white/50 mb-3">RECENT LEDGER · 最近荣誉流水</div>
           <ul class="space-y-2">
             <li
               v-for="row in honorMe.recentLedger.slice(0, 3)"
               :key="row.id"
               class="flex items-center justify-between text-xs"
             >
-              <span class="text-cream/70 truncate flex-1 mr-3">{{ row.reason }}</span>
-              <span :class="row.delta >= 0 ? 'text-success font-mono' : 'text-danger font-mono'">
+              <span class="text-white/70 truncate flex-1 mr-3">{{ row.reason }}</span>
+              <span :class="row.delta >= 0 ? 'text-r12-success font-r12-mono' : 'text-r12-danger font-r12-mono'">
                 {{ row.delta >= 0 ? '+' : '' }}{{ row.delta }}
               </span>
             </li>
@@ -295,19 +295,19 @@ const progressLabel = computed(() => {
       <div
         v-if="kycStatus === 'PENDING' || kycStatus === 'REJECTED'"
         :class="[
-          'mb-6 p-5 border-0.5',
-          kycStatus === 'PENDING' ? 'bg-blue-100/20 border-blue-200' : 'bg-danger/5 border-danger/40'
+          'mb-6 p-5 border',
+          kycStatus === 'PENDING' ? 'bg-r12-cobalt-soft border-r12-cobalt' : 'bg-r12-danger-soft border-r12-danger'
         ]"
       >
         <div class="flex items-start gap-3">
-          <span class="font-display-italic text-2xl shrink-0" :class="kycStatus === 'PENDING' ? 'text-blue-700' : 'text-danger'">
+          <span class="font-r12-sans italic text-2xl shrink-0" :class="kycStatus === 'PENDING' ? 'text-r12-cobalt' : 'text-r12-danger'">
             {{ kycStatus === 'PENDING' ? '⌛' : '×' }}
           </span>
           <div class="flex-1 text-sm">
-            <div class="font-display text-base mb-1" :class="kycStatus === 'PENDING' ? 'text-blue-900' : 'text-danger'">
+            <div class="font-r12-sans text-r12-body font-semibold mb-1" :class="kycStatus === 'PENDING' ? 'text-r12-ink-primary' : 'text-r12-danger'">
               {{ kycStatus === 'PENDING' ? 'KYC 实名认证审核中' : 'KYC 审核未通过' }}
             </div>
-            <div class="leading-relaxed text-ink/70">
+            <div class="leading-relaxed text-r12-ink-secondary">
               <template v-if="kycStatus === 'PENDING'">
                 审核通常 1-2 个工作日, 完成后会自动开通捏者权限。
               </template>
@@ -315,7 +315,7 @@ const progressLabel = computed(() => {
                 KYC 未通过, 无法上传 IP · 请修正后重新提交。
               </template>
             </div>
-            <RouterLink to="/creator/onboard" class="mt-2 inline-block catalog-no text-gold hover:underline">
+            <RouterLink to="/creator/onboard" class="mt-2 inline-block catalog-no text-r12-cobalt catalog-no hover:underline">
               VIEW DETAILS →
             </RouterLink>
           </div>
@@ -327,21 +327,21 @@ const progressLabel = computed(() => {
            v-if 防止 kill switch 时还显示入口(配合路由守卫 redirect) -->
       <section
         v-if="blueprintEnabled"
-        class="mb-10 paper-grain border-0.5 border-ink/30 bg-surface p-6 md:p-8 relative overflow-hidden"
+        class="mb-10 border border-r12-line bg-r12-surface p-6 md:p-8 relative overflow-hidden"
       >
-        <div class="absolute top-4 right-4 stamp text-gold border-gold">BETA · L1~L8</div>
-        <div class="catalog-no text-ink/40 mb-3">— 02 — LAYERED PROMPT GENERATOR</div>
+        <div class="absolute top-4 right-4 stamp text-r12-warning border-r12-warning">BETA · L1~L8</div>
+        <div class="catalog-no text-r12-ink-tertiary mb-3">— 02 — LAYERED PROMPT GENERATOR</div>
         <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div class="flex-1">
-            <h2 class="font-display text-3xl text-ink leading-tight mb-2">
-              八层人脸分解 <span class="font-display-italic text-gold">→</span> 出图 prompt
+            <h2 class="font-r12-sans text-r12-h2 font-semibold text-r12-ink-primary leading-tight mb-2">
+              八层人脸分解 <span class="text-r12-cobalt">→</span> 出图 prompt
             </h2>
-            <p class="text-sm text-ink/70 leading-relaxed max-w-2xl">
+            <p class="text-r12-caption text-r12-ink-secondary leading-relaxed max-w-2xl">
               骨骼 → 软组织 → 五官 → 皮肤 → 发型 → 装饰 → 中文 prompt → 评估雷达图。
               <strong>先把脸锁版</strong>,再用 prompt 给平台(MJ / SD / 即梦 / 豆包)出图,避免每次重新抽卡。
               完整体验 8 步约 15 分钟,可中途保存草稿。
             </p>
-            <div class="mt-3 flex flex-wrap items-center gap-3 catalog-no text-xs text-ink/50">
+            <div class="mt-3 flex flex-wrap items-center gap-3 catalog-no text-r12-micro text-r12-ink-tertiary">
               <span>8 步表单</span><span>·</span>
               <span>本地草稿自动保存</span><span>·</span>
               <span>8 维原创度评估</span><span>·</span>
@@ -350,10 +350,10 @@ const progressLabel = computed(() => {
           </div>
           <RouterLink
             to="/creator/blueprint/new/step/1"
-            class="inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream hover:bg-gold hover:text-ink transition group shrink-0"
+            class="inline-flex items-center gap-3 px-6 py-3 bg-r12-ink-primary text-white hover:bg-r12-cobalt transition group shrink-0"
           >
-            <span class="catalog-no text-cream/60 group-hover:text-ink/60 text-[10px]">BEGIN</span>
-            <span class="font-display">开始 Layered Prompt →</span>
+            <span class="catalog-no text-white/60 group-hover:text-white/80 text-[10px]">BEGIN</span>
+            <span class="font-r12-sans font-medium">开始 Layered Prompt →</span>
           </RouterLink>
         </div>
       </section>
@@ -361,23 +361,23 @@ const progressLabel = computed(() => {
       <!-- 证书登记中提示 -->
       <div
         v-if="waitingCertIps.length > 0"
-        class="mb-10 p-5 bg-gold/10 border-0.5 border-gold/30 relative overflow-hidden"
+        class="mb-10 p-5 bg-r12-warning-soft border border-r12-warning/40 relative overflow-hidden"
       >
-        <div class="absolute top-4 right-4 stamp text-gold border-gold">PENDING</div>
+        <div class="absolute top-4 right-4 stamp text-r12-warning border-r12-warning">PENDING</div>
         <div class="flex items-start gap-3">
-          <span class="font-display-italic text-gold text-2xl shrink-0">⌛</span>
+          <span class="text-r12-cobalt text-2xl shrink-0">⌛</span>
           <div class="flex-1 text-sm">
-            <div class="font-display text-base text-ink mb-1">
+            <div class="font-r12-sans text-r12-body font-semibold text-r12-ink-primary mb-1">
               {{ waitingCertIps.length }} 个 IP 正在等待版权证书登记
             </div>
-            <div class="text-ink/70 leading-relaxed">
+            <div class="text-r12-ink-secondary leading-relaxed">
               你的 IP 已通过平台审核, 正在
               <strong>公示中</strong>
               · 公示期通过后, 平台会代为申请国家或省级作品著作权登记证书 ·
-              登记完成后状态会变为 <span class="font-mono text-success">已登记</span>
+              登记完成后状态会变为 <span class="font-r12-mono text-r12-success">已登记</span>
               · 整个流程通常 1-3 周。
             </div>
-            <div class="mt-2 catalog-no text-xs text-ink/50">
+            <div class="mt-2 catalog-no text-r12-micro text-r12-ink-tertiary">
               {{ waitingCertIps.map(ip => ip.code).join(' · ') }}
             </div>
           </div>
@@ -385,31 +385,31 @@ const progressLabel = computed(() => {
       </div>
 
       <!-- 状态筛选 -->
-      <div class="mb-6 pb-4 hairline-b border-line flex items-center justify-between flex-wrap gap-4">
+      <div class="mb-6 pb-4 border-b border-r12-line flex items-center justify-between flex-wrap gap-4">
         <div class="flex items-center gap-2 flex-wrap">
           <button
             v-for="c in filterChips"
             :key="c.key"
             @click="statusFilter = c.key as any"
             :class="[
-              'px-3 py-1.5 text-xs catalog-no transition border-0.5',
+              'px-3 py-1.5 text-xs catalog-no transition border',
               statusFilter === c.key
-                ? 'bg-ink text-cream border-ink'
-                : 'border-line text-ink/60 hover:border-ink hover:text-ink'
+                ? 'bg-r12-cobalt text-white border-r12-cobalt'
+                : 'border-r12-line text-r12-ink-secondary hover:border-r12-ink-primary hover:text-r12-ink-primary'
             ]"
           >
             {{ c.label }}
             <span v-if="statusCounts[c.key]" class="ml-1 text-[10px] opacity-60">({{ statusCounts[c.key] }})</span>
           </button>
         </div>
-        <div class="catalog-no text-ink/50">
+        <div class="catalog-no text-r12-ink-tertiary">
           — 03 — IP LEDGER · 作品台账 —
         </div>
       </div>
 
       <!-- 内容 -->
       <div v-if="loading" class="grid md:grid-cols-2 gap-6">
-        <div v-for="i in 4" :key="i" class="bg-surface border-0.5 border-ink p-6 space-y-4">
+        <div v-for="i in 4" :key="i" class="bg-r12-surface border border-r12-line p-6 rounded-r8-sm space-y-4">
           <div class="flex items-start justify-between">
             <div class="space-y-2 flex-1">
               <Skeleton shape="line" width="50%" height-class="h-4" />
@@ -432,8 +432,8 @@ const progressLabel = computed(() => {
       />
 
       <div v-else-if="filteredItems.length === 0" class="py-20 text-center">
-        <div class="catalog-no text-ink/40 mb-3">— EMPTY —</div>
-        <button @click="statusFilter = 'ALL'" class="text-xs text-gold hover:underline">查看全部 →</button>
+        <div class="catalog-no text-r12-ink-tertiary mb-3">— EMPTY —</div>
+        <button @click="statusFilter = 'ALL'" class="text-r12-caption text-r12-cobalt catalog-no hover:underline">查看全部 →</button>
       </div>
 
       <div v-else class="grid md:grid-cols-2 gap-6">
@@ -441,9 +441,9 @@ const progressLabel = computed(() => {
           v-for="ip in filteredItems"
           :key="ip.id"
           :class="[
-            'relative bg-surface border-0.5 p-6 transition',
+            'relative bg-r12-surface border border-r12-line p-6 transition rounded-r8-sm',
             selectableStatuses.has(ip.status) ? 'cursor-pointer' : '',
-            selected.has(ip.id) ? 'border-gold ring-2 ring-gold/30' : 'border-line hover:border-ink'
+            selected.has(ip.id) ? 'border-gold ring-2 ring-gold/30' : 'border-r12-line hover:border-r12-ink-primary'
           ]"
           @click="selectableStatuses.has(ip.status) && toggleSelect(ip.id)"
         >
@@ -453,7 +453,7 @@ const progressLabel = computed(() => {
               type="checkbox"
               :checked="selected.has(ip.id)"
               @click.stop="toggleSelect(ip.id)"
-              class="w-4 h-4 accent-gold cursor-pointer"
+              class="w-4 h-4 accent-r12-cobalt cursor-pointer"
             />
           </div>
 
@@ -465,19 +465,19 @@ const progressLabel = computed(() => {
           >
             <div class="flex items-start justify-between mb-3 gap-3">
               <div class="flex-1 min-w-0">
-                <div class="font-display text-xl text-ink truncate">{{ ip.displayName }}</div>
-                <div class="catalog-no text-ink/40 mt-1">{{ ip.code }}</div>
+                <div class="font-r12-sans text-r12-h3 font-semibold text-r12-ink-primary truncate">{{ ip.displayName }}</div>
+                <div class="catalog-no text-r12-ink-tertiary mt-1">{{ ip.code }}</div>
               </div>
               <span
                 :class="[
-                  'inline-flex items-center gap-1.5 px-2 py-1 text-xs catalog-no shrink-0',
-                  statusVariant(ip.status) === 'success' ? 'bg-success/10 text-success' :
-                  statusVariant(ip.status) === 'danger' ? 'bg-danger/10 text-danger' :
-                  statusVariant(ip.status) === 'pending' ? 'bg-gold/15 text-ink' :
-                  'bg-ink/5 text-ink/60'
+                  'inline-flex items-center gap-1.5 px-2 py-1 text-xs catalog-no shrink-0 rounded-r8-sm',
+                  statusVariant(ip.status) === 'success' ? 'bg-r12-success-soft text-r12-success' :
+                  statusVariant(ip.status) === 'danger' ? 'bg-r12-danger-soft text-r12-danger' :
+                  statusVariant(ip.status) === 'pending' ? 'bg-r12-warning-soft text-r12-warning' :
+                  'bg-r12-line text-r12-ink-secondary'
                 ]"
               >
-                <span class="text-gold">{{ statusRoman(ip.status) }}</span>
+                <span class="text-r12-cobalt">{{ statusRoman(ip.status) }}</span>
                 <span>{{ statusLabel(ip.status) }}</span>
               </span>
             </div>
@@ -485,10 +485,10 @@ const progressLabel = computed(() => {
             <!-- REJECTED 原因 -->
             <div
               v-if="ip.status === 'REJECTED' && ip.rejectionReason"
-              class="mb-3 p-3 bg-danger/5 border-0.5 border-danger/30 text-xs text-danger line-clamp-2"
+              class="mb-3 p-3 bg-r12-danger-soft border border-r12-danger/40 text-r12-caption text-r12-danger line-clamp-2 rounded-r8-sm"
               :title="ip.rejectionReason"
             >
-              <span class="catalog-no text-danger mr-1">REASON</span>
+              <span class="catalog-no text-r12-danger mr-1">REASON</span>
               {{ ip.rejectionReason }}
             </div>
 
@@ -500,21 +500,21 @@ const progressLabel = computed(() => {
                 class="flex items-center gap-1 text-xs"
                 :title="presentTypes(ip).has(t.type) ? `${t.label} 已上传` : `${t.label} 缺失`"
               >
-                <span :class="presentTypes(ip).has(t.type) ? 'text-success' : 'text-danger/60'">
+                <span :class="presentTypes(ip).has(t.type) ? 'text-r12-success' : 'text-r12-danger/60'">
                   {{ presentTypes(ip).has(t.type) ? '✓' : '○' }}
                 </span>
-                <span class="catalog-no text-ink/60">{{ t.label }}</span>
+                <span class="catalog-no text-r12-ink-secondary">{{ t.label }}</span>
               </div>
               <span
                 v-if="presentTypes(ip).has('FACE_CLOSEUP') && !ip.faceCloseupFileId"
-                class="text-[10px] px-2 py-0.5 bg-warning/15 text-warning border-0.5 border-warning/30 catalog-no"
+                class="text-[10px] px-2 py-0.5 bg-r12-warning-soft text-r12-warning border border-r12-warning/40 catalog-no rounded-r8-sm"
                 title="已传面部特写, 但还没指定哪张作为版权图"
               >
                 ⚠ NO COPYRIGHT PLATE
               </span>
               <span
                 v-if="!ip.ethnicity"
-                class="text-[10px] px-2 py-0.5 bg-warning/15 text-warning border-0.5 border-warning/30 catalog-no"
+                class="text-[10px] px-2 py-0.5 bg-r12-warning-soft text-r12-warning border border-r12-warning/40 catalog-no rounded-r8-sm"
                 title="为 IP 标注种族, 否则不算进形象库覆盖度"
               >
                 ⚠ NO ETHNICITY
@@ -522,11 +522,11 @@ const progressLabel = computed(() => {
             </div>
 
             <!-- 完整度 -->
-            <div class="mt-3 hairline-t border-line pt-3">
-              <div class="h-1 bg-cream overflow-hidden">
-                <div class="h-full bg-gold" :style="{ width: completionPercent(ip) + '%' }" />
+            <div class="mt-3 border-t border-r12-line pt-3">
+              <div class="h-1 bg-r12-line overflow-hidden rounded-r8-sm">
+                <div class="h-full bg-r12-cobalt" :style="{ width: completionPercent(ip) + '%' }" />
               </div>
-              <div class="catalog-no text-ink/50 mt-2 text-right">
+              <div class="catalog-no text-r12-ink-tertiary mt-2 text-right">
                 COMPLETENESS · {{ completionPercent(ip) }}%
               </div>
             </div>
@@ -538,16 +538,16 @@ const progressLabel = computed(() => {
       <Transition name="slide-up">
         <div
           v-if="selected.size > 0"
-          class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-ink text-cream px-5 py-3 shadow-xl flex items-center gap-4 z-30"
+          class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-r12-ink-primary text-white px-5 py-3 shadow-xl rounded-r8-sm flex items-center gap-4 z-30"
         >
-          <span class="font-display text-sm">{{ selected.size }} plates selected</span>
-          <span class="catalog-no text-cream/50">已选 {{ selected.size }} 个 IP</span>
-          <div class="h-4 w-px bg-cream/30"></div>
+          <span class="font-r12-sans text-r12-body font-medium">{{ selected.size }} plates selected</span>
+          <span class="catalog-no text-white/50">已选 {{ selected.size }} 个 IP</span>
+          <div class="h-4 w-px bg-white/30"></div>
           <button
             v-if="Array.from(selected).some(id => items.find(i => i.id === id)?.status === 'PENDING_REVIEW')"
             @click="bulkSubmit"
             :disabled="bulkBusy"
-            class="text-sm hover:text-gold disabled:opacity-40 transition"
+            class="text-r12-body hover:text-r12-cobalt disabled:opacity-40 transition"
           >
             {{ bulkBusy ? '处理中…' : '批量提交审核' }}
           </button>
@@ -555,13 +555,13 @@ const progressLabel = computed(() => {
             v-if="Array.from(selected).some(id => items.find(i => i.id === id)?.status === 'REJECTED')"
             @click="bulkArchive"
             :disabled="bulkBusy"
-            class="text-sm hover:text-gold disabled:opacity-40 transition"
+            class="text-r12-body hover:text-r12-cobalt disabled:opacity-40 transition"
           >
             {{ bulkBusy ? '处理中…' : '批量归档' }}
           </button>
           <button
             @click="clearSelection"
-            class="text-xs text-cream/60 hover:text-cream transition ml-2"
+            class="text-r12-caption text-white/60 hover:text-white transition ml-2"
           >
             ✕
           </button>
@@ -570,10 +570,10 @@ const progressLabel = computed(() => {
     </main>
 
     <!-- 底部 colophon -->
-    <footer class="hairline-t border-line mt-12">
-      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+    <footer class="border-t border-r12-line mt-12">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-r12-ink-tertiary">
         <span>CAT. STUDIO-029</span>
-        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>SET IN GEIST · GEIST MONO</span>
         <span>© 2026 IBI.REN</span>
       </div>
     </footer>

@@ -42,49 +42,49 @@ onMounted(fetchOrders);
 </script>
 
 <template>
-  <div class="bg-cream paper-grain min-h-screen">
+  <div class="bg-r12-canvas min-h-screen">
 
     <!-- 顶部条 -->
-    <header class="hairline-b border-line">
+    <header class="border-b border-r12-line">
       <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-        <div class="catalog-no text-ink/50">IBIren · PRIVATE COLLECTION</div>
-        <div class="catalog-no text-ink/40">VOL. I — ASSETS</div>
-        <div class="catalog-no text-ink/30">{{ new Date().toISOString().slice(0, 10) }}</div>
+        <div class="catalog-no text-r12-ink-tertiary">IBIren · PRIVATE COLLECTION</div>
+        <div class="catalog-no text-r12-ink-tertiary">VOL. I — ASSETS</div>
+        <div class="catalog-no text-r12-ink-tertiary">{{ new Date().toISOString().slice(0, 10) }}</div>
       </div>
     </header>
 
     <main class="max-w-[1320px] mx-auto px-6 lg:px-10 py-12 md:py-16">
       <!-- 章节头 -->
       <div class="grid grid-cols-12 gap-4 mb-8">
-        <div class="col-span-3 catalog-no text-ink/50">№ 011</div>
-        <div class="col-span-3 col-start-5 catalog-no text-ink/50">CHAPTER XI — COLLECTION</div>
-        <div class="col-span-3 col-start-9 catalog-no text-ink/50">PRIVATE HOLDINGS</div>
-        <div class="col-span-3 col-start-12 catalog-no text-ink/50 text-right hidden md:block">{{ orders.length }} PLATES</div>
+        <div class="col-span-3 catalog-no text-r12-ink-tertiary">№ 011</div>
+        <div class="col-span-3 col-start-5 catalog-no text-r12-ink-tertiary">CHAPTER XI — COLLECTION</div>
+        <div class="col-span-3 col-start-9 catalog-no text-r12-ink-tertiary">PRIVATE HOLDINGS</div>
+        <div class="col-span-3 col-start-12 catalog-no text-r12-ink-tertiary text-right hidden md:block">{{ orders.length }} PLATES</div>
       </div>
 
       <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
-        <h1 class="font-display text-6xl md:text-8xl text-ink leading-[0.9]">
-          我的<span class="font-display-italic text-gold">资</span>产
+        <h1 class="font-r12-sans text-r12-display font-semibold leading-tight text-r12-ink-primary">
+          我的<span class="text-r12-cobalt">资</span>产
         </h1>
-        <p class="text-sm text-ink/60 max-w-md leading-relaxed">
+        <p class="text-r12-caption text-r12-ink-secondary max-w-md leading-relaxed">
           已签署合同的 IP 资产 · 可在此调取完整资产包 ·
           每个文件均嵌入平台不可见水印, 终身可溯源。
         </p>
       </div>
 
       <!-- 安全提示 · 暗色印章 -->
-      <div class="mb-10 bg-ink text-cream p-6 md:p-8 relative overflow-hidden">
-        <div class="absolute top-4 right-4 stamp text-gold border-gold">PROVENANCE</div>
+      <div class="mb-10 bg-r12-ink-primary text-white p-6 md:p-8 relative overflow-hidden rounded-r8-sm">
+        <div class="absolute top-4 right-4 stamp text-r12-warning border-r12-warning">PROVENANCE</div>
         <div class="flex items-start gap-4">
-          <span class="font-display-italic text-4xl text-gold shrink-0">※</span>
+          <span class="font-r12-sans text-4xl text-r12-warning shrink-0">※</span>
           <div class="text-sm leading-relaxed">
-            <div class="font-display text-base text-cream mb-2">下载即溯源</div>
-            <p class="text-cream/70">
+            <div class="font-r12-sans text-r12-body font-semibold text-white mb-2">下载即溯源</div>
+            <p class="text-white/70">
               每个文件均嵌入
-              <span class="text-gold font-mono text-xs">DWT-SVD</span>
+              <span class="text-r12-warning font-r12-mono text-r12-mono-body">DWT-SVD</span>
               隐水印 (含您的用户 ID + 时间戳) ·
               文件即使被裁剪、压缩、调色, 平台仍可通过
-              <code class="font-mono text-gold">IBIren/verify</code>
+              <code class="font-r12-mono text-r12-warning">IBIren/verify</code>
               提取水印取证 ·
               请勿外传, 以免被追溯至您的账户。
             </p>
@@ -94,7 +94,7 @@ onMounted(fetchOrders);
 
       <!-- Loading -->
       <div v-if="loading" class="grid md:grid-cols-2 gap-6">
-        <div v-for="i in 4" :key="i" class="bg-surface border-0.5 border-ink p-6 space-y-4">
+        <div v-for="i in 4" :key="i" class="bg-r12-surface border border-r12-line p-6 rounded-r8-sm space-y-4">
           <div class="flex items-center gap-4">
             <Skeleton shape="block" width-class="w-20 h-20" />
             <div class="flex-1 space-y-2">
@@ -121,25 +121,25 @@ onMounted(fetchOrders);
         <article
           v-for="(o, idx) in orders"
           :key="o.id"
-          class="bg-surface border-0.5 border-ink relative"
+          class="bg-r12-surface border border-r12-line relative rounded-r8-sm"
         >
           <div class="absolute -top-3 left-6">
-            <div class="stamp text-gold bg-cream">№ {{ String(idx + 1).padStart(3, '0') }}</div>
+            <div class="stamp text-r12-warning bg-r12-canvas">№ {{ String(idx + 1).padStart(3, '0') }}</div>
           </div>
 
           <!-- 头部 -->
-          <header class="flex items-start gap-5 p-6 hairline-b border-line">
+          <header class="flex items-start gap-5 p-6 border-b border-r12-line">
             <img
               v-if="o.ip?.thumbnailKey"
               :src="ossUrl(o.ip.thumbnailKey)"
               :alt="o.ip.displayName"
-              class="w-20 h-20 object-cover border-0.5 border-line shrink-0"
+              class="w-20 h-20 object-cover border border-r12-line shrink-0"
             />
             <div class="flex-1 min-w-0">
-              <div class="catalog-no text-ink/40 mb-1">ACQUIRED</div>
-              <h2 class="font-display text-xl text-ink leading-tight truncate">{{ o.ip.displayName }}</h2>
-              <div class="font-mono text-xs text-ink/40 mt-1">{{ o.ip.code }}</div>
-              <RouterLink :to="`/orders/${o.id}`" class="inline-block mt-3 text-xs catalog-no text-gold hover:underline">
+              <div class="catalog-no text-r12-ink-tertiary mb-1">ACQUIRED</div>
+              <h2 class="font-r12-sans text-r12-h3 font-semibold text-r12-ink-primary leading-tight truncate">{{ o.ip.displayName }}</h2>
+              <div class="font-r12-mono text-r12-mono-body text-r12-ink-tertiary mt-1">{{ o.ip.code }}</div>
+              <RouterLink :to="`/orders/${o.id}`" class="inline-block mt-3 text-r12-caption catalog-no text-r12-cobalt hover:underline">
                 VIEW CONTRACT →
               </RouterLink>
             </div>
@@ -152,7 +152,7 @@ onMounted(fetchOrders);
           />
 
           <!-- 底部 footer -->
-          <footer class="px-6 py-3 hairline-t border-line flex items-center justify-between catalog-no text-ink/40">
+          <footer class="px-6 py-3 border-t border-r12-line flex items-center justify-between catalog-no text-r12-ink-tertiary">
             <span>CONTRACT {{ shortId(o.contract.id, 8) }}</span>
             <span>DWT-SVD ENCRYPTED</span>
           </footer>
@@ -161,10 +161,10 @@ onMounted(fetchOrders);
     </main>
 
     <!-- 底部 colophon -->
-    <footer class="hairline-t border-line mt-12">
-      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-ink/40">
+    <footer class="border-t border-r12-line mt-12">
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between catalog-no text-r12-ink-tertiary">
         <span>CAT. ASSETS-011</span>
-        <span>SET IN CORMORANT GARAMOND · INTER TIGHT · JETBRAINS MONO</span>
+        <span>SET IN GEIST · GEIST MONO</span>
         <span>© 2026 IBI.REN</span>
       </div>
     </footer>
