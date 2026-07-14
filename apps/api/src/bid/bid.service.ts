@@ -45,6 +45,29 @@ export class BidService {
       );
     }
 
+    // R10.2 P1-4: 撤回/拒绝后可重新报价 — DB 唯一约束 @@unique([briefId, creatorId]),
+    //   撤回后 status='withdrawn' 的旧记录仍占位;若已存在且可覆盖的状态
+    //   (withdrawn/rejected),直接 update 覆盖价格/天数/提案 + 回到 pending。
+    const existing = await this.prisma.bid.findUnique({
+      where: { briefId_creatorId: { briefId, creatorId } },
+    });
+    if (existing) {
+      if (existing.status === 'pending' || existing.status === 'accepted') {
+        throw new ConflictException('你已经报过价了');
+      }
+      // withdrawn/rejected → 重新激活,刷新价格/天数/提案
+      return this.prisma.bid.update({
+        where: { id: existing.id },
+        data: {
+          price: params.price,
+          deliveryDays: params.deliveryDays,
+          proposal: params.proposal,
+          status: 'pending',
+          acceptedAt: null,
+        },
+      });
+    }
+
     try {
       return await this.prisma.bid.create({
         data: {

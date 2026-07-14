@@ -74,6 +74,29 @@ const bidForm = ref({
   proposal: '',
 });
 
+// R10.2 P1-5: 投标表单校验 — 实时计算红字错误,提交按钮按错误禁用,避免被后端静默拒
+const bidFormErrors = computed(() => {
+  const errs: { price?: string; deliveryDays?: string; proposal?: string } = {};
+  // 价格区间 — budgetMin/Max 是 number,NaN 时跳过(用户清空)
+  if (typeof bidForm.value.price === 'number' && !Number.isNaN(bidForm.value.price)) {
+    if (bidForm.value.price < budgetMin.value || bidForm.value.price > budgetMax.value) {
+      errs.price = `报价需在 ${formatPrice(budgetMin.value)} - ${formatPrice(budgetMax.value)} 区间`;
+    }
+  }
+  // 交付天数: 1-90
+  if (typeof bidForm.value.deliveryDays === 'number' && !Number.isNaN(bidForm.value.deliveryDays)) {
+    if (bidForm.value.deliveryDays < 1 || bidForm.value.deliveryDays > 90) {
+      errs.deliveryDays = '交付天数需在 1-90 之间';
+    }
+  }
+  // 提案 ≥ 10 字
+  if (bidForm.value.proposal.trim().length < 10) {
+    errs.proposal = '提案至少 10 个字';
+  }
+  return errs;
+});
+const bidFormInvalid = computed(() => Object.keys(bidFormErrors.value).length > 0);
+
 // W5 E2 — 评价 (creator → buyer)
 const reviews = ref<ReviewItem[]>([]);
 const reviewsLoading = ref(false);
@@ -233,6 +256,19 @@ async function withdrawBid() {
   } finally {
     withdrawing.value = false;
   }
+}
+
+// R10.2 P1-4: 撤回后重开投标弹窗 — 后端 (briefId, creatorId) @@unique 已确保 1 个 bid,
+//   撤回是 status='withdrawn',后端 create 校验 status 才能接;前端的"重新报价"等同
+//   "开弹窗 + 填表 + 提交" (后端会自动覆盖 pending 的旧 bid? — 不,需要走新 bid 流程)
+//   实际上后端 create 是校验 brief.status='bidding' 和无重复 bid;撤回后 status=withdrawn,
+//   数据库仍占一行 @@unique(briefId, creatorId),新 bid 会被 P2002 拒绝。
+//   修复:让后端在 withdraw 时软删/或 bid.service.create 检测到旧 withdrawn 记录时 update。
+//   暂方案:前端用 PATCH /bids/:id 改 pending(若后端已支持);若不支持就重新打价时调用 create — 走 PATCH 路径
+async function reBid() {
+  if (!brief.value) return;
+  // 复用 bidModal,预填上次价格 (currentPriceNum) 让用户调整
+  showBidModal.value = true;
 }
 
 async function loadReviews() {
@@ -519,6 +555,18 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
                 {{ withdrawing ? '处理中…' : '撤回报价' }}
               </button>
             </div>
+            <!-- R10.2 P1-4: 撤回/未中标后可重新报价(只在 brief 还在 bidding 时) -->
+            <div
+              v-else-if="(myBid.status === 'withdrawn' || myBid.status === 'rejected') && brief.status === 'bidding'"
+              class="pt-3 border-t border-line"
+            >
+              <button
+                @click="reBid"
+                class="px-4 py-2 border-0.5 border-stamp-red text-stamp-red text-xs hover:bg-stamp-red hover:text-cream"
+              >
+                重新报价 →
+              </button>
+            </div>
           </div>
 
           <!-- 自己的 brief (创作者+买家双角色时才会进入;只有 buyer 角色才显示跳转入口) -->
@@ -572,9 +620,18 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
                   type="number"
                   :min="budgetMin"
                   :max="budgetMax"
-                  class="w-full px-3 py-2 border-0.5 border-line bg-surface text-sm font-mono"
+                  :class="[
+                    'w-full px-3 py-2 border-0.5 bg-surface text-sm font-mono',
+                    bidFormErrors.price ? 'border-stamp-red' : 'border-line'
+                  ]"
                 />
-                <div class="text-[10px] text-ink/40 mt-1">
+                <div
+                  v-if="bidFormErrors.price"
+                  class="text-[10px] text-stamp-red mt-1 font-medium"
+                >
+                  {{ bidFormErrors.price }}
+                </div>
+                <div v-else class="text-[10px] text-ink/40 mt-1">
                   预算区间: {{ formatPrice(budgetMin) }} - {{ formatPrice(budgetMax) }}
                 </div>
               </div>
@@ -586,8 +643,17 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
                   type="number"
                   min="1"
                   max="90"
-                  class="w-full px-3 py-2 border-0.5 border-line bg-surface text-sm font-mono"
+                  :class="[
+                    'w-full px-3 py-2 border-0.5 bg-surface text-sm font-mono',
+                    bidFormErrors.deliveryDays ? 'border-stamp-red' : 'border-line'
+                  ]"
                 />
+                <div
+                  v-if="bidFormErrors.deliveryDays"
+                  class="text-[10px] text-stamp-red mt-1 font-medium"
+                >
+                  {{ bidFormErrors.deliveryDays }}
+                </div>
               </div>
 
               <div>
@@ -596,11 +662,20 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
                   v-model="bidForm.proposal"
                   rows="4"
                   maxlength="2000"
-                  class="w-full px-3 py-2 border-0.5 border-line bg-surface text-sm"
+                  :class="[
+                    'w-full px-3 py-2 border-0.5 bg-surface text-sm',
+                    bidFormErrors.proposal ? 'border-stamp-red' : 'border-line'
+                  ]"
                   placeholder="说明你的方案、参考作品、为什么你能完成这个 brief..."
                 ></textarea>
-                <div class="text-[10px] text-ink/40 mt-1 text-right">
-                  {{ bidForm.proposal.length }} / 2000
+                <div class="text-[10px] mt-1 text-right flex justify-between">
+                  <span v-if="bidFormErrors.proposal" class="text-stamp-red font-medium">
+                    {{ bidFormErrors.proposal }}
+                  </span>
+                  <span v-else></span>
+                  <span :class="bidForm.proposal.length < 10 ? 'text-stamp-red' : 'text-ink/40'">
+                    {{ bidForm.proposal.length }} / 2000
+                  </span>
                 </div>
               </div>
             </div>
@@ -612,8 +687,8 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
               >取消</button>
               <button
                 @click="submitBid"
-                :disabled="submitting"
-                class="px-5 py-2 bg-stamp-red text-cream text-xs font-medium tracking-widest uppercase hover:bg-ink disabled:opacity-50"
+                :disabled="submitting || bidFormInvalid"
+                class="px-5 py-2 bg-stamp-red text-cream text-xs font-medium tracking-widest uppercase hover:bg-ink disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {{ submitting ? '提交中…' : '提交报价 →' }}
               </button>
