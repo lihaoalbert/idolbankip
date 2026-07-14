@@ -60,6 +60,15 @@ const ICONS: Record<string, string> = {
   // #30.7.1 W2 #31 过期自动 close / 买家手动 close
   BRIEF_EXPIRED: '⏰',
   BRIEF_CLOSED: '×',
+  // R11.1 P0-1: 中标订单支付完成
+  ORDER_DEPOSIT_PAID: '💰',
+  // R11.2 P1-4: 业务事件通知
+  BID_RECEIVED: '📩',
+  BID_ACCEPTED: '🎉',
+  WORKSPACE_SUBMITTED: '📤',
+  WORKSPACE_APPROVED: '✓',
+  WORKSPACE_REVISION: '↩',
+  DELIVERABLE_UPLOADED: '📦',
 };
 
 const ICON_COLOR: Record<string, string> = {
@@ -82,6 +91,14 @@ const ICON_COLOR: Record<string, string> = {
   // #30.7.1 W2 #31
   BRIEF_EXPIRED: 'text-danger',
   BRIEF_CLOSED: 'text-ink/60',
+  // R11.1 / R11.2
+  ORDER_DEPOSIT_PAID: 'text-success',
+  BID_RECEIVED: 'text-info',
+  BID_ACCEPTED: 'text-success',
+  WORKSPACE_SUBMITTED: 'text-info',
+  WORKSPACE_APPROVED: 'text-success',
+  WORKSPACE_REVISION: 'text-gold',
+  DELIVERABLE_UPLOADED: 'text-info',
 };
 
 onMounted(() => {

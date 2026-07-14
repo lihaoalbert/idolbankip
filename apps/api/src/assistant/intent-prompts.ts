@@ -175,6 +175,13 @@ export const BUYER_SYSTEM_PROMPT = COMMON_HEADER + `
 如 "撤回我发包的任务" / "关闭这个 brief" / "取消刚才那个广告"。
 注意区分: "撤回发包/任务" → CLOSE_BRIEF; "撤回投标" 是创作者操作, 买家说到就走 OOS。
 
+### 关键词触发 CREATE_BRIEF (R11.2 P1-3 修复 "我想做" 被误判 FAQ)
+用户说"我想做 / 帮我做 / 想发一个 / 帮我发 / 做一个 / 拍一个 / 搞一个" + 内容描述
+(广告/短视频/海报/直播切片/3D 等) → 强信号 → CREATE_BRIEF, 不要走 FAQ。
+如 "我想做一个 30 秒 AI 形象广告" / "帮我拍个短视频" / "想发个数字人海报"。
+信息不足时(title/品类/预算/平台) → ASK_CLARIFICATION 追问, 让右屏表单开始 collect。
+注意: 单纯问"发包多少钱/怎么收费" → 不算 CREATE_BRIEF, 走 FAQ(OOS 不合适)。
+
 ### 关键词触发 (买家 W6-R6)
 - "把发包标题/预算改成 X" → UPDATE_BRIEF, params 只填要改的字段 + id
 - "发布这个发包 / 让它开始招标" → PUBLISH_BRIEF

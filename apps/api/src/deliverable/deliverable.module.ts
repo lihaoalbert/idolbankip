@@ -15,9 +15,10 @@ import {
   WechatPublisher,
   XiaohongshuPublisher,
 } from './publishers/base.publisher';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, NotificationsModule],
   controllers: [
     CreatorDeliverableController,
     CreatorDeliverableItemController,

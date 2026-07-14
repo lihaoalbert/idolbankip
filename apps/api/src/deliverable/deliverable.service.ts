@@ -8,6 +8,7 @@ import {
 import { Deliverable, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublisherService } from './publishers/base.publisher';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // W4 Deliverable 状态机
 // pending → approved → published (终态)
@@ -53,6 +54,7 @@ export class DeliverableService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly publisher: PublisherService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -82,7 +84,7 @@ export class DeliverableService {
     if (!SUPPORTED_PLATFORMS.includes(input.platform as any)) {
       throw new BadRequestException(`platform 必须是 ${SUPPORTED_PLATFORMS.join('/')}`);
     }
-    return this.prisma.deliverable.create({
+    const deliverable = await this.prisma.deliverable.create({
       data: {
         briefId: ws.briefId,
         workspaceId,
@@ -94,6 +96,25 @@ export class DeliverableService {
         status: DELIVERABLE_STATUS.PENDING,
       },
     });
+    // R11.2 P1-4: 创作者交付 → 通知买家审
+    const brief = await this.prisma.brief.findUnique({
+      where: { id: ws.briefId },
+      select: { buyerId: true, title: true },
+    });
+    if (brief) {
+      this.notifications
+        .create({
+          userId: brief.buyerId,
+          type: 'DELIVERABLE_UPLOADED',
+          title: '创作者已交付',
+          body: `${brief.title} — 创作者已上传 ${input.type} 交付物(${input.platform}),请审批`,
+          link: `/buyer/deliverables/${deliverable.id}`,
+        })
+        .catch((e) =>
+          this.logger.warn(`notify buyer (DELIVERABLE_UPLOADED) failed: ${e?.message ?? e}`),
+        );
+    }
+    return deliverable;
   }
 
   /**

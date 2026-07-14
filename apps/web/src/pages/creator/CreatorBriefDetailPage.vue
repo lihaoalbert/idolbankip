@@ -159,6 +159,19 @@ const budgetMin = computed(() => Number(brief.value?.budgetMin ?? 0));
 const budgetMax = computed(() => Number(brief.value?.budgetMax ?? 0));
 const currentPriceNum = computed(() => Number(brief.value?.currentPrice ?? 0));
 const isOwnBrief = computed(() => brief.value?.buyerId === auth.user?.id);
+
+// R11.2 P1-6: KYC 状态(投标前置提示)
+const kycStatus = ref<string>('NOT_SUBMITTED');
+async function fetchKycStatus() {
+  if (!auth.user) return;
+  try {
+    const { data } = await apiClient.get('/kyc/status');
+    kycStatus.value = data.status ?? 'NOT_SUBMITTED';
+  } catch {
+    kycStatus.value = 'NOT_SUBMITTED';
+  }
+}
+const kycBlocked = computed(() => kycStatus.value !== 'APPROVED');
 const canBid = computed(() => brief.value?.status === 'bidding' && !myBid.value && !isOwnBrief.value);
 
 onMounted(async () => {
@@ -167,7 +180,7 @@ onMounted(async () => {
     router.push('/login');
     return;
   }
-  await Promise.all([loadBrief(), loadMyBid(), loadReviews()]);
+  await Promise.all([loadBrief(), loadMyBid(), loadReviews(), fetchKycStatus()]);
 });
 
 async function loadBrief() {
@@ -591,9 +604,30 @@ const countdown = useCountdown(() => brief.value?.deadlineAt);
             <p class="text-xs text-ink/60 mb-3">
               报价区间 {{ formatPrice(budgetMin) }} - {{ formatPrice(budgetMax) }},当前价 {{ formatPrice(currentPriceNum) }}
             </p>
+            <!-- R11.2 P1-6: KYC 未通过时拦截投标入口 -->
+            <div
+              v-if="kycBlocked"
+              class="mb-3 mx-auto max-w-xs p-3 bg-stamp-red/5 border-0.5 border-stamp-red/40 text-xs text-stamp-red"
+            >
+              <div class="catalog-no mb-1 text-stamp-red/70">KYC REQUIRED</div>
+              {{
+                kycStatus === 'PENDING' ? '你的 KYC 审核中,通过后才能投标' :
+                kycStatus === 'REJECTED' ? 'KYC 审核未通过,请先修正' :
+                '请先完成实名认证'
+              }}
+              <RouterLink to="/creator/onboard" class="block mt-1 text-ink hover:underline">
+                去认证 →
+              </RouterLink>
+            </div>
             <button
               @click="showBidModal = true"
-              class="px-6 py-3 bg-stamp-red text-cream text-sm font-medium tracking-widest uppercase hover:bg-ink"
+              :disabled="kycBlocked"
+              :class="[
+                'px-6 py-3 text-sm font-medium tracking-widest uppercase',
+                kycBlocked
+                  ? 'bg-ink/30 text-cream/60 cursor-not-allowed'
+                  : 'bg-stamp-red text-cream hover:bg-ink'
+              ]"
             >
               我要投标 →
             </button>

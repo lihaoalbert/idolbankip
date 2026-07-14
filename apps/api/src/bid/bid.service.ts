@@ -9,6 +9,7 @@ import {
 import { Bid, Brief } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceService } from '../workspace/workspace.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BidService {
@@ -17,6 +18,7 @@ export class BidService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workspaces: WorkspaceService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -69,7 +71,7 @@ export class BidService {
     }
 
     try {
-      return await this.prisma.bid.create({
+      const bid = await this.prisma.bid.create({
         data: {
           briefId,
           creatorId,
@@ -79,6 +81,15 @@ export class BidService {
           status: 'pending',
         },
       });
+      // R11.2 P1-4: 投标到达 → 通知买家
+      this.notifications.create({
+        userId: brief.buyerId,
+        type: 'BID_RECEIVED',
+        title: '收到新报价',
+        body: `${brief.title} — 创作者报价 ¥${params.price} (${params.deliveryDays} 天交付)`,
+        link: `/buyer/briefs/${briefId}`,
+      }).catch((e) => this.logger.warn(`notify buyer (BID_RECEIVED) failed: ${e?.message ?? e}`));
+      return bid;
     } catch (e: any) {
       if (e?.code === 'P2002') {
         throw new ConflictException('你已经报过价了');
@@ -111,7 +122,7 @@ export class BidService {
       throw new BadRequestException(`当前状态 ${brief.status} 不可接单`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. 中标 bid → accepted
       const accepted = await tx.bid.update({
         where: { id: bidId },
@@ -160,6 +171,19 @@ export class BidService {
 
       return { bid: accepted, brief: updatedBrief, workspaceId: workspace.id, orderId: order.id };
     });
+
+    // R11.2 P1-4: 中标 → 通知创作者(在事务提交后发,避免回滚后误通知)
+    this.notifications
+      .create({
+        userId: bid.creatorId,
+        type: 'BID_ACCEPTED',
+        title: '中标通知',
+        body: `${brief.title} — 你的报价已被买家接受,请进入工作区开始创作`,
+        link: `/workspaces/${result.workspaceId}`,
+      })
+      .catch((e) => this.logger.warn(`notify creator (BID_ACCEPTED) failed: ${e?.message ?? e}`));
+
+    return result;
   }
 
   /**
