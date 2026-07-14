@@ -139,7 +139,8 @@ onMounted(load);
 <template>
   <div class="ca-page">
     <header class="ca-header">
-      <h1>我的资产</h1>
+      <!-- R11.3 P2-2: 改名区分 — 创作者素材库 ≠ 买家授权包(IP) -->
+      <h1>我的素材库</h1>
       <button class="ca-btn ca-btn-primary" @click="openCreate">
         + 新增{{ tab === 'model' ? '模型' : '模板' }}
       </button>

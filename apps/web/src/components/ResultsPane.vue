@@ -21,6 +21,10 @@ import { buyerBriefsApi } from '@/api/briefs';
 import type { BriefSummary } from '@/api/briefs';
 import { aiToolsApi, type GenerationRecord } from '@/api/ai-tools';
 import IpListPage from '@/pages/IpListPage.vue';
+import { formatDeadline } from '@/utils/formatDate';
+
+// R11.3 P2-3: dev 脚注 — 只在开发模式显示
+const isDev = import.meta.env.DEV;
 
 interface Props {
   scope?: 'buyer' | 'creator';
@@ -246,20 +250,42 @@ watch(() => route.fullPath, () => {
             <span class="font-medium hover:text-gold transition leading-snug">{{ b.title }}</span>
             <span class="text-[9px] px-1.5 py-0.5 rounded-r8-sm bg-gold/15 text-gold shrink-0">{{ b.status }}</span>
           </div>
-          <div class="mt-1 text-[10px] text-ink/50 dark:text-ink/40 flex items-center gap-2">
+          <!-- R11.3 P2-7: 补距截止 + 中文状态 -->
+          <div class="mt-1 text-[10px] text-ink/50 dark:text-ink/40 flex items-center gap-1.5 flex-wrap">
             <span>¥{{ b.budgetMin }}–¥{{ b.budgetMax }}</span>
             <span>·</span>
             <span>{{ b.platformSet.length }} 平台</span>
-            <span v-if="b.bidsCount !== undefined">·</span>
-            <span v-if="b.bidsCount !== undefined">{{ b.bidsCount }} 投标</span>
+            <template v-if="b.bidsCount !== undefined">
+              <span>·</span>
+              <span>{{ b.bidsCount }} 投标</span>
+            </template>
+            <template v-if="b.status === 'bidding' || b.status === 'draft'">
+              <span>·</span>
+              <span :class="new Date(b.deadlineAt) < new Date() ? 'text-stamp-red' : ''">{{ formatDeadline(b.deadlineAt) }}</span>
+            </template>
           </div>
+        </RouterLink>
+        <!-- R11.3 P2-7: 全部入口 — 跳完整列表页 -->
+        <RouterLink
+          v-if="scope === 'buyer'"
+          to="/buyer/briefs"
+          class="block text-center text-[10px] catalog-no text-gold hover:text-ink transition py-2 mt-2 border-t hairline border-line dark:border-cream/15"
+        >
+          全部发包 →
+        </RouterLink>
+        <RouterLink
+          v-else
+          to="/creator/briefs"
+          class="block text-center text-[10px] catalog-no text-gold hover:text-ink transition py-2 mt-2 border-t hairline border-line dark:border-cream/15"
+        >
+          全部可接发包 →
         </RouterLink>
       </template>
       <div v-else class="text-center py-6 text-ink/40">
         {{ emptyHint }}
       </div>
 
-      <div class="mt-6 pt-4 border-t hairline border-line dark:border-cream/15">
+      <div v-if="isDev" class="mt-6 pt-4 border-t hairline border-line dark:border-cream/15">
         <div class="text-[10px] text-ink/40 dark:text-ink/35 leading-relaxed">
           <div class="font-medium text-ink/60 dark:text-ink/50 mb-1">💡 R3/R6 已上 ({{ scope }} · {{ focusMode ? 'focus=generations' : 'briefs' }})</div>
           <ul class="space-y-0.5 list-disc list-inside" v-if="scope === 'creator'">

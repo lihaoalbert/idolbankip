@@ -1,17 +1,33 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { apiClient, ossUrl } from '@/api/client';
 import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
+import { useAuthStore } from '@/stores/auth';
+import { formatRelative } from '@/utils/formatDate';
 
 /**
  * 首页 — MUSEUM ARCHIVE / 美术馆图录
  * 视觉语言: 拍卖图录封面 × 美术馆展墙 × 摄影集画册
  * 字体: Cormorant Garamond (display swash) + Inter Tight (body) + JetBrains Mono (元数据)
  * 业务承诺: 买家痛点 → IBIren 解决方案 → 精选展品 → 鉴定流程 → 资产包三层 → 商务档案
+ *
+ * R11.3 P2-8: 登录用户首屏补"最近在做什么" — 拿到最新一笔 brief/workspace, 给快捷入口
  */
 
+const auth = useAuthStore();
 const featured = ref<any[]>([]);
 const featuredLoading = ref(true);
+const recentBrief = ref<any | null>(null);
+const recentWorkspace = ref<any | null>(null);
+const recentLoading = ref(false);
+
+const isAuthed = computed(() => auth.isAuthenticated);
+const role = computed(() => {
+  const r = auth.user?.roles ?? [];
+  if (r.includes('CREATOR')) return 'creator';
+  if (r.includes('BUYER')) return 'buyer';
+  return 'guest';
+});
 
 onMounted(async () => {
   try {
@@ -23,6 +39,27 @@ onMounted(async () => {
     /* 静默 */
   } finally {
     featuredLoading.value = false;
+  }
+
+  // R11.3 P2-8: 登录用户取最近 brief + workspace
+  if (!isAuthed.value) return;
+  recentLoading.value = true;
+  try {
+    if (role.value === 'buyer') {
+      const { data } = await apiClient.get('/buyer/briefs', { params: { size: 1 } });
+      recentBrief.value = data.items?.[0] ?? null;
+    } else {
+      const { data: ws } = await apiClient.get('/creator/workspaces');
+      recentWorkspace.value = ws.items?.[0] ?? null;
+      if (!recentWorkspace.value) {
+        const { data } = await apiClient.get('/creator/briefs/mine', { params: { size: 1 } });
+        recentBrief.value = data.items?.[0] ?? null;
+      }
+    }
+  } catch {
+    /* 静默 */
+  } finally {
+    recentLoading.value = false;
   }
 });
 
@@ -126,6 +163,68 @@ const tickerItems = [
         <div class="text-right catalog-no">EST. 2026 / CN</div>
       </div>
     </div>
+
+    <!-- =========================================================
+         R11.3 P2-8: 登录用户首屏 · 最近在做什么
+         (挂在杂志期刊号和 HERO 之间 — 不打断美术馆门面)
+         ========================================================= -->
+    <section
+      v-if="isAuthed && (recentBrief || recentWorkspace)"
+      class="border-b hairline-b border-line bg-surface paper-grain"
+    >
+      <div class="max-w-[1320px] mx-auto px-6 lg:px-10 py-8 md:py-10">
+        <div class="flex items-baseline justify-between mb-4">
+          <div class="catalog-no text-ink/50">— WELCOME BACK · {{ auth.user?.displayName ?? auth.user?.email }}</div>
+          <div v-if="role === 'creator'" class="catalog-no text-ink/40 text-[10px]">CREATOR</div>
+          <div v-else-if="role === 'buyer'" class="catalog-no text-ink/40 text-[10px]">BUYER</div>
+        </div>
+        <div class="grid md:grid-cols-12 gap-4">
+          <!-- 最近 brief -->
+          <RouterLink
+            v-if="recentBrief"
+            :to="role === 'buyer' ? `/buyer/briefs/${recentBrief.id}` : `/creator/briefs/${recentBrief.id}`"
+            class="md:col-span-7 block border hairline border-line bg-cream p-5 hover:border-gold transition group"
+          >
+            <div class="catalog-no text-gold mb-2">最近的{{ role === 'buyer' ? '发包' : '中标任务' }}</div>
+            <div class="font-display text-xl md:text-2xl text-ink group-hover:text-gold transition leading-tight">
+              {{ recentBrief.title ?? recentBrief.brief?.title ?? '—' }}
+            </div>
+            <div class="text-[11px] text-ink/50 mt-2 font-mono flex items-center gap-2">
+              <span v-if="recentBrief.status">{{ recentBrief.status }}</span>
+              <span v-if="recentBrief.createdAt">·</span>
+              <span v-if="recentBrief.createdAt">{{ formatRelative(recentBrief.createdAt) }}</span>
+            </div>
+          </RouterLink>
+          <!-- 最近 workspace (创作者 only) -->
+          <RouterLink
+            v-if="recentWorkspace"
+            :to="`/workspaces/${recentWorkspace.id}`"
+            class="md:col-span-5 block border hairline border-line bg-cream p-5 hover:border-gold transition group"
+          >
+            <div class="catalog-no text-gold mb-2">最近的工作区</div>
+            <div class="font-display text-xl md:text-2xl text-ink group-hover:text-gold transition leading-tight">
+              {{ recentWorkspace.brief?.title ?? '—' }}
+            </div>
+            <div class="text-[11px] text-ink/50 mt-2 font-mono flex items-center gap-2">
+              <span>{{ recentWorkspace.status }}</span>
+              <span>·</span>
+              <span>{{ formatRelative(recentWorkspace.startedAt) }}</span>
+            </div>
+          </RouterLink>
+          <!-- 没数据 — 引导入口 -->
+          <RouterLink
+            v-if="!recentBrief && !recentWorkspace && !recentLoading"
+            :to="role === 'buyer' ? '/buyer/brief/new' : '/creator/briefs'"
+            class="md:col-span-12 block border hairline border-dashed border-line bg-cream/60 p-5 text-center hover:border-gold transition"
+          >
+            <div class="catalog-no text-ink/50 mb-1">— 开始你的第一单 —</div>
+            <div class="font-display text-lg text-ink">
+              {{ role === 'buyer' ? '发个包 →' : '去任务板看看 →' }}
+            </div>
+          </RouterLink>
+        </div>
+      </div>
+    </section>
 
     <!-- =========================================================
          HERO · 美术馆邀请函

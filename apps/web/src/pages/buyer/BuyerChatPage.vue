@@ -36,6 +36,9 @@ const navItems = [
   { label: '联系商务', icon: '✉️', route: '/contact' },
 ];
 
+// R11.3 P2-3: dev 脚注 — 只在开发模式显示
+const isDev = import.meta.env.DEV;
+
 if (auth.isAuthenticated && !isBuyer.value) {
   // 非 buyer 角色访问入口 — 推回首页
   router.replace('/');
@@ -61,7 +64,7 @@ if (auth.isAuthenticated && !isBuyer.value) {
           <span class="text-xs">{{ item.label }}</span>
         </RouterLink>
       </nav>
-      <div class="border-t border-line px-3 py-2.5 text-[10px] text-ink/40 leading-relaxed">
+      <div v-if="isDev" class="border-t border-line px-3 py-2.5 text-[10px] text-ink/40 leading-relaxed">
         R2 三分屏 · R3 将开放 AI 工具 · R4 全量上线
       </div>
     </template>
