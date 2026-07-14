@@ -334,9 +334,17 @@ export class BriefService {
       ? Number((brief.bumpHistory as any[])[0].fromPrice)
       : currentPriceNum;
 
-    const newPrice = Math.round(currentPriceNum * (1 + percent / 100));
+    let newPrice = Math.round(currentPriceNum * (1 + percent / 100));
     const newTotal = newPrice;
     const overCap = newTotal > basePrice * 2;
+    // R11.3 P2-6: 加价 clamp 到 budgetMax, 避免"当前价 1500"超出"预算 1000"造成创作者报价校验混乱
+    const budgetMax = Number(brief.budgetMax);
+    if (newPrice > budgetMax) {
+      this.logger.warn(
+        `bumpPrice brief=${id} 计算后价 ${newPrice} 超出 budgetMax ${budgetMax}, 已 clamp 到 budgetMax`,
+      );
+      newPrice = budgetMax;
+    }
     // ② 超 2x 需前端二次确认
     if (overCap && !params.confirmed) {
       return { brief, needConfirm: true, overCap: true };
