@@ -30,6 +30,10 @@ export interface ChatRequest {
     route?: string;
     query?: Record<string, string>;
   };
+  /** R9.1: 会话 id — useAssistant composable 在首次 sendMessage 时生成,
+   *  持久化到 localStorage `ibi.assistant.session.<userId>`, 后续每轮回传。
+   *  服务端用 `${userId}:${sessionId}` 复合 key 跨账号隔离。 */
+  sessionId?: string;
 }
 
 export interface SuggestedAction {
@@ -109,11 +113,13 @@ export async function chatWithAttachments(req: {
   files: File[];
   history?: ChatHistoryItem[];
   routeContext?: ChatRequest['routeContext'];
+  sessionId?: string;
 }): Promise<ChatResponse> {
   const form = new FormData();
   form.append('message', req.message);
   if (req.history) form.append('historyRaw', JSON.stringify(req.history));
   if (req.routeContext) form.append('routeContextRaw', JSON.stringify(req.routeContext));
+  if (req.sessionId) form.append('sessionId', req.sessionId);
   for (const f of req.files) {
     form.append('files', f, f.name);
   }

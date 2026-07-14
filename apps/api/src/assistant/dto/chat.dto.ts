@@ -39,4 +39,10 @@ export class ChatDto {
   /** 路由上下文 — 用户当前在哪个页面 */
   @IsOptional() @ValidateNested() @Type(() => RouteContextDto)
   routeContext?: RouteContextDto;
+
+  /** R9.1: 会话 id — 前端首次 sendMessage 时随机生成, 持久化到 localStorage,
+   * 后续每轮回传同一个。服务端用 `${userId}:${sessionId}` 复合 key 隔离多轮 slot 累积,
+   * TTL 30 分钟无活动自动清, 跨账号自动隔离。 */
+  @IsOptional() @IsString() @MaxLength(64)
+  sessionId?: string;
 }

@@ -46,6 +46,29 @@ import {
 
 const HISTORY_LIMIT = 20;
 
+/** R9.1: 多轮 slot 累积状态 — 当用户首次进 CREATE_BRIEF 流程但字段不全时,
+ *  LLM 选 ASK_CLARIFICATION, 服务端把已抽到的 partial slots 存起来,
+ *  下轮 user 给齐字段 → merge 进新 intentParams → parseIntent 通过 → 弹卡片。
+ *  TTL 30 分钟, 复合 key (`${userId}:${sessionId}`) 跨账号隔离。 */
+const SESSION_TTL_MS = 30 * 60 * 1000;
+
+/** 哪些 intent 是"需要累积 slot 才能提交"的 — 仅对这些 intent 维护 pending state。
+ *  其它 intent (LIST_BRIEFS/NAVIGATE/ANSWER/...) 单轮就完成, 不需要状态。 */
+const SLOT_ACCUMULATING_INTENTS: ReadonlySet<IntentType> = new Set<IntentType>([
+  'CREATE_BRIEF',
+  'UPDATE_BRIEF',
+  'UPLOAD_IP',
+  'PLACE_BID',
+  'RUN_VIDEO_GEN',
+  'RUN_BLUEPRINT_GEN',
+]);
+
+interface PendingIntentState {
+  intent: IntentType;
+  slots: Record<string, unknown>;
+  expiresAt: number;
+}
+
 export interface SuggestedAction {
   label: string;
   href: string;
@@ -77,11 +100,67 @@ export interface ChatAttachment {
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
 
+  /** R9.1: 多轮 slot 累积内存表 — key = `${userId}:${sessionId}`。
+   *  MVP 用内存, 进程重启丢状态 (TTL 30 分钟够用); 真上线再换 Redis。
+   *  加 composite key 防止跨账号状态污染。 */
+  private readonly sessions = new Map<string, PendingIntentState>();
+
   constructor(
     private readonly ai: AiService,
     private readonly prisma: PrismaService,
     private readonly upload: UploadService,
   ) {}
+
+  /** R9.1: composite session key — 同 userId 换 sessionId 视作新会话。 */
+  private getSessionKey(userId: string, sessionId: string | undefined): string | null {
+    if (!sessionId || sessionId.length === 0 || sessionId.length > 64) return null;
+    return `${userId}:${sessionId}`;
+  }
+
+  /** R9.1: 每轮 chat 入口扫一遍 — 清掉过期 pending state, 防内存泄漏。 */
+  private sweepExpiredSessions(now: number = Date.now()): void {
+    for (const [k, v] of this.sessions.entries()) {
+      if (v.expiresAt <= now) this.sessions.delete(k);
+    }
+  }
+
+  /** R9.1: 取 pending state + 续约 TTL。 */
+  private getPendingState(key: string | null): PendingIntentState | null {
+    if (!key) return null;
+    const state = this.sessions.get(key);
+    if (!state) return null;
+    if (state.expiresAt <= Date.now()) {
+      this.sessions.delete(key);
+      return null;
+    }
+    // 续约 — 命中即把 TTL 推后, 保证活跃会话不丢
+    state.expiresAt = Date.now() + SESSION_TTL_MS;
+    return state;
+  }
+
+  /** R9.1: merge pending.slots 到新 params (新值覆盖) — 用于多轮累积。 */
+  private mergeSlots(
+    pending: PendingIntentState | null,
+    intent: IntentType,
+    newParams: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!pending || pending.intent !== intent) return newParams;
+    const merged: Record<string, unknown> = { ...pending.slots };
+    for (const [k, v] of Object.entries(newParams)) {
+      if (v !== undefined && v !== null) merged[k] = v;
+    }
+    return merged;
+  }
+
+  /** R9.1: 写/清 pending state。 */
+  private setPendingState(key: string | null, intent: IntentType, slots: Record<string, unknown>): void {
+    if (!key) return;
+    this.sessions.set(key, { intent, slots, expiresAt: Date.now() + SESSION_TTL_MS });
+  }
+  private clearPendingState(key: string | null): void {
+    if (!key) return;
+    this.sessions.delete(key);
+  }
 
   async chat(
     userId: string,
@@ -89,6 +168,11 @@ export class AssistantService {
     dto: ChatDto,
   ): Promise<ChatResult> {
     const userRole = this.pickPrimaryRole(userRoles);
+
+    // R9.1: 多轮 slot 累积 — sweep + 取 pending state
+    this.sweepExpiredSessions();
+    const sessionKey = this.getSessionKey(userId, dto.sessionId);
+    const pending = this.getPendingState(sessionKey);
 
     // FAQ 命中优先 — 节省 LLM 调用
     // W6-R2 修复: 业务动词优先 — 用户明显是写操作意图 (投标/发包/上传/接单...) 时
@@ -242,8 +326,51 @@ export class AssistantService {
       if (suggestedActions.length >= 3) break;
     }
 
-    // intent 解析 + 校验
+    // intent 解析 + 校验 — R9.1 多轮 slot 累积合并
     let intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+
+    // R9.1: 若 LLM 选的是 slot 累积型 intent, 且有 pending state (上轮 ASK_CLARIFICATION 留下的)
+    //   → 把 pending.slots merge 进 params, 重跑 parseIntent。LLM 重抽可能漏字段, merge 后能补齐。
+    const llmIntent =
+      typeof parsed.intent === 'string' && (parsed.intent as IntentType) in ({} as Record<IntentType, unknown>)
+        ? (parsed.intent as IntentType)
+        : null;
+    if (
+      intentParsed === null &&
+      llmIntent !== null &&
+      SLOT_ACCUMULATING_INTENTS.has(llmIntent) &&
+      pending !== null &&
+      pending.intent === llmIntent
+    ) {
+      const merged = this.mergeSlots(pending, llmIntent, parsed.intentParams ?? {});
+      intentParsed = parseIntent(llmIntent, merged);
+      if (intentParsed !== null) {
+        this.logger.log(`assistant slot merge succeeded: session=${sessionKey} intent=${llmIntent}`);
+      }
+    }
+
+    // R9.1: 第一次进 slot-accumulating intent 但字段不全 → save pending state 等下轮
+    //   (只有 llmIntent 是 slot 累积型且 parseIntent 失败时, 才存; 其它 intent 不污染状态)
+    if (
+      intentParsed === null &&
+      llmIntent !== null &&
+      SLOT_ACCUMULATING_INTENTS.has(llmIntent) &&
+      (parsed.intentParams && Object.keys(parsed.intentParams).length > 0)
+    ) {
+      const slots: Record<string, unknown> = { ...(pending && pending.intent === llmIntent ? pending.slots : {}) };
+      for (const [k, v] of Object.entries(parsed.intentParams ?? {})) {
+        if (v !== undefined && v !== null) slots[k] = v;
+      }
+      this.setPendingState(sessionKey, llmIntent, slots);
+      this.logger.log(
+        `assistant slot pending saved: session=${sessionKey} intent=${llmIntent} filled=${Object.keys(slots).join(',')}`,
+      );
+    }
+
+    // R9.1: 解析成功 → 清掉 pending state (一次成功的提交走完即清, 避免污染下个对话)
+    if (intentParsed !== null && pending !== null && pending.intent === intentParsed.intent) {
+      this.clearPendingState(sessionKey);
+    }
 
     // W6-R7 fallback: LLM 经常对 "打开形象库" 类纯查询只返 reply+actions 不挂 intent,
     //   强制按用户消息里的关键词兜底,让右屏 embed 能触发。OPEN_IP_LIBRARY DTO 全空,
@@ -334,8 +461,14 @@ export class AssistantService {
     files: Express.Multer.File[],
     history?: ChatDto['history'],
     routeContext?: ChatDto['routeContext'],
+    sessionId?: string,
   ): Promise<ChatResult> {
     const userRole = this.pickPrimaryRole(userRoles);
+
+    // R9.1: 多模态路径也走 session 状态 — 创作者上传头像时 UPLOAD_IP 也是 slot 累积型
+    this.sweepExpiredSessions();
+    const sessionKey = this.getSessionKey(userId, sessionId);
+    const pending = this.getPendingState(sessionKey);
 
     // 0. 文件 mime 校验 + 大小硬限制 (FileInterceptor 已设 50MB, 这里双保险)
     const allowedExts = /\.(jpe?g|png|webp|pdf|docx|txt)$/i;
@@ -507,6 +640,40 @@ export class AssistantService {
     }
 
     let intentParsed = parseIntent(parsed.intent, parsed.intentParams);
+
+    // R9.1: 多模态路径同样支持 slot 累积合并
+    const llmIntentM =
+      typeof parsed.intent === 'string' && (parsed.intent as IntentType) in ({} as Record<IntentType, unknown>)
+        ? (parsed.intent as IntentType)
+        : null;
+    if (
+      intentParsed === null &&
+      llmIntentM !== null &&
+      SLOT_ACCUMULATING_INTENTS.has(llmIntentM) &&
+      pending !== null &&
+      pending.intent === llmIntentM
+    ) {
+      const merged = this.mergeSlots(pending, llmIntentM, parsed.intentParams ?? {});
+      intentParsed = parseIntent(llmIntentM, merged);
+      if (intentParsed !== null) {
+        this.logger.log(`assistant multimodal slot merge succeeded: session=${sessionKey} intent=${llmIntentM}`);
+      }
+    }
+    if (
+      intentParsed === null &&
+      llmIntentM !== null &&
+      SLOT_ACCUMULATING_INTENTS.has(llmIntentM) &&
+      (parsed.intentParams && Object.keys(parsed.intentParams).length > 0)
+    ) {
+      const slots: Record<string, unknown> = { ...(pending && pending.intent === llmIntentM ? pending.slots : {}) };
+      for (const [k, v] of Object.entries(parsed.intentParams ?? {})) {
+        if (v !== undefined && v !== null) slots[k] = v;
+      }
+      this.setPendingState(sessionKey, llmIntentM, slots);
+    }
+    if (intentParsed !== null && pending !== null && pending.intent === intentParsed.intent) {
+      this.clearPendingState(sessionKey);
+    }
 
     // W6-R7 fallback (multimodal 路径): 仅在文本非空时启用, 否则纯附件会无端命中
     if (!intentParsed && text.trim().length > 0) {

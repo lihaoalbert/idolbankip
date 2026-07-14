@@ -55,6 +55,7 @@ export interface LastIntentState {
 
 const HISTORY_LIMIT = 40; // 前端缓存最多 40 条 (用 last 20 转给后端)
 const LS_PREFIX = 'ibi.assistant.messages.';
+const LS_SESSION_PREFIX = 'ibi.assistant.session.'; // R9.1: sessionId 持久化
 
 function loadFromLs(userId: string): AssistantMessage[] {
   if (!userId) return [];
@@ -77,6 +78,24 @@ function saveToLs(userId: string, msgs: AssistantMessage[]) {
   }
 }
 
+/** R9.1: 从 localStorage 读 sessionId — 每 user 一条, 登出不清 (让用户下次回来还能续上 CREATE_BRIEF 流程) */
+function loadSessionId(userId: string): string {
+  if (!userId) return '';
+  try {
+    return localStorage.getItem(LS_SESSION_PREFIX + userId) ?? '';
+  } catch {
+    return '';
+  }
+}
+function saveSessionId(userId: string, sessionId: string): void {
+  if (!userId || !sessionId) return;
+  try {
+    localStorage.setItem(LS_SESSION_PREFIX + userId, sessionId);
+  } catch {
+    /* quota — 静默 */
+  }
+}
+
 function genId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -87,6 +106,7 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const lastIntent = ref<LastIntentState | null>(null);
 let currentUserId = '';
+let sessionId = ''; // R9.1: 当前会话 id, 跨 sendMessage 持久
 
 export function useAssistant() {
   const auth = useAuthStore();
@@ -97,6 +117,8 @@ export function useAssistant() {
   if (auth.user?.id !== currentUserId) {
     currentUserId = auth.user?.id ?? '';
     messages.value = loadFromLs(currentUserId);
+    // R9.1: 同步切换 sessionId — 每个账号独立会话, 跨账号不污染
+    sessionId = loadSessionId(currentUserId);
   }
 
   // 持久化 — 用 watch + flush:'post' 确保 messages 变更后立即写盘
@@ -130,6 +152,18 @@ export function useAssistant() {
     if ((!trimmed && (!attachments || attachments.length === 0)) || loading.value) return;
     error.value = null;
 
+    // R9.1: 确保 sessionId 存在 — 首次 sendMessage 时生成 uuid 并持久化
+    if (!sessionId) {
+      const cryptoObj: Crypto | undefined =
+        typeof globalThis !== 'undefined' && (globalThis as any).crypto
+          ? (globalThis as any).crypto
+          : undefined;
+      sessionId = cryptoObj && typeof cryptoObj.randomUUID === 'function'
+        ? cryptoObj.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      saveSessionId(currentUserId, sessionId);
+    }
+
     const userMsg: AssistantMessage = {
       id: genId(),
       role: 'user',
@@ -147,11 +181,13 @@ export function useAssistant() {
             files: attachments,
             history: buildHistory(),
             routeContext: buildRouteContext(),
+            sessionId,
           })
         : await chatAssistant({
             message: trimmed,
             history: buildHistory(),
             routeContext: buildRouteContext(),
+            sessionId,
           });
       const isFallback = resp.reply.startsWith('AI 助手暂时无法回答');
       // W6-R7: 把 assistant 返回的 attachments 挂到 user 消息上 (持久化展示)

@@ -32,6 +32,10 @@ class ChatWithAttachmentsBody {
 
   @IsOptional() @IsString() @MaxLength(2000)
   routeContextRaw?: string;
+
+  /** R9.1: 多模态会话也支持 sessionId — 创作者上传头像时常常要走 UPLOAD_IP slot 累积 */
+  @IsOptional() @IsString() @MaxLength(64)
+  sessionId?: string;
 }
 
 @ApiTags('assistant')
@@ -102,6 +106,7 @@ export class AssistantController {
       list,
       history,
       routeContext,
+      body.sessionId,
     );
   }
 }
