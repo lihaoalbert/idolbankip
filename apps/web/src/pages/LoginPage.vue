@@ -195,8 +195,10 @@ watch(tab, async (v) => {
 onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 
 function fillDemo(role: 'CREATOR' | 'BUYER') {
-  email.value = role === 'CREATOR' ? 'creator@ibi.ren' : 'buyer@ibi.ren';
-  password.value = 'demo1234';
+  // R9.5: 用真实种子账号 (种子里只有 creator_001 / buyer_001, demo1234 不存在),
+  //   之前填的 creator@ibi.ren / demo1234 永远 401。
+  email.value = role === 'CREATOR' ? 'creator_001@ibi.ren' : 'buyer_001@ibi.ren';
+  password.value = 'Focus_2026!';
 }
 
 const tabLabel: Record<Tab, string> = {
@@ -445,7 +447,7 @@ const tabLabel: Record<Tab, string> = {
 
           <!-- Demo 填充 (仅邮箱 Tab 可见) -->
           <div v-if="tab === 'email'" class="mt-8 pt-6 hairline-t border-line">
-            <div class="catalog-no text-ink/40 mb-3">DEMO KEYS · 试阅账号</div>
+            <div class="catalog-no text-ink/40 mb-3">DEMO KEYS · 试阅账号 (种子池)</div>
             <div class="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -453,7 +455,7 @@ const tabLabel: Record<Tab, string> = {
                 class="px-4 py-3 border-0.5 border-line bg-cream hover:border-gold hover:bg-gold/5 transition text-left group"
               >
                 <div class="catalog-no text-ink/40 group-hover:text-gold">A · CREATOR</div>
-                <div class="font-mono text-xs text-ink/70 mt-1">creator@ibi.ren</div>
+                <div class="font-mono text-xs text-ink/70 mt-1">creator_001@ibi.ren</div>
               </button>
               <button
                 type="button"
@@ -461,9 +463,10 @@ const tabLabel: Record<Tab, string> = {
                 class="px-4 py-3 border-0.5 border-line bg-cream hover:border-gold hover:bg-gold/5 transition text-left group"
               >
                 <div class="catalog-no text-ink/40 group-hover:text-gold">B · BUYER</div>
-                <div class="font-mono text-xs text-ink/70 mt-1">buyer@ibi.ren</div>
+                <div class="font-mono text-xs text-ink/70 mt-1">buyer_001@ibi.ren</div>
               </button>
             </div>
+            <div class="mt-2 catalog-no text-ink/30">密码 · Focus_2026!</div>
           </div>
         </div>
       </section>
