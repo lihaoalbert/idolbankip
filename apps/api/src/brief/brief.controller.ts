@@ -45,11 +45,13 @@ const BRIEF_STATUSES = [
 ] as const;
 
 class CreateBriefDto {
-  @IsString() @MinLength(5) title!: string;
+  // R9.1: title 最小 5→3 字, ipIds 改 optional — 与 intent-schemas 对齐,
+  //   否则 LLM chat 路径能产 CREATE_BRIEF, 但 POST /buyer/briefs 会二次失败
+  @IsString() @MinLength(3) title!: string;
   @IsOptional() @IsString() description?: string;
   @IsString() category!: string;
   @IsArray() @IsString({ each: true }) platformSet!: string[];
-  @IsArray() @IsString({ each: true }) ipIds!: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) ipIds?: string[];
   @IsNumber() @Min(0) budgetMin!: number;
   @IsNumber() @Min(0) budgetMax!: number;
   @IsString() packageTier!: string;
@@ -58,7 +60,7 @@ class CreateBriefDto {
 }
 
 class UpdateBriefDto {
-  @IsOptional() @IsString() @MinLength(5) title?: string;
+  @IsOptional() @IsString() @MinLength(3) title?: string;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) platformSet?: string[];
   @IsOptional() @IsNumber() @Min(0) budgetMin?: number;

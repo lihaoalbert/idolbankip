@@ -50,7 +50,7 @@ export class BriefService {
     description?: string;
     category: string;
     platformSet: string[];
-    ipIds: string[];
+    ipIds?: string[];
     budgetMin: number;
     budgetMax: number;
     packageTier: string;
@@ -78,7 +78,7 @@ export class BriefService {
         description: params.description,
         category: params.category,
         platformSet: params.platformSet as any,
-        ipIds: params.ipIds as any,
+        ipIds: (params.ipIds ?? []) as any,
         budgetMin: params.budgetMin,
         budgetMax: params.budgetMax,
         packageTier: params.packageTier,

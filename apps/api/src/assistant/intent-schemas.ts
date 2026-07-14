@@ -152,9 +152,13 @@ export class ListBriefsParams {
 /** W6-R2.1.5 buyer CREATE_BRIEF intent — 买家发包。
  * 与 brief.controller 的 CreateBriefDto 字段对齐 (subset, 关键字段 LLM 必须填,
  * 缺任一 → Zod 校验失败 → intent=null, 走 ASK_CLARIFICATION)。
+ *
+ * R9.1 放宽:
+ *   - title 最小 5→3 字: 用户口语"短剧分镜"4 字也是合法标题 (5 字把常见短标题挡掉)
+ *   - ipIds 改 optional + 默认空数组: 大部分发包不指定特定 IP 形象 (前端表单留空即可)
  */
 export class CreateBriefParams {
-  @IsString() @MinLength(5) @MaxLength(100)
+  @IsString() @MinLength(3) @MaxLength(100)
   title!: string;
 
   @IsOptional() @IsString() @MaxLength(5000)
@@ -166,8 +170,8 @@ export class CreateBriefParams {
   @IsArray() @IsString({ each: true })
   platformSet!: string[];
 
-  @IsArray() @IsString({ each: true })
-  ipIds!: string[];
+  @IsOptional() @IsArray() @IsString({ each: true })
+  ipIds?: string[];
 
   @IsNumber() @Min(0) @Max(1_000_000)
   budgetMin!: number;

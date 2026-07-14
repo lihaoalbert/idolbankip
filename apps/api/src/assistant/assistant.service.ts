@@ -162,6 +162,86 @@ export class AssistantService {
     this.sessions.delete(key);
   }
 
+  /** R9.1 fix: 从用户消息里的写操作动词, 推断可能的 slot-accumulating intent。
+   *  用作 ASK_CLARIFICATION → pending state 的兜底 (LLM 没识别, 但写动词很明确)。
+   *  优先级: 发包 > 投标 > 上传 IP > 跑视频 > 跑蓝图 > 改发包。 */
+  private inferIntentFromMessage(message: string, role: string | null): IntentType | null {
+    const m = message.trim();
+    if (!m) return null;
+    // buyer 默认 CREATE_BRIEF (高频写操作)
+    if (/发包|我要发|新建发包|发个包|发一个包/.test(m)) return 'CREATE_BRIEF';
+    if (/改发包|修改发包|更新发包|编辑发包/.test(m)) return 'UPDATE_BRIEF';
+    // creator 默认 UPLOAD_IP
+    if (/上传.*IP|上传新.*IP|新建.*IP|录.*新.*IP|加个.*IP|录个.*IP/.test(m)) return 'UPLOAD_IP';
+    if (/投标|抢单|接单|投个标|我要投/.test(m)) return 'PLACE_BID';
+    if (/跑.*视频|生成.*视频|跑.*sora|跑.*kling|跑.*runway|跑.*jimeng/.test(m)) return 'RUN_VIDEO_GEN';
+    if (/建.*蓝图|起.*蓝图|做.*蓝图|跑.*蓝图|生成.*蓝图/.test(m)) return 'RUN_BLUEPRINT_GEN';
+    return null;
+  }
+
+  /** R9.1 fix: 正则兜底抽取 CREATE_BRIEF 字段 — LLM 没返 JSON 时用。
+   *  返回 null = 抽不到任何关键字段, 不强行 merge。
+   *  返回 slots = 至少有一个字段, 让 parseIntent 二次校验。
+   *  不解析时间 (deadlineAt) — 留给 LLM/前端, 因为 "7 天后" 这类语义日期解析复杂。 */
+  private regexExtractBriefSlots(msg: string): Record<string, unknown> | null {
+    const slots: Record<string, unknown> = {};
+
+    // 标题 — "标题 X" / "标题是 X" / "标题: X" / "标题 X" (宽松, 允许无分隔符)
+    const titleMatch = msg.match(/标题[是为：:]?\s*([^,，。;；\n]{2,100})/);
+    if (titleMatch) slots.title = titleMatch[1].trim();
+
+    // 类别 — "类别 X" / "品类 X" / "类型 X" / "类目 X" (宽松, 允许无分隔符)
+    const catMatch = msg.match(/(?:类别|品类|类型|类目)[是为：:]?\s*(\w+)/);
+    if (catMatch) slots.category = catMatch[1].trim();
+
+    // 套餐 — "档位 X" / "套餐 X" / "走 X 套餐"
+    const pkgMatch = msg.match(/(?:档位|套餐|走)[是为：:]?\s*(essential|standard|premium)/i);
+    if (pkgMatch) slots.packageTier = pkgMatch[1].toLowerCase();
+
+    // 预算 — "预算 5000-8000" / "预算 5000 ~ 8000" / "5000-8000元"
+    const budgetMatch = msg.match(/预算[是为：:]?\s*(\d{2,7})\s*[-~到至]\s*(\d{2,7})/);
+    if (budgetMatch) {
+      slots.budgetMin = Number(budgetMatch[1]);
+      slots.budgetMax = Number(budgetMatch[2]);
+    }
+
+    // 平台 — "平台抖音快手" / "投放平台 抖音 + 快手" / "平台: 抖音" (宽松, 允许无分隔符)
+    const platMatch = msg.match(/(?:投放)?平台[是为：:]?\s*([^\n,]+)/);
+    if (platMatch) {
+      const raw = platMatch[1];
+      // 中文 → 枚举值映射 (粗匹配, 多个常见平台)
+      const map: Record<string, string> = {
+        '抖音': 'douyin',
+        '快手': 'kuaishou',
+        '小红书': 'xiaohongshu',
+        '视频号': 'shipinhao',
+        '微信': 'weixin',
+        'B站': 'bilibili',
+        'b站': 'bilibili',
+        '淘宝': 'taobao',
+        '京东': 'jd',
+      };
+      const platforms = new Set<string>();
+      for (const [zh, en] of Object.entries(map)) {
+        if (raw.includes(zh)) platforms.add(en);
+      }
+      if (platforms.size > 0) slots.platformSet = Array.from(platforms);
+    }
+
+    // 截止时间 — "14 天后" / "7天后" / "今天 +7d" / ISO 字符串
+    // 解析为具体 ISO 时间, 满足 IsString 校验, parseIntent 不强校验格式
+    const daysMatch = msg.match(/(\d{1,3})\s*天后/);
+    if (daysMatch) {
+      const d = new Date(Date.now() + Number(daysMatch[1]) * 86_400_000);
+      slots.deadlineAt = d.toISOString();
+    } else if (/(?:今天|今晚)|today/i.test(msg)) {
+      slots.deadlineAt = new Date().toISOString();
+    }
+
+    // 至少要有一个字段才算"能尝试 merge"
+    return Object.keys(slots).length > 0 ? slots : null;
+  }
+
   async chat(
     userId: string,
     userRoles: UserRole[],
@@ -177,10 +257,17 @@ export class AssistantService {
     // FAQ 命中优先 — 节省 LLM 调用
     // W6-R2 修复: 业务动词优先 — 用户明显是写操作意图 (投标/发包/上传/接单...) 时
     // 不走 FAQ, 直接走 LLM 分类, 否则 FAQ 关键词把业务意图抢答
-    if (userRole === 'CREATOR' || userRole === 'BUYER') {
-      if (!isBusinessIntentMessage(dto.message)) {
-        const faqHit = matchFaq(dto.message, userRole === 'CREATOR' ? 'creator' : 'buyer');
-        if (faqHit) {
+    // R9.1 修复: pending intent 优先 — 用户在多轮 slot 累积中 (上一轮 ASK_CLARIFICATION)
+    // 时, FAQ 关键词 (如"套餐") 容易误命中 IP 授权档位 FAQ, 打断发包流。
+    //   只要 pending 命中, 直接绕过 FAQ, 把新消息当 slot 增量喂给 LLM。
+    const skipFaqForPendingSession = pending != null;
+    if (
+      !skipFaqForPendingSession &&
+      (userRole === 'CREATOR' || userRole === 'BUYER') &&
+      !isBusinessIntentMessage(dto.message)
+    ) {
+      const faqHit = matchFaq(dto.message, userRole === 'CREATOR' ? 'creator' : 'buyer');
+      if (faqHit) {
         const t0 = Date.now();
         const safeActions = faqHit.entry.actions.filter((a) => this.isAllowedHref(a.href));
         await this.prisma.assistantCallLog.create({
@@ -202,7 +289,6 @@ export class AssistantService {
           suggestedActions: safeActions,
           intent: undefined, // FAQ 不挂 intent
         };
-        }
       }
     }
 
@@ -230,7 +316,7 @@ export class AssistantService {
     }
 
     // 调 LLM (temperature=0 让分类稳定)
-    const systemPrompt = this.pickSystemPrompt(userRoles);
+    const systemPrompt = this.appendPendingHint(this.pickSystemPrompt(userRoles), pending);
     const userMessageText = this.composeUserMessage(dto);
 
     const historyMsgs = (dto.history ?? [])
@@ -286,22 +372,69 @@ export class AssistantService {
     const parsed = tryParseLlmJson(text);
     if (!parsed || typeof parsed.reply !== 'string') {
       this.logger.warn(`assistant LLM 输出无法解析: ${text.slice(0, 200)}`);
+
+      // R9.1 fix: LLM 没返 JSON, 但 pending CREATE_BRIEF 还在等字段 — 走正则兜底,
+      //   别直接返 OOS (会打断多轮 slot 累积)。
+      let regexFallbackParsed: ReturnType<typeof parseIntent> = null;
+      let regexFallbackReply: string | null = null;
+      if (pending && pending.intent === 'CREATE_BRIEF') {
+        const regexSlots = this.regexExtractBriefSlots(dto.message);
+        if (regexSlots) {
+          const merged = this.mergeSlots(pending, 'CREATE_BRIEF', regexSlots);
+          regexFallbackParsed = parseIntent('CREATE_BRIEF', merged);
+          if (regexFallbackParsed) {
+            // LLM 的文本也用作回复 (摘出"攒得差不多了"那种自然语言)
+            const llmText = text.trim().slice(0, 500);
+            regexFallbackReply =
+              llmText || `我帮你拼一下发包: ${JSON.stringify(regexSlots)} — 核对下要不要确认提交?`;
+            this.logger.log(
+              `assistant slot regex fallback merged (no-llm-json): session=${sessionKey} filled=${Object.keys(regexSlots).join(',')}`,
+            );
+          }
+        }
+      }
+
+      if (!regexFallbackParsed) {
+        await this.writeAudit({
+          userId,
+          userRole,
+          route: dto.routeContext?.route ?? null,
+          promptText: userMessageText,
+          responseText: OUT_OF_SCOPE_REPLY,
+          model,
+          latencyMs: Date.now() - t0,
+          intent: null,
+          requiresConfirmation: false,
+        });
+        return {
+          reply: OUT_OF_SCOPE_REPLY,
+          suggestedActions: [],
+          intent: null,
+          requiresConfirmation: false,
+        };
+      }
+      // 正则兜底成功 — 走完整 return 路径 (带 intent+reply), 跳过剩余的 LLM 解析
       await this.writeAudit({
         userId,
         userRole,
         route: dto.routeContext?.route ?? null,
         promptText: userMessageText,
-        responseText: OUT_OF_SCOPE_REPLY,
-        model,
+        responseText: regexFallbackReply ?? '',
+        model: `${model}+regex-fallback`,
         latencyMs: Date.now() - t0,
-        intent: null,
-        requiresConfirmation: false,
+        intent: regexFallbackParsed.intent,
+        requiresConfirmation: regexFallbackParsed.requiresConfirmation,
       });
+      // 解析成功 → 清 pending
+      if (pending && pending.intent === regexFallbackParsed.intent) {
+        this.clearPendingState(sessionKey);
+      }
       return {
-        reply: OUT_OF_SCOPE_REPLY,
+        reply: regexFallbackReply ?? '',
         suggestedActions: [],
-        intent: null,
-        requiresConfirmation: false,
+        intent: regexFallbackParsed.intent,
+        intentParams: regexFallbackParsed.intentParams,
+        requiresConfirmation: regexFallbackParsed.requiresConfirmation,
       };
     }
 
@@ -351,11 +484,13 @@ export class AssistantService {
 
     // R9.1: 第一次进 slot-accumulating intent 但字段不全 → save pending state 等下轮
     //   (只有 llmIntent 是 slot 累积型且 parseIntent 失败时, 才存; 其它 intent 不污染状态)
+    // R9.1 fix: 即便 LLM 返 intentParams={} (LLM 选了 CREATE_BRIEF 但啥都没填),
+    //   也要存 pending state — 否则下轮 FAQ 会把"套餐"抢答打断发包流。
     if (
       intentParsed === null &&
       llmIntent !== null &&
       SLOT_ACCUMULATING_INTENTS.has(llmIntent) &&
-      (parsed.intentParams && Object.keys(parsed.intentParams).length > 0)
+      (pending === null || pending.intent === llmIntent)
     ) {
       const slots: Record<string, unknown> = { ...(pending && pending.intent === llmIntent ? pending.slots : {}) };
       for (const [k, v] of Object.entries(parsed.intentParams ?? {})) {
@@ -363,13 +498,33 @@ export class AssistantService {
       }
       this.setPendingState(sessionKey, llmIntent, slots);
       this.logger.log(
-        `assistant slot pending saved: session=${sessionKey} intent=${llmIntent} filled=${Object.keys(slots).join(',')}`,
+        `assistant slot pending saved: session=${sessionKey} intent=${llmIntent} filled=${Object.keys(slots).join(',') || '(empty)'}`,
       );
     }
 
     // R9.1: 解析成功 → 清掉 pending state (一次成功的提交走完即清, 避免污染下个对话)
     if (intentParsed !== null && pending !== null && pending.intent === intentParsed.intent) {
       this.clearPendingState(sessionKey);
+    }
+
+    // R9.1 fix: 当 LLM 返 ASK_CLARIFICATION (ASK_CLARIFICATION 通过 parseIntent,
+    //   intentParsed 非 null, 上面那段不会存 pending),
+    //   但用户消息里有写操作动词 → 推断用户想进入对应的 slot-accumulating intent,
+    //   主动存一个 pending state, 让下轮 FAQ 关键词被 bypass。
+    //   例: "帮我发包" → LLM 选 ASK_CLARIFICATION → 我们存 CREATE_BRIEF pending
+    //       下轮 "standard 套餐 预算 5000" 合并 slots → parseIntent 通过 → 弹卡
+    // R9.1 fix: 不管 LLM 返什么 intent, 只要用户消息里有写操作动词且没 pending,
+    //   就存一个 slot-accumulating pending state, 让下轮 FAQ 关键词被 bypass。
+    //   例: "帮我发包" → LLM 可能返 ASK_CLARIFICATION / CREATE_BRIEF(空) / ANSWER,
+    //       只要包含"发包"动词, 我们存 CREATE_BRIEF pending。
+    if (pending === null) {
+      const inferredIntent = this.inferIntentFromMessage(dto.message, userRole);
+      if (inferredIntent && SLOT_ACCUMULATING_INTENTS.has(inferredIntent)) {
+        this.setPendingState(sessionKey, inferredIntent, {});
+        this.logger.log(
+          `assistant slot pending inferred: session=${sessionKey} intent=${inferredIntent} (msg="${dto.message.slice(0, 40)}")`,
+        );
+      }
     }
 
     // W6-R7 fallback: LLM 经常对 "打开形象库" 类纯查询只返 reply+actions 不挂 intent,
@@ -381,6 +536,16 @@ export class AssistantService {
         intentParsed = parseIntent('OPEN_IP_LIBRARY', {});
       } else if (/上传.*新.*IP|新建.*IP|加个.*IP|录.*新.*IP|录个.*IP/.test(msg)) {
         intentParsed = parseIntent('UPLOAD_IP', {});
+      } else if (pending && pending.intent === 'CREATE_BRIEF') {
+        // R9.1 fix: pending CREATE_BRIEF + LLM 没返 JSON 时, 走正则兜底抽取字段
+        const regexSlots = this.regexExtractBriefSlots(msg);
+        if (regexSlots) {
+          const merged = this.mergeSlots(pending, 'CREATE_BRIEF', regexSlots);
+          intentParsed = parseIntent('CREATE_BRIEF', merged);
+          if (intentParsed) {
+            this.logger.log(`assistant slot regex fallback merged: session=${sessionKey} filled=${Object.keys(regexSlots).join(',')}`);
+          }
+        }
       }
     }
 
@@ -529,7 +694,7 @@ export class AssistantService {
     }
 
     // 2. 拼多模态 messages
-    const systemPrompt = this.pickSystemPrompt(userRoles);
+    const systemPrompt = this.appendPendingHint(this.pickSystemPrompt(userRoles), pending);
     const historyMsgs = (history ?? []).slice(-HISTORY_LIMIT).map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -739,6 +904,18 @@ export class AssistantService {
       lines.push(`[页面 query: ${q}]`);
     }
     return lines.join('\n');
+  }
+
+  /** R9.1 fix: 在 LLM 输入里加 pending intent 提示, 让 LLM 知道用户在多轮 slot 累积中。
+   *  这是软约束, 硬约束在 mergeSlots + parseIntent (代码层合并)。 */
+  private appendPendingHint(systemOrUser: string, pending: PendingIntentState | null): string {
+    if (!pending) return systemOrUser;
+    const filledKeys = Object.keys(pending.slots).join(',') || '(空)';
+    return (
+      systemOrUser +
+      `\n\n[R9.1 hint: 用户正在 ${pending.intent} 多轮累积中, 已填字段: ${filledKeys}。` +
+      `本次只补充/确认缺失字段, 不要再换 intent。]`
+    );
   }
 
   private isAllowedHref(href: string): boolean {
