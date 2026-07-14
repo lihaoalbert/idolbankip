@@ -45,3 +45,15 @@
 @import '@fontsource/noto-sans-sc/400.css';
 @import '@fontsource/noto-sans-sc/500.css';
 @import '@fontsource/noto-sans-sc/600.css';
+
+/* R12 Studio Tech Console — docs/design-system.md §3
+ *   拉丁字符走 Geist, 中文 fallback 到 Noto Sans SC, 保证 O(国) 错别字体感正常
+ */
+/* Geist Sans — R12 display + body */
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
+
+/* Geist Mono — R12 mono (IDs / numerics / timestamps) */
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';

@@ -3,6 +3,24 @@
 @tailwind utilities;
 
 /* ============================================================
+   全局 font default — R12 起 body 走 Geist (sans) + Geist Mono (mono)
+   R8 元素若显式带 font-display/serif/mono (Cormorant/Noto/JetBrains),
+   仍由 Tailwind fontFamily.* override。  不需要给每个元素都贴 font-r12-sans。
+   ============================================================ */
+@layer base {
+  body {
+    font-family: 'Geist', 'Noto Sans SC', system-ui, sans-serif;
+    color: var(--color-ink);
+    background-color: var(--color-cream);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code, pre, kbd, samp {
+    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  }
+}
+
+/* ============================================================
    主题色变量 — 默认浅色, .dark 类切换深色
    tailwind.config.js 的 colors 全部映射到这些 var
    ============================================================ */
@@ -66,80 +84,69 @@
 }
 
 /* ============================================================
-   Display font 工具类
-   - .font-display-italic: 设计意图原为 Cormorant Garamond italic accent,
-     但中文字符 fallback 后 italic 强制合成导致扭曲,看起来与其他字不协调。
-     2026-06-30: 去掉 font-style: italic, 统一为 serif 衬线,
-     accent 仅靠 text-gold 颜色区分。类名保留 (历史包袱) 以避免 100+ 处引用改动。
+   R12 Studio Tech Console — utility class overrides
+   这些类历史上绑在 R8 美术馆风上 (Cormorant + JetBrains Mono + 0.5px hairline +
+   swash 首字母)。R12 把它们重定义为 Geist + 1px hairline + 干净文字。
+   类名保留 (历史包袱),大量 template 改动跳过,R8 视觉 → R12 视觉自动迁移。
    ============================================================ */
+
+/* Display italic 重定义: R12 不用衬线 italic,改 Geist sans italic(原 .font-display
+   仍引 Cormorant,只在 R8 模板里使用,R12 不应使用) */
 .font-display-italic {
-  font-family: '"Cormorant Garamond"', '"Noto Serif SC"', serif;
-  font-weight: 500;
-}
-
-/* ============================================================
-   Catalog 排版工具: 大型档案编号
-   ============================================================ */
-.catalog-no {
-  font-family: '"JetBrains Mono"', '"Inter Tight"', monospace;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  font-size: 10px;
-  font-weight: 500;
-}
-
-/* ============================================================
-   编号 swash: 古典首字母装饰 (Cormorant swash)
-   ============================================================ */
-.swash::first-letter {
-  font-family: '"Cormorant Garamond"', serif;
+  font-family: 'Geist', system-ui, sans-serif;
   font-style: italic;
   font-weight: 500;
 }
 
-/* ============================================================
-   Hairline 工具: 0.5px 极细线
-   ============================================================ */
-.hairline {
-  border-width: 0.5px;
+/* Catalog 排版: R12 micro (12px / 0.04em / 500 / UPPERCASE / Geist Mono) */
+.catalog-no {
+  font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.30;
 }
 
-.hairline-t { border-top-width: 0.5px; }
-.hairline-b { border-bottom-width: 0.5px; }
-.hairline-l { border-left-width: 0.5px; }
-.hairline-r { border-right-width: 0.5px; }
+/* Swash: R12 不再有 italic 首字母装饰;仍保留类名以防少数页面引用,
+   但降级到普通 sans,不再触发 Cormorant swash */
+.swash::first-letter {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+}
 
-/* ============================================================
-   Index tab: 美术馆图录的索引条
-   ============================================================ */
+/* Hairline: R8 0.5px 极细线 → R12 1px 标准边线(无减号所有 hairline-* 都升级) */
+.hairline {
+  border-width: 1px;
+  border-style: solid;
+}
+.hairline-t { border-top-width: 1px; }
+.hairline-b { border-bottom-width: 1px; }
+.hairline-l { border-left-width: 1px; }
+.hairline-r { border-right-width: 1px; }
+
+/* Index tab: R12 干净下划线 tab,无 swash 横线 */
 .archive-tab {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 0;
-  font-family: '"JetBrains Mono"', monospace;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-ink);
-  opacity: 0.5;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #52525B; /* r12-ink-secondary */
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: color 150ms ease, border-color 150ms ease;
+  border: none;
 }
-.archive-tab::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 18px;
-  height: 1px;
-  background: currentColor;
-  transform: translateY(-50%) scaleX(0);
-  transform-origin: left;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+.archive-tab::before { display: none; }
+.archive-tab:hover { color: #09090B; /* r12-ink-primary */ }
+.archive-tab.is-active {
+  color: #09090B;
+  font-weight: 500;
+  border-bottom: 2px solid #2563EB; /* r12-cobalt */
 }
-.archive-tab:hover { opacity: 0.85; }
-.archive-tab:hover::before { transform: translateY(-50%) scaleX(1); }
-.archive-tab.is-active { opacity: 1; }
-.archive-tab.is-active::before { transform: translateY(-50%) scaleX(1); width: 36px; background: var(--color-gold); }
 
 /* ============================================================
    Plate 卡片: 美术馆作品卡片 (列表 / 详情用)

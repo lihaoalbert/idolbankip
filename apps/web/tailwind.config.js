@@ -5,21 +5,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 调色板用 CSS 变量, .dark 类切换 (composables/useDarkMode.ts 控制)
+        // R8 调色板用 CSS 变量, .dark 类切换 (composables/useDarkMode.ts 控制)
         cream: 'var(--color-cream)',
         ink: 'var(--color-ink)',
         gold: 'var(--color-gold)',
         line: 'var(--color-line)',
         danger: 'var(--color-danger)',
         success: 'var(--color-success)',
-        // Phase C Beta 加:印章红 — 选中态/当前步/立即保存按钮/危险强调
+        // 印章红 — 选中态/当前步/立即保存按钮/危险强调
         'stamp-red': 'var(--color-stamp-red)',
         // 暗色模式专用: 与 cream/ink 解耦, 因为部分组件 bg-white 在暗色需切换
         surface: 'var(--color-surface)',
         'surface-2': 'var(--color-surface-2)',
+
+        // === R12 Studio Tech Console (additive; 静态 hex, 暂不与暗色模式联动) ===
+        //    docs/design-system.md §2 — R12 visual baseline (R12.0 token commit)
+        'r12-canvas': '#FAFAFA',
+        'r12-surface': '#FFFFFF',
+        'r12-ink-primary': '#09090B',
+        'r12-ink-secondary': '#52525B',
+        'r12-ink-tertiary': '#A1A1AA',
+        'r12-line': '#E4E4E7',
+        'r12-line-strong': '#D4D4D8',
+        'r12-cobalt': '#2563EB',
+        'r12-cobalt-hover': '#1D4ED8',
+        'r12-cobalt-soft': '#DBEAFE',
+        'r12-success': '#16A34A',
+        'r12-success-soft': '#DCFCE7',
+        'r12-warning': '#D97706',
+        'r12-warning-soft': '#FEF3C7',
+        'r12-danger': '#DC2626',
+        'r12-danger-soft': '#FEE2E2',
       },
       fontFamily: {
-        // 主标题: 古典衬线 Cormorant Garamond (swash / italic 极有辨识度), 中文 fallback 到 Noto Serif SC
+        // R8 字体族 (保留, R8 页面继续使用)
         display: ['"Cormorant Garamond"', '"Noto Serif SC"', 'serif'],
         // 中文衬线标题场景
         serif: ['"Noto Serif SC"', '"Cormorant Garamond"', 'serif'],
@@ -29,6 +48,24 @@ export default {
         sans: ['"Noto Sans SC"', '"Inter Tight"', 'system-ui', 'sans-serif'],
         // 元数据 / 编号 / 罗马数字
         mono: ['"JetBrains Mono"', '"Inter Tight"', 'monospace'],
+
+        // R12 Studio Tech Console (additive) — docs/design-system.md §3
+        'r12-sans': ['"Geist"', '"Noto Sans SC"', 'system-ui', 'sans-serif'],
+        'r12-mono': ['"Geist Mono"', '"JetBrains Mono"', 'monospace'],
+      },
+      fontSize: {
+        // R12 Studio Tech Console — docs/design-system.md §3
+        //   权重用单独类 font-medium / font-semibold, 此处只锁 size + lineHeight + tracking
+        'r12-display': ['48px', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
+        'r12-h1': ['32px', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+        'r12-h2': ['24px', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
+        'r12-h3': ['20px', { lineHeight: '1.30' }],
+        'r12-body': ['15px', { lineHeight: '1.60' }],
+        'r12-caption': ['13px', { lineHeight: '1.45' }],
+        'r12-micro': ['12px', { lineHeight: '1.30', letterSpacing: '0.04em' }],
+        'r12-mono-body': ['13px', { lineHeight: '1.50' }],
+        'r12-mono-num': ['14px', { lineHeight: '1.40' }],
+        'r12-mono-num-lg': ['32px', { lineHeight: '1.40' }],
       },
       boxShadow: {
         soft: 'var(--shadow-soft)',

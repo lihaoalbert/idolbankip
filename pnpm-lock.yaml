@@ -222,6 +222,12 @@ importers:
       '@fontsource/cormorant-garamond':
         specifier: ^5.2.11
         version: 5.2.11
+      '@fontsource/geist-mono':
+        specifier: ^5.2.5
+        version: 5.2.8
+      '@fontsource/geist-sans':
+        specifier: ^5.2.5
+        version: 5.2.5
       '@fontsource/inter-tight':
         specifier: ^5.2.7
         version: 5.2.7
@@ -1053,6 +1059,12 @@ packages:
 
   '@fontsource/cormorant-garamond@5.2.11':
     resolution: {integrity: sha512-5JjpN023lhA5soijgVT0BdRGzmlijm402ppjccMd6h+vRE0mX2lJnE+41UPfnlidrkV9/rCo1mf58WZlHnB0CA==}
+
+  '@fontsource/geist-mono@5.2.8':
+    resolution: {integrity: sha512-YqZUb3X42GjRaHkibUNyE8K4Rk9A6I9Ez81YpJYiuJN4ggmTW2ixoQpa9EWCPfXZtIsCQJTyrDoV9OJOZO/UcA==}
+
+  '@fontsource/geist-sans@5.2.5':
+    resolution: {integrity: sha512-anllOHyJbElRs9fV15TeDRqAeb1IKm4bSknPl6ZMoyPTx1BBy7logudcUwpNjmQLkzn4Q0JGQLRCUKJYoyST6A==}
 
   '@fontsource/inter-tight@5.2.7':
     resolution: {integrity: sha512-44TmSfHdNQus/3MWOMIonUEnbxwQhiaFo2sfBJEGIE4c7TN+GO6kfLzsTH4Nu52BC9HDZFl9fPQ6Cwzp9vYTtQ==}
@@ -5489,6 +5501,10 @@ snapshots:
     optional: true
 
   '@fontsource/cormorant-garamond@5.2.11': {}
+
+  '@fontsource/geist-mono@5.2.8': {}
+
+  '@fontsource/geist-sans@5.2.5': {}
 
   '@fontsource/inter-tight@5.2.7': {}
 
