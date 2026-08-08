@@ -27,6 +27,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
         </RouterLink>
         <nav class="flex items-center gap-6 text-sm">
           <RouterLink to="/ips" class="hover:text-gold">形象库</RouterLink>
+          <RouterLink to="/cases" class="hover:text-gold">案例集</RouterLink>
           <RouterLink to="/contact" class="hover:text-gold">联系商务</RouterLink>
           <RouterLink v-if="showCreatorLink" to="/creator" class="hover:text-gold">创作者中心</RouterLink>
           <RouterLink v-if="showBuyerLinks && auth.isAuthenticated" to="/orders" class="hover:text-gold">我的订单</RouterLink>
@@ -84,7 +85,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
             <span class="inline-block w-6 h-6 rounded-full bg-ink"></span>
             <span>ibi<span class="text-gold">.ren</span></span>
           </div>
-          <p class="text-xs text-ink/50 leading-relaxed">中国首个 AI 虚拟人资产银行 · 把 AI 创造的虚拟形象, 变成可确权、可授权、可交易的标准化数字资产。</p>
+          <p class="text-xs text-ink/50 leading-relaxed">AIGC 服务交易平台 · 把非标创意服务做成标品: 交付物写死、验收清单写死、满意再放款。</p>
         </div>
         <div>
           <h4 class="font-medium mb-3">商务合作</h4>
@@ -98,6 +99,7 @@ const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
         <div>
           <h4 class="font-medium mb-3">产品</h4>
           <ul class="space-y-1.5 text-xs text-ink/60">
+            <li><RouterLink to="/cases" class="hover:text-ink">案例集</RouterLink></li>
             <li><RouterLink to="/ips" class="hover:text-ink">形象库</RouterLink></li>
             <li><BecomeCreatorLink class="hover:text-ink">成为创作者</BecomeCreatorLink></li>
             <li><span class="text-ink/30">所有形象已通过区块链时间戳存证</span></li>
