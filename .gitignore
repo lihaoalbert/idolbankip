@@ -51,3 +51,11 @@ AGENTS.md
 形象-*.md
 形象-*.pdf
 形象-*.txt
+
+# 本地备份与凭据 (严禁入库)
+.env.bak
+scripts/deploy.env
+# 工具运行缓存
+.firecrawl/
+.playwright-mcp/
+test-results/
