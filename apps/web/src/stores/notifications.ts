@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import axios from 'axios';
+import { apiClient } from '@/api/client';
 
 export interface NotificationItem {
   id: string;
@@ -32,7 +32,7 @@ export const useNotificationsStore = defineStore('notifications', {
     async fetch(limit = 30) {
       this.loading = true;
       try {
-        const res = await axios.get('/api/v1/notifications', { params: { limit } });
+        const res = await apiClient.get('/notifications', { params: { limit } });
         this.items = res.data.items;
         this.unreadCount = res.data.unreadCount;
         this.lastFetchedAt = Date.now();
@@ -45,7 +45,7 @@ export const useNotificationsStore = defineStore('notifications', {
     },
     async fetchUnreadCount() {
       try {
-        const res = await axios.get('/api/v1/notifications/unread-count');
+        const res = await apiClient.get('/notifications/unread-count');
         this.unreadCount = res.data.count;
       } catch {
         // ignore
@@ -60,7 +60,7 @@ export const useNotificationsStore = defineStore('notifications', {
         this.unreadCount = Math.max(0, this.unreadCount - 1);
       }
       try {
-        await axios.patch(`/api/v1/notifications/${id}/read`);
+        await apiClient.patch(`/notifications/${id}/read`);
       } catch {
         // 回滚
         if (target && !target.readAt) {
@@ -76,7 +76,7 @@ export const useNotificationsStore = defineStore('notifications', {
       for (const n of this.items) n.readAt = n.readAt || new Date().toISOString();
       this.unreadCount = 0;
       try {
-        const res = await axios.post('/api/v1/notifications/mark-all-read');
+        const res = await apiClient.post('/notifications/mark-all-read');
         this.unreadCount = Math.max(0, (res.data.count ?? 0) === 0 ? 0 : 0);
       } catch {
         // 回滚

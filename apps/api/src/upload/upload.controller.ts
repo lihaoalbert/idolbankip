@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { AssetType, CertFileType, IpStatus } from '@prisma/client';
@@ -30,6 +30,11 @@ class CertPolicyDto {
 class AutoFileDto {
   @IsEnum(AssetType) assetType!: AssetType;
   @IsString() content!: string;
+}
+
+class AvatarPolicyDto {
+  @IsString() filename!: string;
+  @IsInt() @Min(0) size!: number;
 }
 
 class SetFaceCloseupDto {
@@ -120,5 +125,78 @@ export class UploadController {
     @CurrentUser() u: JwtUser,
   ) {
     return this.upload.setFaceCloseup(ipId, body.fileId, u.id);
+  }
+
+  /**
+   * 用户头像 OSS 直传策略 (不依赖 ipId)
+   * - 路径: users/{userId}/avatar/{ts}/{filename}
+   * - 限制: jpg/png/webp, 100KB-5MB
+   * - 前端拿到 key 后 PATCH /users/me 写 avatarUrl
+   */
+  @Post('avatar-policy')
+  async avatarPolicy(@CurrentUser() u: JwtUser, @Body() body: AvatarPolicyDto) {
+    if (!/\.(jpe?g|png|webp)$/i.test(body.filename)) {
+      throw new BadRequestException('头像仅支持 jpg/png/webp 格式');
+    }
+    if (body.size < 100 * 1024 || body.size > 5 * 1024 * 1024) {
+      throw new BadRequestException(`头像大小 ${body.size} 字节越界, 期望 100KB - 5MB`);
+    }
+    return this.upload.generateAvatarPolicy(u.id, body.filename);
+  }
+
+  /**
+   * #30.6.15 AI 生成图下载 — 给创作者拿到原图二次修改
+   * GET /upload/files/:fileId/download-url
+   * - 验证 fileId 属于当前创作者的 IP (PENDING_REVIEW 状态可下载; 其它状态也可, 创作者总能下自己的)
+   * - 返回 5min 有效 OSS 签名 URL (含 x-oss-force-download 触发浏览器下载)
+   * - 前端 window.location.href = url 直接下载
+   */
+  @Get('files/:fileId/download-url')
+  async getFileDownloadUrl(
+    @Param('fileId') fileId: string,
+    @CurrentUser() u: JwtUser,
+  ) {
+    const file = await this.prisma.ipFile.findUnique({
+      where: { id: fileId },
+      include: { ip: { select: { creatorId: true, code: true } } },
+    });
+    if (!file) throw new NotFoundException('文件不存在');
+    if (file.ip.creatorId !== u.id) {
+      throw new ForbiddenException('无权下载此文件');
+    }
+    const url = await this.upload.signDownloadUrl(file.ossKey, 'private', file.originalName);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    return { url, expiresAt, filename: file.originalName };
+  }
+
+  /**
+   * #30.6.15 文件预览签名 URL — 给前端 <img :src=...> 用 (浏览器 GET 不带 Bearer, 走 OSS 签名)
+   * GET /upload/files/:fileId/preview-url
+   * - ownership check: 文件必须属于当前创作者的 IP (任何状态都允许, 创作者总能看自己的)
+   * - 返回 1h 有效 OSS 签名 URL (含 response-content-disposition=inline 让浏览器直接渲染)
+   * - 前端 <img :src="previewUrl"> 直接用, 浏览器拿这个 URL 去 OSS 拉图
+   * - 比 /preview 端点的优势: <img> 标签不发 Authorization header, 用签名 URL 才能让浏览器拿到图
+   */
+  @Get('files/:fileId/preview-url')
+  async getFilePreviewUrl(
+    @Param('fileId') fileId: string,
+    @CurrentUser() u: JwtUser,
+  ) {
+    const file = await this.prisma.ipFile.findUnique({
+      where: { id: fileId },
+      include: { ip: { select: { creatorId: true } } },
+    });
+    if (!file) throw new NotFoundException('文件不存在');
+    if (file.ip.creatorId !== u.id) {
+      throw new ForbiddenException('无权预览此文件');
+    }
+    // 1h 有效, 签名里带 response-content-disposition=inline 让浏览器渲染 (不下载)
+    // 必须传 response 给 ali-oss.signatureUrl, 不能事后拼接 (会导致 SignatureDoesNotMatch)
+    // ali-oss SDK 会自动给 key 加 "response-" 前缀, 所以传裸 key 即可 (不要写 "response-content-...")
+    // 不加 content-type — OSS 不允许 query param 覆盖 content-type (报 InvalidRequest)
+    const url = this.upload.signViewUrl(file.ossKey, 'private', 3600, {
+      'content-disposition': `inline; filename="${encodeURIComponent(file.originalName)}"`,
+    });
+    return { url, expiresIn: 3600 };
   }
 }

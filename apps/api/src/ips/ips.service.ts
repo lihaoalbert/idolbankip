@@ -5,18 +5,20 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AgeBucket, AssetType, Ethnicity, Gender, IpAsset, IpStatus, OrderType } from '@prisma/client';
+import { AgeBucket, AssetType, Ethnicity, Gender, HonorAction, IpAsset, IpStatus, OrderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProofingService } from '../proofing/proofing.service';
 import { AuditService } from '../audit/audit.service';
 import { UserRole, rolesContains } from '../common/util/roles.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadService } from '../upload/upload.service';
+import { HonorService } from '../honor/honor.service';
 
 const TRANSITIONS: Record<IpStatus, IpStatus[]> = {
   PENDING_REVIEW: ['REVIEWED_PROOFING', 'REJECTED'],
   REVIEWED_PROOFING: ['PUBLIC_INTENT', 'REJECTED'],
-  PUBLIC_INTENT: ['OFFICIAL_REGISTERED', 'ARCHIVED'],
+  // 公示中 admin 可回退补料 (PUBLIC_INTENT → PENDING_REVIEW), 创作者改完重提交会重跑 proofing 出新 hash
+  PUBLIC_INTENT: ['OFFICIAL_REGISTERED', 'ARCHIVED', 'PENDING_REVIEW'],
   OFFICIAL_REGISTERED: ['ARCHIVED'],
   // 创作者被拒后可改 → 重提 (走 PENDING_REVIEW → 正常 submitForReview 流程)
   REJECTED: ['ARCHIVED', 'PENDING_REVIEW'],
@@ -46,6 +48,8 @@ export interface ListFilter {
   page?: number;
   size?: number;
   sort?: 'newest' | 'popular';
+  /** W6-R7: 创作者名模糊查询 (走 User.displayName contains)。case-insensitive by LOWER(). */
+  creatorName?: string;
 }
 
 export interface CreateIpParams {
@@ -61,6 +65,8 @@ export interface CreateIpParams {
   faceTags?: Array<{ category: string; value: string }>;
   depositPriceFen?: number;
   fullLicensePriceFen: number;
+  // #30 接单任务: 创作者从任务板进入 wizard 时携带, 写 origin=TASK + 关联 taskId
+  taskId?: string;
 }
 
 @Injectable()
@@ -73,6 +79,7 @@ export class IpsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly upload: UploadService,
+    private readonly honor: HonorService,
   ) {}
 
   generateNextCode(): Promise<string> {
@@ -88,6 +95,18 @@ export class IpsService {
 
   async create(params: CreateIpParams): Promise<IpAsset> {
     const code = await this.generateNextCode();
+    // #30 接单任务: 校验已接 + 任务 OPEN + 未截止 (双保险, 创作者端 controller 也校验)
+    if (params.taskId) {
+      const accept = await this.prisma.ipTaskAccept.findUnique({
+        where: { taskId_creatorId: { taskId: params.taskId, creatorId: params.creatorId } },
+      });
+      if (!accept) throw new ForbiddenException('未接此任务, 不可提交');
+      const task = await this.prisma.ipTask.findUnique({ where: { id: params.taskId } });
+      if (!task) throw new NotFoundException('任务不存在');
+      if (task.status !== 'OPEN' || task.deadlineAt.getTime() <= Date.now()) {
+        throw new BadRequestException(`任务 ${task.status}, 不接受新提交`);
+      }
+    }
     return this.prisma.ipAsset.create({
       data: {
         code,
@@ -103,6 +122,9 @@ export class IpsService {
         faceTags: params.faceTags ? (params.faceTags as any) : undefined,
         depositPriceFen: params.depositPriceFen ?? 19900,
         fullLicensePriceFen: params.fullLicensePriceFen,
+        // #30 接单关联
+        origin: params.taskId ? 'TASK' : 'SELF',
+        taskId: params.taskId ?? null,
         previewImageKeys: [],
         thumbnailKey: '',
       },
@@ -165,6 +187,13 @@ export class IpsService {
     if (filter.ethnicity) where.ethnicity = filter.ethnicity;
     if (filter.style) where.styleTags = { contains: filter.style };
     if (filter.scenario) where.scenarioTags = { contains: filter.scenario };
+    // W6-R7: 创作者名模糊查询 — 走 Prisma relation filter, MySQL 8 默认 case-sensitive (utf8mb4_0900_as_cs),
+    // 这里 `contains` 不带 mode: 'insensitive' 时仍能用,因为 User.displayName 默认 utf8mb4_unicode_ci 排序规则 (case-insensitive)
+    if (filter.creatorName && filter.creatorName.trim().length > 0) {
+      where.creator = {
+        displayName: { contains: filter.creatorName.trim() },
+      };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.ipAsset.findMany({
@@ -191,6 +220,8 @@ export class IpsService {
           status: true,
           publishedAt: true,
           faceCloseupFileId: true, // #31
+          // W6-R7: 创作者名 — 让前端展示"创作者: 林雾"
+          creator: { select: { id: true, displayName: true } },
         },
       }),
       this.prisma.ipAsset.count({ where }),
@@ -199,13 +230,48 @@ export class IpsService {
   }
 
   async listMine(creatorId: string) {
-    return this.prisma.ipAsset.findMany({
+    // BigInt sizeBytes → string, 见 [[feedback-prisma-bigint-serialization]]
+    const items = await this.prisma.ipAsset.findMany({
       where: { creatorId },
       orderBy: { createdAt: 'desc' },
       include: {
         files: { select: { id: true, assetType: true, validated: true, sizeBytes: true } },
       },
     });
+    return items.map((ip) => ({
+      ...ip,
+      files: ip.files.map((f) => ({ ...f, sizeBytes: f.sizeBytes.toString() })),
+    }));
+  }
+
+  /**
+   * R11 P0-3: 买家查自己已授权 / 买过的 IP。
+   * 发包时「让创作者用我买过的 IP 出镜」章节用。
+   * 走已付款订单 (DOWNLOAD_UNLOCKED / DELIVERED / CONTRACT_SIGNED) 反查 ipId,去重。
+   */
+  async listLicensedForBuyer(buyerId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        buyerId,
+        ipId: { not: null },
+        status: { in: ['CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        ip: {
+          select: { id: true, code: true, displayName: true, tagline: true, thumbnailKey: true },
+        },
+      },
+    });
+    const seen = new Set<string>();
+    const items: Array<{ id: string; code: string; displayName: string; tagline: string | null; thumbnailKey: string }> = [];
+    for (const o of orders) {
+      if (o.ip && !seen.has(o.ip.id)) {
+        seen.add(o.ip.id);
+        items.push(o.ip);
+      }
+    }
+    return items;
   }
 
   /**
@@ -293,6 +359,24 @@ export class IpsService {
       targetId: ip.id,
       payload: { from: ip.status, to: next },
     });
+
+    // 荣誉流水 — 状态流转触发奖励 (发奖 / 通过 / 拒绝)
+    // IP_PUBLISH (PUBLIC_INTENT) +200, IP_APPROVED (OFFICIAL_REGISTERED) +500, IP_REJECTED -100
+    const honorAction =
+      next === 'PUBLIC_INTENT' ? HonorAction.IP_PUBLISH
+      : next === 'OFFICIAL_REGISTERED' ? HonorAction.IP_APPROVED
+      : next === 'REJECTED' ? HonorAction.IP_REJECTED
+      : null;
+    if (honorAction) {
+      this.honor.record(ip.creatorId, honorAction, {
+        refType: 'IpAsset',
+        refId: ip.id,
+        metadata: { ipCode: ip.code, from: ip.status, to: next },
+      }).catch((e) =>
+        this.logger.warn(`honor record (${honorAction}) failed: ${e?.message ?? e}`),
+      );
+    }
+
     return updated;
   }
 
@@ -405,6 +489,29 @@ export class IpsService {
     return rejected;
   }
 
+  /**
+   * #30.6.22 公示中回退补料 — admin 触发 PUBLIC_INTENT → PENDING_REVIEW
+   * - 不清空 blockchainHash/txId (proofing 重提交时会自动覆盖, 旧值由 AuditLog IP_TRANSITION_PENDING_REVIEW 留底)
+   * - 保留所有已上传文件 (faceCloseupFileId 等不动, 创作者可能已补传)
+   * - rejectionReason 写入 admin 给的 reason, 创作者端 wizard 直接看到
+   * - 走 notification 通知创作者 "已回退, 请改完后重新提交"
+   */
+  async adminDemoteToPendingReview(ipId: string, actorId: string, reason: string): Promise<IpAsset> {
+    const ip = await this.requireById(ipId);
+    if (ip.status !== 'PUBLIC_INTENT') {
+      throw new BadRequestException(`仅 PUBLIC_INTENT 状态可回退补料, 当前 ${ip.status}`);
+    }
+    const demoted = await this.transitionStatus(ip, 'PENDING_REVIEW', actorId, { rejectionReason: reason });
+    await this.notifications.create({
+      userId: demoted.creatorId,
+      type: 'IP_DEMOTED',
+      title: '资产已回退至待审核',
+      body: `${demoted.displayName} 已被管理员回退补料: ${reason}。请修改后重新提交。`,
+      link: `/creator/ips/${demoted.id}`,
+    });
+    return demoted;
+  }
+
   async adminRegisterCert(ipId: string, actorId: string, certNo: string): Promise<IpAsset> {
     const ip = await this.requireById(ipId);
     if (ip.status !== 'PUBLIC_INTENT') {
@@ -478,7 +585,7 @@ export class IpsService {
     });
     const creator = await this.prisma.user.findUnique({
       where: { id: ip.creatorId },
-      select: { id: true, email: true, displayName: true, roles: true, kycStatus: true },
+      select: { id: true, email: true, displayName: true, roles: true, kycStatus: true, avatarUrl: true, bio: true, createdAt: true },
     });
     return {
       ip,
@@ -556,7 +663,7 @@ export class IpsService {
       orderBy: { updatedAt: 'desc' },
       take: 200,
       include: {
-        creator: { select: { id: true, email: true, displayName: true, roles: true, kycStatus: true } },
+        creator: { select: { id: true, email: true, displayName: true, roles: true, kycStatus: true, avatarUrl: true } },
         files: { select: { id: true, assetType: true, validated: true } },
       },
     });
@@ -567,12 +674,18 @@ export class IpsService {
     if (ip.status === 'PENDING_REVIEW' || ip.status === 'REJECTED' || ip.status === 'ARCHIVED') {
       throw new NotFoundException('该 IP 暂不可见');
     }
+    // #30.6.20 加载捏者公开信息 — 用于详情页作者名旁的称号 chip
+    const creator = await this.prisma.user.findUnique({
+      where: { id: ip.creatorId },
+      select: { id: true, displayName: true, avatarUrl: true, bio: true, roles: true },
+    });
     const files = await this.prisma.ipFile.findMany({
       where: { ipId: ip.id },
       orderBy: { assetType: 'asc' },
     });
     return {
       ip,
+      creator,
       files: files.map(f => ({
         id: f.id,
         assetType: f.assetType,

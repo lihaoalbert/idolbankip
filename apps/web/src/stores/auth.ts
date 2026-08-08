@@ -9,6 +9,10 @@ export interface AuthUser {
   displayName: string;
   roles: UserRole[];
   companyName?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  realName?: string;
+  phone?: string;
 }
 
 interface State {
@@ -88,6 +92,31 @@ export const useAuthStore = defineStore('auth', {
         this.accessToken = data.accessToken;
         this.refreshToken = data.refreshToken;
         saveToStorage(this.$state);
+      } finally { this.loading = false; }
+    },
+    /**
+     * W3 W1 D4: 手机号验证码登录
+     * 后端返 { user, tokens, isNewUser } → 写 store
+     * 后端返 { needRegister: true } → 不写 store, 由前端弹"选身份 + displayName"再调一次
+     */
+    async loginWithPhone(
+      phone: string,
+      code: string,
+      opts: { role?: UserRole; displayName?: string } = {},
+    ): Promise<{ isNewUser: boolean; needRegister?: boolean }> {
+      this.loading = true;
+      try {
+        const { data } = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/phone/login`,
+          { phone, code, role: opts.role, displayName: opts.displayName },
+        );
+        if (data.needRegister) {
+          return { isNewUser: false, needRegister: true };
+        }
+        this.user = data.user;
+        this.accessToken = data.accessToken;
+        this.refreshToken = data.refreshToken;
+        saveToStorage(this.$state);
+        return { isNewUser: data.isNewUser };
       } finally { this.loading = false; }
     },
     async refresh() {

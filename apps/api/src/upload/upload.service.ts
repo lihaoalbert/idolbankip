@@ -2,9 +2,11 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { ConfigService } from '@nestjs/config';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
-import { AssetType, CertFileType, IpAsset, IpStatus } from '@prisma/client';
+import { AssetType, CertFileType, HonorAction, IpAsset, IpStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WatermarkService } from '../watermark/watermark.service';
+import { HonorService } from '../honor/honor.service';
+import { publicOssUrl } from './oss.util';
 
 export interface PolicyResult {
   host: string;
@@ -34,6 +36,15 @@ export type ProcessStep = typeof PROCESS_STEPS[number];
 
 // #33 单 IP 累计证据上限 (600MB) — 限 PROCESS_EVIDENCE 类型, 其它资产包不受影响
 export const PROCESS_EVIDENCE_TOTAL_MAX_BYTES = 600 * 1024 * 1024;
+
+// assetType → 上传类 HonorAction (其它类型不上分)
+const UPLOAD_HONOR_ACTION: Partial<Record<AssetType, HonorAction>> = {
+  [AssetType.FACE_CLOSEUP]: HonorAction.UPLOAD_FACE,
+  [AssetType.THREE_VIEW]: HonorAction.UPLOAD_THREE_VIEW,
+  [AssetType.TRANSPARENT_RENDER]: HonorAction.UPLOAD_RENDER,
+  [AssetType.EXPRESSION_GRID]: HonorAction.UPLOAD_EXPRESSION,
+  [AssetType.RECIPE_TXT]: HonorAction.UPLOAD_RECIPE,
+};
 
 // 校验规则集中放这里,这样 UI 端如果要展示"最大 5MB"也能 import
 export const ASSET_LIMITS: Record<AssetType, { minBytes: number; maxBytes: number; ext: RegExp; label: string }> = {
@@ -70,6 +81,7 @@ export class UploadService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly watermark: WatermarkService,
+    private readonly honor: HonorService,
   ) {
     const region = config.get<string>('OSS_REGION', 'oss-cn-hangzhou');
     const accessKeyId = config.get<string>('OSS_ACCESS_KEY_ID', '');
@@ -189,16 +201,74 @@ export class UploadService {
   }
 
   /**
+   * 用户头像直传策略 (不依赖 ip)
+   * - 路径: users/{userId}/avatar/{ts}/{filename}
+   * - 大小上限 5MB + 1MB 缓冲
+   * - 不入库; 前端拿到 key 后 PATCH /users/me 写 avatarUrl
+   */
+  async generateAvatarPolicy(userId: string, filename: string): Promise<PolicyResult & { url: string; bucket: string; key: string }> {
+    const safeName = filename.replace(/[\\/\0]/g, '_').slice(-200);
+    const dir = `users/${userId}/avatar/${Date.now()}/`;
+    const key = dir + safeName;
+    const expireEpoch = Math.floor(Date.now() / 1000) + 600;
+    const maxSize = 5 * 1024 * 1024 + 1024 * 1024;
+
+    const policy = {
+      expiration: new Date(expireEpoch * 1000).toISOString(),
+      conditions: [
+        ['content-length-range', 0, maxSize],
+        ['eq', '$key', key],
+        ['starts-with', '$key', dir],
+      ],
+    };
+
+    const { policy: policyBase64, Signature: signature } = (
+      this.privateClient as unknown as {
+        calculatePostSignature: (p: object) => { policy: string; Signature: string };
+      }
+    ).calculatePostSignature(policy);
+
+    return {
+      host: `https://${this.privateClient.options.bucket}.${this.config.get('OSS_REGION')}.aliyuncs.com`,
+      policy: policyBase64,
+      signature,
+      dir,
+      key,
+      expire: expireEpoch,
+      accessKeyId: this.config.get<string>('OSS_ACCESS_KEY_ID') || '',
+      callback: '',
+      url: this.privateClient.options.endpoint || '',
+      bucket: this.privateClient.options.bucket || '',
+    };
+  }
+
+  /**
+   * 生成 private bucket 签名 URL — 给外部服务(如阿里云 OCR)访问私有 OSS 资源
+   *   expires:秒,默认 300 (5 分钟,OCR 同步调用足够)
+   */
+  async getSignedUrl(ossKey: string, expiresSec = 300): Promise<string> {
+    if (!ossKey) throw new Error('ossKey is empty');
+    return this.privateClient.signatureUrl(ossKey, { expires: expiresSec });
+  }
+
+  /**
    * 读 cert 文件 Buffer (用于 admin 预览)
    * - 用 SDK get() 直接走内部签名, 避免 signed URL 的 Range+response 签名 bug
    * - 限制 maxBytes (默认 30MB) 防止恶意大文件拖垮 API
    */
   async getCertBuffer(ossKey: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
+    return this.getFileBuffer(ossKey, maxBytes);
+  }
+
+  /**
+   * #30.6.26 通用读 private 桶文件 Buffer (PDF 生成 / 图片处理).
+   * 与 getCertBuffer 同实现,只是名字更通用.
+   */
+  async getFileBuffer(ossKey: string, maxBytes = 30 * 1024 * 1024): Promise<Buffer> {
     const res = await this.privateClient.get(ossKey);
-    // ali-oss get returns { res, content } where content is Buffer
     let buf: Buffer = Buffer.isBuffer(res.content) ? res.content : Buffer.from(res.content as ArrayBuffer);
     if (buf.length > maxBytes) {
-      throw new Error(`文件过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)}), 拒绝预览`);
+      throw new Error(`文件过大 (${this.fmtSize(buf.length)} > ${this.fmtSize(maxBytes)})`);
     }
     return buf;
   }
@@ -354,6 +424,20 @@ export class UploadService {
         this.logger.warn(`thumbnail gen failed for ${ip.code}: ${e?.message ?? e}`),
       );
     }
+
+    // 写入荣誉流水 — 面部特写/三视图/立绘/表情矩阵/说明书 各加对应分值
+    // 不 await, 失败也不影响主流程; record 内部限流自带 (maxPerDay / maxPerUser)
+    const action = UPLOAD_HONOR_ACTION[assetType];
+    if (action) {
+      this.honor.record(ip.creatorId, action, {
+        refType: 'IpFile',
+        refId: file.id,
+        metadata: { ipCode: ip.code, assetType },
+      }).catch((e) =>
+        this.logger.warn(`honor record failed for upload ${file.id}: ${e?.message ?? e}`),
+      );
+    }
+
     return { ok: true, fileId: file.id };
   }
 
@@ -375,9 +459,8 @@ export class UploadService {
         if (!meta.width || !meta.height) {
           return { ok: false, reason: '无法读取图片尺寸' };
         }
-        if (meta.width < 2048 || meta.height < 2048) {
-          return { ok: false, reason: `图片尺寸 ${meta.width}×${meta.height}, 要求 ≥2048×2048` };
-        }
+        // #30.6.21 飞书 import 场景下图片通常是预览尺寸, 取消 ≥2048×2048 硬要求
+        //   尺寸仅作 sanity check (能解析即可), 真正合规由 AI 识别 (recognizeFace) + 人审把关
         if (type === AssetType.TRANSPARENT_RENDER) {
           if (meta.format !== 'png') {
             return { ok: false, reason: '立绘必须是 PNG 格式 (带 alpha 通道)' };
@@ -523,9 +606,13 @@ export class UploadService {
 
   /**
    * 从 private bucket 拉原图 → sharp 裁剪成 600×600 → 推到 public bucket → 写 thumbnailKey
+   * public 包装 — 给 AiService.generateImage 等其它模块用
    */
-  private async generateThumbnailFromOssKey(ipCode: string, sourceKey: string, hintName: string): Promise<void> {
-    const url = await this.signDownloadUrl(sourceKey, 'private');
+  async generateThumbnailFromOssKey(ipCode: string, sourceKey: string, hintName: string): Promise<void> {
+    // 不要走 signDownloadUrl — 它会塞 x-oss-force-download response header, ali-oss
+    // 对这个 header 算的签名跟 OSS 期望的不一致, fetch 必 403 SignatureDoesNotMatch
+    // thumbnail regen 是后端→OSS 拉数据(不是浏览器下载), 裸签名 URL 即可
+    const url = this.privateClient.signatureUrl(sourceKey, { expires: 300 });
     const res = await globalThis.fetch(url);
     if (!res.ok) throw new Error(`OSS GET ${sourceKey} → HTTP ${res.status}`);
     const ab = await res.arrayBuffer();
@@ -544,13 +631,36 @@ export class UploadService {
 
   /**
    * 下载授权签名 URL (浏览器会弹下载框)
+   *
+   * 注意: ali-oss SDK 会自动给 response key 加 "response-" 前缀
+   * (见 node_modules/ali-oss/lib/common/signUtils.js:332), 所以传裸 key 即可.
+   *
+   * 不要传 `x-oss-force-download` — SDK 会拼成 `response-x-oss-force-download`,
+   * OSS 不认这个伪 header (它的 force-download 行为由 content-disposition=attachment 自动触发).
    */
   async signDownloadUrl(ossKey: string, bucket: 'private' | 'contracts' = 'private', filename?: string): Promise<string> {
     const client = bucket === 'contracts' ? this.contractsClient : this.privateClient;
-    const response: Record<string, string> = { 'x-oss-force-download': 'true' };
-    if (filename) response['response-content-disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`;
+    const response: Record<string, string> = {};
+    if (filename) response['content-disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`;
     const url = client.signatureUrl(ossKey, { expires: 300, response });
     return url;
+  }
+
+  /**
+   * 普通 GET-able 签名 URL — 给后端服务或 LLM 拉取内容用 (无 force-download 头)
+   * 默认 1 小时有效
+   *
+   * 注意: response 头参数必须通过 ali-oss 的 `response` 选项传入签名,
+   * 不能事后用 `&response-...=` 拼接 — 那样签名不匹配, OSS 返回 SignatureDoesNotMatch.
+   */
+  signViewUrl(
+    ossKey: string,
+    bucket: 'public' | 'private' | 'contracts' = 'private',
+    expiresSec = 3600,
+    response?: Record<string, string>,
+  ): string {
+    const client = bucket === 'contracts' ? this.contractsClient : bucket === 'public' ? this.publicClient : this.privateClient;
+    return client.signatureUrl(ossKey, { expires: expiresSec, response });
   }
 
   /**
@@ -606,6 +716,15 @@ export class UploadService {
     } catch {
       return false;
     }
+  }
+
+  /** public 桶 URL 拼装 (key → https URL, 不上传)。给个人主页等公开场景用。 */
+  publicUrlFor(key: string): string {
+    return publicOssUrl(
+      this.publicClient.options.bucket as string,
+      this.config.get('OSS_REGION') as string,
+      key,
+    );
   }
 
   private guessMime(name: string): string {

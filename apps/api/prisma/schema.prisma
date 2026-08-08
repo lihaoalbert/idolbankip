@@ -32,19 +32,19 @@ enum Gender {
 }
 
 enum AgeBucket {
-  CHILD      // 童颜
-  YOUNG      // 青年
-  MIDDLE     // 中年
-  ELDERLY    // 老年
+  CHILD // 童颜
+  YOUNG // 青年
+  MIDDLE // 中年
+  ELDERLY // 老年
 }
 
 enum Ethnicity {
-  EAST_ASIAN       // 东亚 (中/日/韩)
-  SOUTHEAST_ASIAN  // 东南亚
-  SOUTH_ASIAN      // 南亚
-  AFRICAN          // 非洲
-  EUROPEAN         // 欧洲
-  MIXED            // 混合 / 拉美 / 中东 / 其他
+  EAST_ASIAN // 东亚 (中/日/韩)
+  SOUTHEAST_ASIAN // 东南亚
+  SOUTH_ASIAN // 南亚
+  AFRICAN // 非洲
+  EUROPEAN // 欧洲
+  MIXED // 混合 / 拉美 / 中东 / 其他
 }
 
 enum IpStatus {
@@ -103,12 +103,28 @@ enum ContractStatus {
   EXPIRED
 }
 
+enum IpTaskStatus {
+  OPEN // 创作者可接
+  CLOSED // 截止, 不再接受新接单
+  COMPLETED // 全部 submissions 已审, 平台收尾
+  CANCELLED // admin 主动取消
+}
+
+// #30 任务来源 — 自传 (SELF) / 平台任务 (TASK, 接单提交的 IP 走平台代办证书)
+enum IpOrigin {
+  SELF
+  TASK
+}
+
 // ===================== 用户 / KYC / 会话 =====================
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  phone        String?  @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
+  phone        String?   @unique
+  // #30.7.1 W2 #29 — 微信 Open Platform 绑定后的 openId (用于模板消息推送)
+  // 不存 unionid/公众号 openid,只存小程序/网站应用 openid (二选一时优先)
+  wechatOpenId String?   @unique
   passwordHash String
   // 角色数组 (MySQL 无 enum[], 用 JSON 列存 string[])。
   // 应用层用 parseRoles/serializeRoles 读写, 严禁直查。
@@ -122,8 +138,13 @@ model User {
   kycStatus    KycStatus @default(NOT_SUBMITTED)
   kycData      Json?
   avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  bio          String?  @db.Text // 捏者个人简介
+  // AIGC 众包扩展 — 创作者认证 + 提现资格 + 最后活跃时间
+  isCreatorVerified Boolean   @default(false) // AIGC 创作者认证通过 (kYC + 技能认证)
+  canWithdraw       Boolean   @default(false) // 是否可提现 (创作者完成首单后开通)
+  lastActiveAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   ipsAsCreator  IpAsset[]       @relation("CreatorIps")
   ordersAsBuyer Order[]         @relation("BuyerOrders")
@@ -133,8 +154,43 @@ model User {
   notifications Notification[]
   apiKeys       ApiKey[]
 
+  // AIGC 众包模块 — 反向关系
+  briefsAsBuyer     Brief[]               @relation("BuyerBriefs")
+  bidsAsCreator     Bid[]                 @relation("CreatorBids")
+  workspacesAsCreator Workspace[]         @relation("CreatorWorkspaces")
+  workspaceMessages WorkspaceMessage[]    @relation("WorkspaceMessageFrom")
+  creatorAssets     CreatorAsset[]       @relation("CreatorAssets")
+  submissionsAsCreator WorkspaceSubmission[]  @relation("SubmissionCreator")
+  submissionComments SubmissionComment[]     @relation("SubmissionCommentFrom")
+  creatorSkills     CreatorSkill[]
+  creatorProfile    CreatorProfile?
+  reviewsFrom       Review[]              @relation("ReviewFrom")
+  reviewsTo         Review[]              @relation("ReviewTo")
+  disputesInitiated Dispute[]             @relation("DisputeInitiator")
+  disputesMediated  Dispute[]             @relation("DisputeMediator")
+  royaltyAsOriginalCreator RoyaltyRecord[] @relation("OriginalCreator")
+  royaltyAsIpOwner        RoyaltyRecord[] @relation("IPOwner")
+  royaltyAsBuyer          RoyaltyRecord[] @relation("BuyerRoyalty")
+  buyerSubscriptions      BuyerSubscription[]
+  withdrawals             Withdrawal[]
+
+  // 平台代办员角色
+  registrationsAsAgent CopyrightRegistration[] @relation("RegistrationAgents")
+
+  // #30.6.20 捏者荣誉系统
+  honorLedger   HonorLedger[]
+  honorGrants   HonorBadgeGrant[]
+  honorStreak   HonorStreak?
+
+  // 捏脸蓝图 8 层分解 — 创作者原创脸 (Phase 1)
+  blueprints    FaceBlueprint[]  @relation("BlueprintOwner")
+
+  // AI 助手调用日志
+  assistantCallLogs AssistantCallLog[]
+
   // JSON 列在 MySQL 上不能建索引, 角色筛选走应用层 WHERE JSON_CONTAINS
   @@index([kycStatus])
+  @@index([wechatOpenId])
 }
 
 model KycSubmission {
@@ -164,6 +220,37 @@ model RefreshToken {
   @@index([userId])
 }
 
+// ===================== W3 W1: 多通道登录 =====================
+
+// 手机验证码 (短信登录/绑定微信时的二次校验)。MVP 不 hash code (本地 dev 看得到),
+// 生产应切 bcrypt 或 HMAC。attempts 防爆破;usedAt 幂等。
+model PhoneVerifyCode {
+  id        String    @id @default(cuid())
+  phone     String
+  code      String
+  purpose   String    @default("LOGIN") // LOGIN | BIND_WECHAT
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// 微信开放平台 OAuth state (防 CSRF + BIND/LOGIN 区分)。callback 后 openid 写回,
+// LOGIN 流程拿到 openid 再去查/建 user;BIND 流程 userId 已存,callback 后直接绑。
+model WechatOAuthState {
+  state     String   @id
+  purpose   String   @default("LOGIN") // LOGIN | BIND | BIND_PENDING
+  userId    String?  // BIND 时必填
+  openid    String?  // callback 成功后写回
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 // ===================== IP 资产 =====================
 
 model IpAsset {
@@ -178,13 +265,13 @@ model IpAsset {
   description String  @db.Text // markdown 人设
 
   // 分类 — #32 标签体系: 核心三维 (Gender/AgeBucket/Ethnicity) 决定丰富度评分
-  gender         Gender     @default(FEMALE)
-  ageBucket      AgeBucket  @default(YOUNG)
-  ethnicity      Ethnicity? // 历史 IP 留 NULL, 新上传必填
-  styleTags      String // 逗号分隔: "现代,赛博" (次要, 用于买家场景匹配)
-  scenarioTags   String // "短剧群演,品牌代言" (次要)
+  gender       Gender     @default(FEMALE)
+  ageBucket    AgeBucket  @default(YOUNG)
+  ethnicity    Ethnicity? // 历史 IP 留 NULL, 新上传必填
+  styleTags    String // 逗号分隔: "现代,赛博" (次要, 用于买家场景匹配)
+  scenarioTags String // "短剧群演,品牌代言" (次要)
   // 脸特征 (多选) — [{category, value}] e.g. [{category:"FaceShape",value:"OVAL"}]
-  faceTags       Json?
+  faceTags     Json?
 
   // 定价 (单位: 分)
   depositPriceFen     Int @default(19900) // 199 元
@@ -193,6 +280,11 @@ model IpAsset {
   // 状态机
   status          IpStatus @default(PENDING_REVIEW)
   rejectionReason String?
+
+  // #30 任务来源 — 自传 (SELF) / 接单 (TASK)。新 IP 默认 SELF, 接单提交时设 TASK
+  origin IpOrigin @default(SELF)
+  taskId String?
+  task   IpTask?  @relation("TaskSubmissions", fields: [taskId], references: [id], onDelete: SetNull)
 
   // 区块链存证 (mock)
   blockchainHash    String?
@@ -203,15 +295,27 @@ model IpAsset {
   // 官方著作权登记号 (admin 录入)
   officialCertNo String?
 
+  // 外部来源溯源 — 多维表格/合作伙伴系统导入时填入
+  // externalRecordId 唯一,作为幂等 key (重跑导入不会重复创建)
+  // applicant = 飞书"备案主体"列原值 (李昊/陆旻泉/国风/企业),映射不到 fallback "未指定"
+  externalSource    String? // 'FEISHU_BITABLE' | 'DOUBAO' | ...
+  externalRecordId  String? @unique
+  externalUpdatedAt DateTime? // 源系统记录最后修改时间,用于增量同步
+  applicant         String? // 著作权申请人 (飞书"备案主体"列值)
+
   // 展示素材
   thumbnailKey     String // 600x600 缩略图 OSS key (FACE_CLOSEUP 优先, 否则 THREE_VIEW 兜底)
   heroVideoKey     String? // 可选 mp4
   previewImageKeys Json // [string, ...] 预览图 OSS key 列表
 
+  // 互动指标 — #30.6.20 荣誉系统 / 个人主页用
+  viewCount     Int @default(0)
+  favoriteCount Int @default(0)
+
   // 版权登记证据 — 创作者上传多张 FACE_CLOSEUP, 由其指定这一张作为版权图
   // 存量 IP 迁移时自动用第一张 THREE_VIEW 填入 (UI 标记 "占位中", 可后补)
-  faceCloseupFileId String?  @unique
-  faceCloseupFile   IpFile?  @relation("FaceCloseupOf", fields: [faceCloseupFileId], references: [id], onDelete: SetNull)
+  faceCloseupFileId String? @unique
+  faceCloseupFile   IpFile? @relation("FaceCloseupOf", fields: [faceCloseupFileId], references: [id], onDelete: SetNull)
 
   // 反盗版标记
   invisibleWatermarkApplied Boolean @default(false)
@@ -222,30 +326,209 @@ model IpAsset {
   publishedAt DateTime? // 首次 PUBLIC_INTENT
   officialAt  DateTime? // 首次 OFFICIAL_REGISTERED
 
-  files     IpFile[]
-  orders    Order[]
-  proofs    BlockchainProof[]
+  files      IpFile[]
+  orders     Order[]
+  proofs     BlockchainProof[]
   watermarks WatermarkRecord[]
-  cert      CopyrightCertificate?
+  cert       CopyrightCertificate?
+  registration CopyrightRegistration?
+  faceBlueprint FaceBlueprint?
 
   @@index([status])
   @@index([creatorId])
   @@index([gender, ageBucket, ethnicity])
   @@index([styleTags])
   @@index([scenarioTags])
+  @@index([externalSource])
+}
+
+// ===================== 脸谱蓝图 (Layered Prompt Generator) =====================
+// Phase 1: 8 层分解模型, 创作者通过 /creator/blueprint/* 8 步向导填写
+// Phase 2: 与 IpWizard 衔接, /creator/ips/new?blueprintId=xxx 注入 description
+// Phase 3: 接入 FLAME / 3DMM 真实反推 + embedding 原创度评估
+//
+// 8 层结构 (见 docs/loop-engineering.md):
+//   L1_skeleton      骨骼 (颅型 / 脸型指数 / 颧骨 / 下颌角 / 三庭比例)         8 项
+//   L2_softTissue    软组织 (皮下脂肪 / 咬肌 / 颊脂垫 / 眼窝深度 / 眉弓突出)  6 项
+//   L3_features      五官定位 (眼距 / 眼型 / 鼻长 / 鼻宽 / 唇宽 / 耳位 / 人中) 12 项
+//   L4_skin          皮肤 (Fitzpatrick 等级 / 冷暖调 / L*a*b* / 肤质)         4 项
+//   L5_hair          毛发 (发型 / 发色 / 发际线 / 眉形 / 眉色 / 睫毛)         8 项
+//   L6_decoration    修饰 (眼线 / 眼影 / 腮红 / 唇色 / 美瞳 / 饰品)           6 项
+//   L7_render        渲染 prompt 整合 (中英 + 平台: mj/sd/jimeng/doubao)      string
+//   L8_evaluation    评估 (mock 评分, Phase 3 接 FLAME)
+//
+// 8 层全部 Json? — 应用层用 zod 校验具体 shape
+// 关系: 1 个 IP 最多 1 个 Blueprint (1:1, optional), 1 个 user 可有 N 个 Blueprint (1:N)
+
+model FaceBlueprint {
+  id          String  @id @default(cuid())
+
+  ownerId     String
+  owner       User    @relation("BlueprintOwner", fields: [ownerId], references: [id])
+
+  // 关联 IP — Phase 1 暂不强制; Phase 2 由 /creator/ips/new?blueprintId=xxx 写入
+  ipId        String? @unique
+  ip          IpAsset? @relation(fields: [ipId], references: [id], onDelete: SetNull)
+
+  // 8 层参数 (Json? — 创作者逐步填充, 每层独立 PATCH)
+  L1_skeleton   Json?
+  L2_softTissue Json?
+  L3_features   Json?
+  L4_skin       Json?
+  L5_hair       Json?
+  L6_decoration Json?
+  L7_render     Json?
+  L8_evaluation Json?
+
+  // 元数据
+  title       String?       // "原创脸 #001" — 创作者自命名
+  description String?  @db.Text // 一句话描述
+  tags        String   @default("") // 逗号分隔: "国风,高冷,清冷" — 检索用, 空串兜底避免应用层必传
+  version     Int      @default(1) // 1.0=初始; 单层改=patch, 多层改=minor, 脸型改=major
+
+  isArchived  Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+// ===================== 版权登记 (平台代办 / 进度追踪) =====================
+
+enum CopyrightOwnerType {
+  COMPANY    // 公司主体
+  INDIVIDUAL // 个人创作者
+}
+
+enum RegistrationStage {
+  DRAFT         // 创作者填了资料,还没提交
+  SUBMITTED     // 已提交版权局/代办机构
+  ACCEPTED      // 受理 (收到受理通知书)
+  UNDER_REVIEW  // 审查中
+  REJECTED      // 驳回 (可重提)
+  CERTIFIED     // 发证 (证书到手)
+  WITHDRAWN     // 撤回 (创作者主动撤回)
+}
+
+enum RegistrationType {
+  NATIONAL    // 国家版权局 (国作登字)
+  PROVINCIAL  // 省级版权局
+}
+
+model CopyrightRegistration {
+  id   String   @id @default(cuid())
+  ipId String   @unique
+  ip   IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+
+  // 著作权人 — 跟 IpAsset.copyrightOwner* 同源,但允许代办时修订
+  ownerName     String              // "北京某某科技有限公司" 或 "张三"
+  ownerType     CopyrightOwnerType  // COMPANY / INDIVIDUAL
+  ownerIdNumber String?             // base64 编码,INDIVIDUAL 必填
+
+  // 备案地区 + 类型
+  registrationRegion String             // "北京市" / "广东省" / "上海市"
+  registrationType   RegistrationType   // NATIONAL / PROVINCIAL
+
+  // 平台代办员 (P1 启用)
+  agentUserId String?
+  agent       User?  @relation("RegistrationAgents", fields: [agentUserId], references: [id], onDelete: SetNull)
+
+  // 进度时间链
+  workflowStage RegistrationStage @default(DRAFT)
+  submittedAt   DateTime?
+  acceptedAt    DateTime?  // 受理
+  reviewedAt    DateTime?  // 审查通过
+  certifiedAt   DateTime?  // 发证
+  withdrawnAt   DateTime?  // 撤回
+
+  // 文号 (版权局给的)
+  applicationNo String?  // 申请号 / 受理号
+  certificateNo String?  // 作品登记证号 (国作登字-2026-F-xxxxxxxx)
+
+  // 附件 (OSS 私有桶 key)
+  acceptanceLetterKey String?  // 受理通知书 .pdf
+  certificateFileKey  String?  // 证书原件 .pdf
+  rejectionLetterKey  String?  // 驳回通知书 .pdf (如果有)
+  powerOfAttorneyKey  String?  // 创作者代办委托书 .pdf (代办必填)
+
+  // 备注 / 备注时间
+  notes          String?  @db.Text
+  lastContactAt  DateTime?  // 上次联系代办/版权局的时间
+  nextFollowupAt DateTime?  // 下次跟进日期 (代办员设置)
+
+  // ===== #30.6.26 代申请著作权功能新增 =====
+  // 创作者申请时刻的代办费快照 (后续调价不影响历史单)
+  creatorAgentFeeFen      Int?
+  creatorAgentRequestedAt DateTime? // 创作者首次进入 DRAFT 时间
+  // PDF 申请包缓存
+  pdfFileKey      String?   // OSS private bucket key
+  pdfMaterialHash String?   // sha256(排序后 IpFile.id + updatedAt),素材变则失效
+  // admin reject 原因 (放 body 里,创作者直接能看到,不留暗门)
+  rejectionReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workflowStage])
+  @@index([agentUserId])
+  @@index([registrationRegion])
+  @@index([registrationType])
+  @@index([submittedAt])
+}
+
+// ===== #30.6.26 代办费配置 (国家固定 / 地方按省份) =====
+model CopyrightFeeConfig {
+  id            String           @id @default(cuid())
+  level         RegistrationType // NATIONAL / PROVINCIAL
+  region        String?          // 省名,NATIONAL 时 NULL
+  feeFen        Int              // 单位:分
+  effectiveFrom DateTime         @default(now())
+  effectiveTo   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([level, region])
+  @@index([level, effectiveFrom])
+}
+
+// ===== #30.6.26 LLM Provider 配置 (admin 后台可改, 取代 .env MINIMAX_*) =====
+// apiKey 用 AES-256-GCM 加密, 主密钥从 env LLM_KEY_ENCRYPTION_KEY 读 (32 字节 base64).
+// 单 active 策略: @@unique([activeAt]) 配合 activeAt=null=inactive, MySQL 允许多 NULL,
+// 所以切换时 set 旧记录 activeAt=null, 新记录 activeAt=now() 即可 (1 步 SQL 或事务保证).
+model LlmProviderConfig {
+  id              String   @id @default(cuid())
+  provider        String   // 'minimax' | 'anthropic' | 'openai' | 'dashscope' | 'custom'
+  displayName     String   // "MiniMax 生产" / "Anthropic 备用"
+  baseUrl         String
+  model           String
+  apiKeyEncrypted String   @db.Text
+  apiKeyIv        String   // hex, 12 bytes
+  apiKeyTag       String   // hex, 16 bytes (GCM auth tag)
+  apiKeyLast4     String   // 明文末 4 位, 列表/UI 显示用, 无需解密
+  isActive        Boolean  @default(false)
+  activeAt        DateTime?  // 唯一索引; null=inactive, 非 null=active (单 active 原子切换)
+  note            String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?  // userId of last modifier
+
+  @@unique([activeAt])  // MySQL: only one non-null activeAt → 严格单 active
+  @@index([provider])
 }
 
 // ===================== 版权证书 =====================
 
 enum CertApplyMethod {
-  CREATOR_SELF     // 创作者自传 (有证书)
-  PLATFORM_AGENT  // 平台代办 (P1 阶段)
+  CREATOR_SELF // 创作者自传 (有证书)
+  PLATFORM_AGENT // 平台代办 (P1 阶段)
 }
 
 enum CertStatus {
-  PENDING_REVIEW   // 创作者刚提交,等 admin 审核
-  APPROVED         // 审核通过 → 同步 IpAsset.status = OFFICIAL_REGISTERED
-  REJECTED         // 审核被拒,创作者可重提
+  PENDING_REVIEW // 创作者刚提交,等 admin 审核
+  APPROVED // 审核通过 → 同步 IpAsset.status = OFFICIAL_REGISTERED
+  REJECTED // 审核被拒,创作者可重提
 }
 
 enum CertFileType {
@@ -255,43 +538,43 @@ enum CertFileType {
 }
 
 model CopyrightCertificate {
-  id        String   @id @default(cuid())
-  ipId      String   @unique
-  ip        IpAsset  @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  id   String  @id @default(cuid())
+  ipId String  @unique
+  ip   IpAsset @relation(fields: [ipId], references: [id], onDelete: Cascade)
 
-  applyMethod       CertApplyMethod @default(CREATOR_SELF)
+  applyMethod CertApplyMethod @default(CREATOR_SELF)
 
   // 创作者自传
-  certFileType      CertFileType?  // 跟 certFileKey 配套
-  certFileKey       String?   // OSS 私有桶 key, .pdf/.jpg/.png
-  certFileName      String?
-  certFileSize      BigInt?
-  selfCertNo        String?
-  selfIssuedAt      DateTime?
+  certFileType CertFileType? // 跟 certFileKey 配套
+  certFileKey  String? // OSS 私有桶 key, .pdf/.jpg/.png
+  certFileName String?
+  certFileSize BigInt?
+  selfCertNo   String?
+  selfIssuedAt DateTime?
 
   // 平台代办 (P1)
-  agentRealName     String?
-  agentIdNumber     String?   // base64 编码 (P2 上 KMS)
-  agentRegion       String?   // NATIONAL / PROVINCIAL
-  agentProvince     String?
-  agentRefNumber    String?
+  agentRealName  String?
+  agentIdNumber  String? // base64 编码 (P2 上 KMS)
+  agentRegion    String? // NATIONAL / PROVINCIAL
+  agentProvince  String?
+  agentRefNumber String?
 
   // 终态
-  certNo            String?   // 审核通过后写入
-  certIssuedAt      DateTime?
-  status            CertStatus @default(PENDING_REVIEW)
-  rejectionReason   String?
-  reviewedById      String?
-  reviewedAt        DateTime?
+  certNo          String? // 审核通过后写入
+  certIssuedAt    DateTime?
+  status          CertStatus @default(PENDING_REVIEW)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model IpFile {
-  id             String  @id @default(cuid())
+  id             String    @id @default(cuid())
   ipId           String
-  ip             IpAsset @relation(fields: [ipId], references: [id], onDelete: Cascade)
+  ip             IpAsset   @relation(fields: [ipId], references: [id], onDelete: Cascade)
   assetType      AssetType
   originalName   String
   ossKey         String // private bucket key
@@ -300,13 +583,17 @@ model IpFile {
   checksumSha256 String // 用于区块链 hash 计算
 
   // #33 创作过程证据专用元数据 (其它类型为 NULL)
-  description    String?  @db.Text
-  processStep    String?  // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
+  description String? @db.Text
+  processStep String? // const list 约束: TRAINING_DATA_PREP / TRAINING / GENERATION / POST_PROCESSING / OTHER
+
+  // AI 生成图专用 — 标记 + 用的 prompt (审计 + 重新生成)
+  isAiGenerated Boolean @default(false)
+  aiPrompt      String? @db.Text
 
   // 反向关系: 一个 IpFile 最多被一个 IP 选为版权图 (IpAsset.faceCloseupFileId)
-  faceCloseupOf  IpAsset[] @relation("FaceCloseupOf")
-  uploadedAt     DateTime @default(now())
-  validated      Boolean  @default(false)
+  faceCloseupOf IpAsset[] @relation("FaceCloseupOf")
+  uploadedAt    DateTime  @default(now())
+  validated     Boolean   @default(false)
 
   @@index([ipId, assetType])
 }
@@ -314,17 +601,20 @@ model IpFile {
 // ===================== 订单 / 合同 =====================
 
 model Order {
-  id       String @id @default(cuid())
-  buyerId  String
-  buyer    User   @relation("BuyerOrders", fields: [buyerId], references: [id])
-  ipId     String
-  ip       IpAsset @relation(fields: [ipId], references: [id])
+  id      String  @id @default(cuid())
+  buyerId String
+  buyer   User    @relation("BuyerOrders", fields: [buyerId], references: [id])
+  // R10 P0-3: ipId/briefId 二选一(买 IP → ipId; brief 中标 → briefId)
+  ipId    String?
+  ip      IpAsset? @relation(fields: [ipId], references: [id])
+  briefId String?
+  brief   Brief?   @relation(fields: [briefId], references: [id])
 
   orderType      OrderType
   licenseScope   LicenseScope?
   amountFen      Int
-  platformFeeFen Int @default(0) // 全额授权 15%, 意向金 0
-  status         OrderStatus @default(CREATED)
+  platformFeeFen Int           @default(0) // 全额授权 15%, 意向金 0
+  status         OrderStatus   @default(CREATED)
 
   paymentChannel String?
   paymentRef     String?
@@ -342,6 +632,7 @@ model Order {
 
   @@index([buyerId, status])
   @@index([ipId, status])
+  @@index([briefId, status])
 }
 
 model Contract {
@@ -356,7 +647,7 @@ model Contract {
   variablesJson  Json
 
   // 电子签 (mock)
-  esignProvider    String  @default("mock_fadada")
+  esignProvider    String    @default("mock_fadada")
   esignFlowId      String?
   buyerSignedAt    DateTime?
   platformSignedAt DateTime?
@@ -443,7 +734,7 @@ model ContactLead {
   wechat    String?
   email     String?
   message   String   @db.Text
-  source    String?  // "homepage" / "footer" / "ip-detail" / "direct"
+  source    String? // "homepage" / "footer" / "ip-detail" / "direct"
   // ADMIN 后台手动跟进状态
   status    String   @default("NEW") // NEW / CONTACTED / CLOSED
   notes     String?  @db.Text
@@ -486,11 +777,984 @@ model ApiKey {
   keyHash    String    @unique
   keyPrefix  String
   label      String
-  scopes     String    // CSV: "ips:create,ips:upload"
+  scopes     String // CSV: "ips:create,ips:upload"
   lastUsedAt DateTime?
   expiresAt  DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+// ===================== 平台任务 (扩官方库) =====================
+// #30 任务发布 / 创作者接单
+// - admin 发布任务 (规格清单 + 预算 + 截止 + 接受上限)
+// - creator 接单, 在简版 IpWizard 提交 IP, IP 关联到 taskId
+// - admin 审稿, 通过走 P1 平台代办证书流程, 版权归平台
+// 报酬 MVP 阶段手工打款 (后台记账)
+
+model IpTask {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @db.Text
+  // 规格 (JSON, 前端按规格预填 IpWizard)
+  // e.g. { count: 36, gender: 'FEMALE', ageBuckets: ['YOUNG','MIDDLE'], styleTags: ['现代'], scenarioTags: ['短剧(单集)'] }
+  spec        Json
+  // 定价 (分)
+  budgetFen   Int // 总预算
+  perIpFen    Int? // 单 IP 报酬 (可空 = 需谈)
+  maxAccepts  Int          @default(10) // 最多多少创作者接
+  deadlineAt  DateTime
+  status      IpTaskStatus @default(OPEN)
+
+  createdById String // admin userId
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  closedAt    DateTime?
+
+  // 反向
+  accepts     IpTaskAccept[]
+  submissions IpAsset[]      @relation("TaskSubmissions")
+
+  @@index([status, deadlineAt])
+  @@index([createdById])
+}
+
+model IpTaskAccept {
+  id             String   @id @default(cuid())
+  taskId         String
+  task           IpTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creatorId      String
+  acceptedAt     DateTime @default(now())
+  // 创作者接单后提交的 IP 数 (统计用, 跟 IpAsset.taskId 反查)
+  submittedCount Int      @default(0)
+
+  @@unique([taskId, creatorId])
+  @@index([creatorId])
+}
+
+// ===================== 捏者荣誉系统 =====================
+// 设计原则 (见 feedback_config_driven memory):
+//   - 业务规则全落 DB + seed, 代码只做 evaluator
+//   - HonorRule / HonorLevel / HonorBadge 都通过 seed-honor.ts upsert 维护
+//   - 新动作 = 加 HonorAction 枚举值 + seed 行; 不用改代码
+//   - 复杂条件走 HonorBadge.conditionJson + 注册的 evaluator 函数
+
+enum HonorAction {
+  // 上传类
+  UPLOAD_FACE
+  UPLOAD_THREE_VIEW
+  UPLOAD_RENDER
+  UPLOAD_EXPRESSION
+  UPLOAD_RECIPE
+
+  // AI 辅助类
+  AI_RECOGNIZE
+  AI_GEN_THREE_VIEW
+  AI_GEN_RENDER
+  AI_GEN_EXPRESSION
+  AI_GEN_RECIPE
+
+  // 发布类
+  IP_PUBLISH
+  IP_APPROVED
+  IP_REJECTED
+
+  // 互动类
+  IP_VIEWED
+  IP_FAVORITED
+  IP_ORDERED
+
+  // 每日活跃
+  DAILY_LOGIN
+  STREAK_3D
+  STREAK_7D
+  STREAK_30D
+
+  // 审核类 (内部)
+  CONTENT_AUDITED
+  CONTENT_REPORTED
+
+  // 系统事件
+  BADGE_EARNED         // 拿徽章本身的奖励
+  POINTS_REDEEMED      // 兑换 (商用阶段)
+  POINTS_EXPIRED       // 过期清零 (年结)
+}
+
+enum BadgeTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+/// 业务规则表 (action → 奖励值), 通过 seed-honor.ts 维护
+model HonorRule {
+  id          String      @id @default(cuid())
+  action      HonorAction @unique
+  delta       Int         // 正数=奖励, 负数=惩罚
+  reason      String      // 流水备注
+  enabled     Boolean     @default(true)
+  // 高级字段 — 留给未来活动 / 防刷
+  maxPerDay   Int?        // 单用户每日上限 (null=不限)
+  maxPerUser  Int?        // 单用户终身上限 (null=不限)
+  startAt     DateTime?
+  endAt       DateTime?   // 限时活动
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+/// 等级表 (捏脸币 → 等级 + 称号 + 颜色), 通过 seed-honor.ts 维护
+model HonorLevel {
+  level     Int    @id   // 1, 2, 3, ...
+  minPoints Int    @unique  // 入门捏脸币阈值 (>= 该值进入本等级)
+  title     String         // 称号 e.g. "新人捏者"
+  icon      String         // emoji e.g. "🌱"
+  colorHex  String         // UI 颜色 e.g. "#CD7F32"
+}
+
+/// 徽章目录, 通过 seed-honor.ts 维护
+model HonorBadge {
+  id            String     @id @default(cuid())
+  code          String     @unique // "FIRST_IP" / "AI_PIONEER"
+  name          String             // "初出茅庐"
+  desc          String             // 描述
+  icon          String             // emoji
+  tier          BadgeTier
+  /// JSON 描述符 — 形如 { type: "TOTAL_VIEWS_GTE", threshold: 1000 }
+  /// null 表示纯事件徽章 (e.g. "上传第一张脸" — 上传成功后直接给)
+  /// evaluator 注册在 honor/badge-evaluators.ts
+  conditionJson Json?
+  sortOrder     Int        @default(0)
+  enabled       Boolean    @default(true)
+  grants        HonorBadgeGrant[]
+
+  @@index([tier, sortOrder])
+}
+
+/// 徽章授予记录 (每用户每徽章最多一行, 唯一约束保证幂等)
+model HonorBadgeGrant {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  badgeId   String
+  badge     HonorBadge @relation(fields: [badgeId], references: [id])
+  grantedAt DateTime   @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+/// 连续活跃天数 (用户维度, 1:1)
+model HonorStreak {
+  userId          String    @id
+  user            User      @relation(fields: [userId], references: [id])
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastActiveDate  DateTime?  // UTC+8 凌晨为分界
+  totalActiveDays Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+}
+
+/// 荣誉流水 — append-only, 一切激励的单一事实源
+/// monetaryValueFen 是未来 ¥ 分润预留字段, 现在默认 0
+model HonorLedger {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  action           HonorAction
+  delta            Int         // 捏脸币增减
+  reason           String
+  refType          String?     // "IpAsset" / "Order" / "IpFile" / "HonorBadge" / null
+  refId            String?
+  /// 未来 ¥ 分润用, 现在默认 0; 商用阶段填 (e.g. 订单分销 ¥5)
+  monetaryValueFen Int         @default(0)
+  metadata         Json?
+  createdAt        DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([refType, refId])
+}
+
+// ===================== #30.7.11 W5 E3 信用分规则 =====================
+// 业务规则表 (config-driven), 通过 seed-credit.ts 维护
+// 公式:score = Σ(rule.weight × normalized_metric) × 100
+//   - weight: Decimal (-1~1, 负=扣分; e.g. 投诉)
+//   - normalized_metric: [0,1] 由 evaluator 返回
+//   - 启用 version 机制:加新版本通过种子里改 version, 旧版自然淘汰
+//   - evaluator 注册在 credit/evaluators.ts (pure function, 无副作用)
+//   - metrics 输入缓存(评 1 次 / 5 分钟) 防止短时间内重复计算
+model CreditScoreRule {
+  id          String   @id @default(cuid())
+  dimension   String   // "rating_avg" / "rating_count" / "completed_count" / "dispute_count" / "response_rate" ...
+  role        String   // "creator" / "buyer" / "any" (三维规则各自权重不同)
+  weight      Decimal  @db.Decimal(5, 4) // 0.0000 ~ 9.9999
+  /// JSON 配置 (e.g. { saturate: 10 } — 该指标饱和阈值, sigmoid 化到 0-1)
+  configJson  Json?
+  enabled     Boolean  @default(true)
+  version     Int      // 当前生效版本,seed 写入,旧版自然淘汰
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dimension, role, version])
+  @@index([version, enabled])
+}
+
+// ===================== AI 助手调用日志 =====================
+// 第一版只读型助手 — 每次 POST /assistant/chat 落一行, 含 prompt/response 全文 + 元数据。
+// 用途: (1) 审计: 谁问了什么, 助手答了什么; (2) 后续做 prompt 调优; (3) 算 token 成本(配合 model 字段)。
+//
+// 边界: 不存上下文 messages(避免 prompt 注入攻击者通过 /assistant/chat 写入数据库),
+//       不存 IP/订单 ID 等敏感引用 — 后端 assistant.service 只写"用户原话" + "助手回复全文",
+//       不把 routeContext.ipCode/orderId 落库, 仅 route path。
+model AssistantCallLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 角色快照 — 调用时点的角色 (User.roles 是 Json[], 落库时拍平为单一主角色)
+  userRole     String   // 'CREATOR' | 'BUYER' | 'ADMIN'
+
+  // 上下文 — 前端调用时的 route path, e.g. '/creator/onboard'
+  // 不存 query string 里的 ipCode/orderId (避免敏感 ID 落库)
+  route        String?
+
+  // 用户原话 + 助手回复全文 — MVP 阶段落全; 后续若合规要求收紧可改截断/脱敏
+  promptText   String   @db.Text
+  responseText String   @db.Text
+
+  // LLM 元数据 — 用于成本归因 + 切换 provider 后追溯
+  model        String   // 实际模型名, e.g. "claude-sonnet-4-6"
+  latencyMs    Int      @default(0)
+
+  // W6-R1 Intent Router — LLM 选出的意图 + 是否需要 confirm
+  // 为 null 时表示 FAQ 命中或 LLM 没产出意图; 不存 rawParams (params 可能含敏感 ID)
+  intent       String?  // IntentType 字面量之一
+  requiresConfirmation Boolean? @default(false)
+
+  // W6-R7 chat-with-attachments — 聊天附件快照
+  // [{ fileId?, ossKey, mimeType, filename, sizeBytes, publicUrl }] — null 表示无附件
+  // OSS public 桶直传 URL,1 个月 CDN 缓存; 过期不补,够给 LLM 短期理解用
+  attachments  Json?
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([userId, intent])
+}
+
+// =================================================================
+// #30.7.1 AIGC 众包 — 方案 C 完整数据模型
+// 设计文档: docs/plans/2026-plan-c-aigc-crowdsourcing.md §5
+//
+// 关系图:
+//
+//   Brief (1) ── (N) Bid (抢单)
+//   Brief (1) ── (1) Workspace (工作台,中标后创建)
+//   Brief (1) ── (N) Deliverable (成片,可多次提交)
+//   Brief (1) ── (1) Review (订单评价)
+//   Brief (1) ── (1) Dispute (仲裁)
+//   Brief (1) ── (N) RoyaltyRecord (IP 二次授权分账)
+//
+//   CreatorProfile 是 User 的 1:1 扩展,创作者档案(等级/评分/抽佣)
+//   CreatorSkill 是 User × SkillTag 的多对多(N:M)
+//
+//   命名风格:不写 enum,状态/品类/套餐用 String 列存,应用层 const 校验
+// (避免 MySQL enum 增改值需要 ALTER TABLE,迁移友好)。
+// =================================================================
+
+// ===================== 1. Brief 发包单 =====================
+// 买家发包,平台拆任务 + 匹配创作者
+model Brief {
+  id            String   @id @default(cuid())
+  buyerId       String
+  buyer         User     @relation("BuyerBriefs", fields: [buyerId], references: [id])
+
+  title         String
+  description   String?  @db.Text
+
+  // 品类: ad / shortvideo / livestream_clip / poster / 3d
+  category      String
+  // 投放平台: ["douyin","xiaohongshu","wechat",...] — 9 平台枚举由前端常量提供
+  platformSet   Json
+  // 选用的虚拟形象 IP ID 列表
+  ipIds         Json
+
+  // 预算 (单位:元, 保留 2 位小数; 用 Decimal 而非 Int 分, 简化显示)
+  budgetMin     Decimal  @db.Decimal(10, 2)
+  budgetMax     Decimal  @db.Decimal(10, 2)
+
+  // 套餐: essential / standard / premium
+  packageTier   String
+  // 截止时间
+  deadlineAt    DateTime
+
+  // 状态机: draft / bidding / in_progress / delivered / closed / disputed
+  status        String   @default("draft")
+
+  // LLM 拆解的详细规格(JSON),由 pricing 模块填入
+  spec          Json?
+  // 买家上传的参考资料 OSS keys
+  attachments   Json?
+
+  // LLM 预估价格(¥)
+  estimatedPrice Decimal? @db.Decimal(10, 2)
+
+  // ========== W2 #28 平台层标准(2026-07-01+) ==========
+  // 挂的标准 SKU ID(关联 CatalogSku)
+  standardSkuId       String?
+  standardSku         CatalogSku? @relation(fields: [standardSkuId], references: [id])
+  // 验收清单 JSON: { version, items[{id,criterion,weight,automated}], passingScore }
+  acceptanceChecklist Json?
+  // 加项清单 JSON: [{ code, name, price, unit, quantity }]
+  addOns              Json?
+  // 原始 brief 文档(本地)SHA-256 哈希 — 平台只存哈希不存内容
+  originalBriefHash   String?
+  // 当前价格(¥)— 含加价;初始 = packageTier 对应 basePrice
+  currentPrice        Decimal?    @db.Decimal(10, 2)
+  // 加价次数(3 道软护栏之一:封顶 3 次)
+  bumpCount           Int         @default(0)
+  // 加价历史 JSON: [{ at, fromPrice, toPrice, percent, by: 'buyer' }]
+  bumpHistory         Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 反向
+  bids          Bid[]
+  workspace     Workspace?
+  deliverables  Deliverable[]
+  reviews       Review[]             @relation("ReviewBrief")
+  dispute       Dispute?
+  platformJudgments PlatformJudgment[]
+  qualityEvals  QualityEval[]
+  royaltyRecords RoyaltyRecord[]
+  // R10 P0-3: brief 中标时同步创建 Order,一个 brief 对应一笔订单
+  orders        Order[]
+
+  @@index([buyerId, status])
+  @@index([category, status])
+  @@index([createdAt])
+  @@index([deadlineAt])
+  @@index([standardSkuId])
+}
+
+// ===================== 1.5 CatalogSku 标准 SKU 菜单(W2 #28) =====================
+// 平台挂的标准服务单元菜单,essential/standard/premium × 5 品类 = 15 SKU
+// 不可议价,加价/加项走另外通道
+model CatalogSku {
+  id              String   @id @default(cuid())
+  // SKU code, 唯一: AIGC-AD-ESSENTIAL / AIGC-SHORTVIDEO-STANDARD / ...
+  code            String   @unique
+  // 品类: ad / shortvideo / livestream_clip / poster / 3d
+  category        String
+  // 档位: essential / standard / premium
+  tier            String
+  // 基础价格(¥)— 不可议价
+  basePrice       Decimal  @db.Decimal(10, 2)
+  // 交付天数
+  deliveryDays    Int
+  // 包含视频/海报数量
+  quantity        Int
+  // 包含 IP 数
+  ipsIncluded     Int      @default(1)
+  // 包含平台数
+  platformsIncluded Int    @default(1)
+  // 加项规则 JSON: [{ code, name, basePercent, description, min, max }]
+  addOnRules      Json
+  // 默认验收清单模板 ID(关联 AcceptanceTemplate)
+  defaultChecklistId String?
+  defaultChecklist    AcceptanceTemplate? @relation(fields: [defaultChecklistId], references: [id])
+  // 描述
+  description     String?  @db.Text
+  // 是否启用
+  enabled         Boolean  @default(true)
+  // 排序
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  briefs          Brief[]
+
+  @@index([category, tier])
+  @@index([enabled, sortOrder])
+}
+
+// ===================== 1.6 AcceptanceTemplate 验收清单模板(W2 #28) =====================
+// 每个 SKU 配一份默认 acceptanceChecklist 模板,买家可基于模板增删
+// 平台公信力底层之一 — 验收质量标准化
+model AcceptanceTemplate {
+  id          String   @id @default(cuid())
+  // 模板 code
+  code        String   @unique
+  // 适用品类
+  category    String
+  // 适用档位
+  tier        String
+  // 模板名称
+  name        String
+  // 模板描述
+  description String?  @db.Text
+  // 验收清单 JSON: { version, items[{id,criterion,weight,automated,evidenceMethod}], passingScore }
+  checklist   Json
+  // 版本(模板迭代)
+  version     String   @default("1.0")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  catalogSkus CatalogSku[]
+
+  @@index([category, tier])
+}
+
+// ===================== 2. SkillTag 技能标签字典 =====================
+model SkillTag {
+  id          String   @id @default(cuid())
+  // 标签名,unique — e.g. "Sora 视频生成", "可灵镜头控制", "数字人 Live2D"
+  name        String   @unique
+  // 分类: video / image / 3d / copywriting / tool
+  category    String
+  description String?
+
+  creators    CreatorSkill[]
+
+  @@index([category])
+}
+
+// ===================== 3. CreatorSkill 创作者技能(N:M) =====================
+model CreatorSkill {
+  id           String   @id @default(cuid())
+  creatorId    String
+  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  skillId      String
+  skill        SkillTag @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  // 1-5 自评 / admin 评定
+  level        Int      @default(1)
+  // admin 是否认证过
+  certified    Boolean  @default(false)
+  verifiedAt   DateTime?
+  // 作品集 URL
+  portfolioUrl String?
+
+  @@unique([creatorId, skillId])
+  @@index([creatorId])
+  @@index([skillId])
+}
+
+// ===================== 4. CreatorProfile 创作者档案(1:1) =====================
+model CreatorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName     String
+  bio             String?  @db.Text
+  avatarUrl       String?
+
+  // 等级: bronze / silver / gold / platinum
+  level           String   @default("bronze")
+
+  // 业绩指标(由 background job 每日更新)
+  completedOrders Int      @default(0)
+  totalEarnings   Decimal  @default(0) @db.Decimal(12, 2)
+  ratingAvg       Float    @default(0)
+  ratingCount     Int      @default(0)
+  responseRate    Float    @default(0) // 0-1
+  fulfillmentRate Float    @default(0) // 0-1
+
+  // 当前抽佣比例 (根据等级自动调整)
+  commissionRate  Float    @default(0.08)
+
+  // Pro 订阅(¥199/月)
+  proSubscribed   Boolean  @default(false)
+  proExpiresAt    DateTime?
+
+  joinedAt        DateTime @default(now())
+
+  @@index([level, ratingAvg])
+  @@index([completedOrders])
+}
+
+// ===================== 5. Bid 报价/抢单 =====================
+model Bid {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  creatorId    String
+  creator      User     @relation("CreatorBids", fields: [creatorId], references: [id])
+
+  price        Decimal  @db.Decimal(10, 2)
+  deliveryDays Int
+  proposal     String   @db.Text
+
+  // pending / accepted / rejected / withdrawn
+  status       String   @default("pending")
+  acceptedAt   DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([briefId, creatorId])
+  @@index([briefId])
+  @@index([creatorId, status])
+}
+
+// ===================== 6. Workspace 工作台 =====================
+model Workspace {
+  id           String   @id @default(cuid())
+  briefId      String   @unique
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  creatorId    String
+  creator      User     @relation("CreatorWorkspaces", fields: [creatorId], references: [id])
+
+  // 创作者启用的工具链 {sora:true, runway:true, kling:true, jimeng:true}
+  toolchain    Json
+
+  // 分镜脚本
+  scripts      Json?
+
+  // 状态机: active / submitted / approved / revision
+  status       String   @default("active")
+
+  startedAt    DateTime @default(now())
+  submittedAt  DateTime?
+  finishedAt   DateTime?
+  revisionCount Int     @default(0)
+
+  generations  AIGenerationRecord[]
+  messages     WorkspaceMessage[]
+  submissions  WorkspaceSubmission[]
+  deliverables Deliverable[]
+
+  @@index([creatorId, status])
+}
+
+// ===================== 7. WorkspaceMessage 工作台消息 =====================
+model WorkspaceMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromUserId  String
+  from        User     @relation("WorkspaceMessageFrom", fields: [fromUserId], references: [id])
+
+  content     String   @db.Text
+  attachments Json?    // OSS keys
+  // text / system / file
+  type        String   @default("text")
+
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+// ===================== 8. AIGenerationRecord AI 生成记录(成本核算 + 防作弊) =====================
+model AIGenerationRecord {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // sora / runway / kling / jimeng / luma / pika / mjvideo / veo
+  toolName    String
+  modelName   String
+  prompt      String   @db.Text
+  outputUrl   String?
+
+  // 创作者实际成本(分,人民币)
+  costCents   Int
+  // 调用耗时(毫秒)
+  durationMs  Int
+
+  // success / failed / timeout
+  status      String   @default("success")
+  errorMsg    String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([toolName, createdAt])
+}
+
+// ===================== 8.5 CreatorAsset 我的资产 (D4) =====================
+// 创作者自有数字人模型 + Prompt 模板,可在 workspace 的 scripts 里引用
+model CreatorAsset {
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     User     @relation("CreatorAssets", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  // model(自有数字人模型文件) / prompt_template(Prompt 模板文本)
+  type        String
+
+  // 模型类型: model3d / lora / voice;prompt_template 无此字段
+  // 通用名: 创作者起的别名,workspace 引用时显示这个
+  name        String
+
+  // 模型文件 OSS key;prompt_template 留空
+  ossKey      String?
+  fileSize    Int?
+  mimeType    String?
+
+  // prompt 模板正文(纯文本或 JSON);model 留空
+  content     String?  @db.Text
+
+  // 标签(便于检索): "网红脸, 高级感"
+  tags        Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([creatorId, type])
+  @@index([creatorId, createdAt])
+}
+
+// ===================== 8.6 WorkspaceSubmission 中间稿 (D5) =====================
+// 创作者在 workspace 里上传的过程稿,买家可评论
+model WorkspaceSubmission {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User     @relation("SubmissionCreator", fields: [creatorId], references: [id])
+
+  // 同一 workspace 内的版本号,从 1 开始递增
+  version     Int
+
+  // 中间稿文件 OSS key(可能多个,JSON 数组)
+  ossKeys     Json
+  // 创作者备注
+  notes       String?  @db.Text
+
+  // pending / approved / rejected / superseded
+  status      String   @default("pending")
+
+  createdAt   DateTime @default(now())
+
+  comments    SubmissionComment[]
+
+  @@unique([workspaceId, version])
+  @@index([workspaceId, createdAt])
+  @@index([creatorId])
+}
+
+// ===================== 8.7 SubmissionComment 中间稿评论 (D5) =====================
+model SubmissionComment {
+  id            String   @id @default(cuid())
+  submissionId  String
+  submission    WorkspaceSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fromUserId    String
+  from          User     @relation("SubmissionCommentFrom", fields: [fromUserId], references: [id])
+
+  content       String   @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([submissionId, createdAt])
+}
+
+// ===================== 9. Deliverable 成片交付 =====================
+model Deliverable {
+  id          String   @id @default(cuid())
+  briefId     String
+  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // video / image / copy
+  type        String
+  // douyin / xiaohongshu / wechat / youtube / tiktok / ...
+  platform    String
+
+  // OSS 路径(已转码后的成片)
+  url         String
+  thumbnailUrl String?
+
+  // {duration, ratio, resolution, fileSize}
+  spec        Json
+
+  // pending / approved / rejected
+  status      String   @default("pending")
+  approvedAt  DateTime?
+  rejectedReason String?
+
+  // 多平台发布后的实际链接
+  publishedAt DateTime?
+  publishedUrl String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([briefId])
+  @@index([platform, status])
+}
+
+// ===================== 10. Review 评价 =====================
+model Review {
+  id          String   @id @default(cuid())
+  briefId     String
+  brief       Brief    @relation("ReviewBrief", fields: [briefId], references: [id], onDelete: Cascade)
+  fromUserId  String
+  from        User     @relation("ReviewFrom", fields: [fromUserId], references: [id])
+  toUserId    String
+  to          User     @relation("ReviewTo", fields: [toUserId], references: [id])
+
+  // buyer_to_creator / creator_to_buyer — 同一 brief 双方各评一次
+  role        String
+  rating      Int      // 1-5
+  content     String   @db.Text
+  tags        Json?
+
+  createdAt   DateTime @default(now())
+
+  @@unique([briefId, role])
+  @@index([toUserId])
+  @@index([fromUserId])
+}
+
+// ===================== 11. Dispute 仲裁 =====================
+model Dispute {
+  id          String   @id @default(cuid())
+  briefId     String   @unique
+  brief       Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  initiatorId String
+  initiator   User     @relation("DisputeInitiator", fields: [initiatorId], references: [id])
+
+  // quality_issue / deadline_miss / scope_change / payment_issue / other
+  reason      String
+  description String   @db.Text
+  // 证据 OSS URL 列表
+  evidence    Json
+
+  // open / mediating / resolved / closed
+  status      String   @default("open")
+
+  // refund_full / refund_partial / no_refund / redo
+  resolution  String?
+  refundAmount Decimal? @db.Decimal(10, 2)
+
+  mediatorId  String?
+  mediator    User?    @relation("DisputeMediator", fields: [mediatorId], references: [id], onDelete: SetNull)
+
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ===================== 11.5 PlatformJudgment 平台仲裁 Agent 判定 (W2 #28) =====================
+// 平台 Agent 对创作者交付物按 acceptanceChecklist 打分,留痕
+// pass=false 且 totalScore < passingScore 时自动创建 Dispute
+// 法律责任:Agent 判定是"参考",终极争议由 admin /disputes 人工 review
+model PlatformJudgment {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  // brief | deliverable | pre_bid  触发场景
+  trigger      String   @default("deliverable")
+  // 通过的 Checklist 版本
+  checklistVersion String?
+  // 每项得分: [{ itemId, criterion, weight, score(0-1), reason }]
+  itemScores   Json
+  // 加权总分(0-1)
+  totalScore   Float
+  // 通过分数线
+  passingScore Float
+  // 是否通过
+  pass         Boolean
+  // 总体评语
+  summary      String?  @db.Text
+  // LLM 元信息
+  modelUsed    String
+  promptVersion String
+  // 触发 dispute 后的关联
+  disputeId    String?
+  createdAt    DateTime @default(now())
+
+  @@index([briefId, createdAt])
+  @@index([pass, createdAt])
+}
+
+// ===================== 11.6 QualityEval W2.5 AI 自动评分 =====================
+// 4 层 AI 自动评分 (技术 / 美学 / 合规 / 商业价值),S/A/B/C 分级
+// 用户拍板 (2026-07-02): 全跑 4 层 + 评分公开 (买家+创作者都看) + 证据必现
+// 关联: docs/research/quality-eval-benchmark-2026.md §1 / §8.2 / §9.1
+model QualityEval {
+  id           String   @id @default(cuid())
+  briefId      String
+  brief        Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  deliverableId String?
+
+  // 触发场景: deliverable / dispute / manual
+  trigger      String   @default("deliverable")
+  // 触发者 (adminId / system / creatorId)
+  triggeredBy  String
+
+  // 4 层评分快照
+  l1Score      Float    // 技术 (0-1)
+  l2Score      Float    // 美学 (0-1)
+  l3Score      Float    // 合规 (0-1)
+  l4Score      Float    // 商业价值 (0-1)
+
+  // 综合
+  compositeScore Float  // 0-1, 闸门触发后为 0
+  // S / A / B / C
+  grade        String
+  // PASS / REVIEW / FAIL (闸门触发 = FAIL)
+  decision     String
+  // 闸门触发原因: none / compliance_fatal / technical_below_threshold
+  gateReason   String   @default("none")
+  // 商业价值不达标提示
+  commercialWarning Boolean @default(false)
+
+  // 各 layer 完整结果 (含 evidence / sub-scores / metrics) — JSON 永久存档
+  l1Detail     Json
+  l2Detail     Json
+  l3Detail     Json
+  l4Detail     Json
+
+  // 模型版本快照 — 用于跨评审可比 + 漂移检测
+  modelVersions Json
+
+  // 法务免责元信息: disclaimerVersion (URL 锚点)
+  disclaimerVersion String  @default("v0.1-2026-07")
+
+  // 申诉: 1 次/条目, SLA 48h
+  appealedAt     DateTime?
+  appealReason   String?  @db.Text
+  appealDecision String?  // overridden / confirmed
+  appealResponderId String?
+  appealSummary  String?  @db.Text
+
+  createdAt    DateTime @default(now())
+
+  @@index([briefId, createdAt])
+  @@index([deliverableId, createdAt])
+  @@index([grade])
+  @@index([decision])
+}
+
+// ===================== 11.7 QualityEvalRollout W2.5 D13-D14 A/B 切流 =====================
+// 单行配置: AI 自动评分的发布策略
+// - mode: 'off' = 完全关闭; 'shadow' = 跑 + 落库 + 不影响决策; 'active' = 跑 + 落库 + 写决策
+// - rolloutPct: 0-100, 触发概率 (按 deliverableId hash 取模分桶, 同一 deliverable 始终同组)
+// - admin 可在 /settings/llm 旁边 /settings/quality-eval-rollout 调
+// 关联: docs/research/w25-calibration-2026-07.md §7
+model QualityEvalRollout {
+  id           String   @id @default("default")
+  mode         String   @default("off")  // off / shadow / active
+  rolloutPct   Int      @default(0)       // 0-100
+  note         String?  @db.Text
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ===================== 12. RoyaltyRecord IP 二次授权分账 =====================
+// 独家壁垒 — 数字人 IP 被二次使用时,自动按比例分账
+// 公式: IP 所有者 60% / 原创者 10% / 平台 30%
+model RoyaltyRecord {
+  id                String   @id @default(cuid())
+  briefId           String
+  brief             Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  ipId              String   // 被二次使用的 IP ID
+
+  originalCreatorId String
+  originalCreator   User     @relation("OriginalCreator", fields: [originalCreatorId], references: [id])
+
+  ipOwnerId         String
+  ipOwner           User     @relation("IPOwner", fields: [ipOwnerId], references: [id])
+
+  buyerId           String
+  buyer             User     @relation("BuyerRoyalty", fields: [buyerId], references: [id])
+
+  // direct_use / derivative_use
+  usageType         String
+  usageCount        Int      @default(1)
+
+  totalAmount       Decimal  @db.Decimal(10, 2)
+  ipOwnerShare      Decimal  @db.Decimal(10, 2)
+  creatorShare      Decimal  @db.Decimal(10, 2)
+  platformShare     Decimal  @db.Decimal(10, 2)
+
+  settledAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([ipId])
+  @@index([originalCreatorId])
+  @@index([ipOwnerId])
+  @@index([buyerId])
+}
+
+// ===================== 13. BuyerSubscription 买家订阅 =====================
+// Starter / Growth / Enterprise 三档
+model BuyerSubscription {
+  id           String   @id @default(cuid())
+  buyerId      String
+  buyer        User     @relation(fields: [buyerId], references: [id])
+
+  // starter / growth / enterprise
+  plan         String
+  priceMonthly Decimal  @db.Decimal(10, 2)
+
+  startedAt    DateTime @default(now())
+  expiresAt    DateTime
+  autoRenew    Boolean  @default(true)
+
+  // active / cancelled / expired
+  status       String   @default("active")
+
+  @@index([buyerId, status])
+  @@index([expiresAt])
+}
+
+// ===================== 14. Withdrawal 提现申请 =====================
+model Withdrawal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  amount      Decimal  @db.Decimal(10, 2)
+  fee         Decimal  @db.Decimal(10, 2)
+  netAmount   Decimal  @db.Decimal(10, 2)
+
+  // wechat / alipay / digital_rmb / bank
+  channel     String
+  // 收款账号(脱敏存储,只存末 4 位)
+  accountInfo Json
+
+  // pending / processing / success / failed
+  status      String   @default("pending")
+  processedAt DateTime?
+  failReason  String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+// ===================== 15. PlatformAnalytics 平台数据看板(预聚合) =====================
+// 由 background job 每日凌晨聚合写入,前端 dashboard 直接读
+model PlatformAnalytics {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date
+
+  briefsNew       Int      @default(0)
+  briefsClosed    Int      @default(0)
+  // GMV 单位:分
+  gmvCents        BigInt   @default(0)
+  commissionCents BigInt   @default(0)
+
+  activeBuyers    Int      @default(0)
+  activeCreators  Int      @default(0)
+  disputesOpened  Int      @default(0)
+  disputesResolved Int     @default(0)
+  avgRating       Float    @default(0)
+
+  createdAt       DateTime @default(now())
 }

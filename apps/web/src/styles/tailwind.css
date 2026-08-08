@@ -3,37 +3,219 @@
 @tailwind utilities;
 
 /* ============================================================
+   全局 font default — R12 起 body 走 Geist (sans) + Geist Mono (mono)
+   R8 元素若显式带 font-display/serif/mono (Cormorant/Noto/JetBrains),
+   仍由 Tailwind fontFamily.* override。  不需要给每个元素都贴 font-r12-sans。
+   ============================================================ */
+@layer base {
+  body {
+    font-family: 'Geist', 'Noto Sans SC', system-ui, sans-serif;
+    color: var(--color-ink);
+    background-color: var(--color-cream);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code, pre, kbd, samp {
+    font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  }
+}
+
+/* ============================================================
    主题色变量 — 默认浅色, .dark 类切换深色
    tailwind.config.js 的 colors 全部映射到这些 var
    ============================================================ */
 :root {
-  --color-cream: #F8F5F0;
-  --color-ink: #0F0F0F;
-  --color-gold: #C8A36B;
-  --color-line: #E5E0D6;
-  --color-danger: #D14343;
-  --color-success: #3F9F65;
-  --color-surface: #FFFFFF;
-  --color-surface-2: #FAF8F3;
-  --shadow-soft: 0 4px 12px rgba(15,15,15,0.06);
-  --shadow-glow: 0 0 0 4px rgba(200,163,107,0.18);
-  --scrollbar-thumb: #C8A36B;
-  --scrollbar-track: #F8F5F0;
-  --autofill-bg: #FFFFFF;
+  --color-cream: #F6F2EA;
+  --color-ink: #0E0E0F;
+  --color-gold: #B6925A;
+  --color-line: #DAD3C4;
+  --color-danger: #C2433C;
+  --color-success: #3D8B5F;
+  --color-surface: #FDFBF6;
+  --color-surface-2: #F0EBE0;
+  /* Phase C Beta 加:stamp-red 印章红 — 选中态 / 当前步 / 立即保存按钮等关键强调色。
+     之前用了但没定义,所有 bg-stamp-red / text-stamp-red / border-stamp-red 都是无效 class。 */
+  --color-stamp-red: #B83A2C;
+  --shadow-soft: 0 6px 24px rgba(14, 14, 15, 0.05);
+  --shadow-glow: 0 0 0 4px rgba(182, 146, 90, 0.18);
+  --shadow-archive: 0 24px 60px -28px rgba(14, 14, 15, 0.28), 0 2px 8px rgba(14, 14, 15, 0.04);
+  --scrollbar-thumb: #B6925A;
+  --scrollbar-track: #F6F2EA;
+  --autofill-bg: #FDFBF6;
+  --paper-grain: url("data:image/svg+xml;utf8,<svg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.32 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.42'/></svg>");
 }
 
 .dark {
-  --color-cream: #0E0E10;
-  --color-ink: #F2F0EA;
-  --color-gold: #D9B47A;
-  --color-line: #2A2A2E;
+  --color-cream: #0B0B0D;
+  --color-ink: #F2EEE5;
+  --color-gold: #D2A864;
+  --color-line: #232326;
   --color-danger: #E87171;
-  --color-success: #4FBE7C;
-  --color-surface: #1A1A1D;
-  --color-surface-2: #222226;
-  --shadow-soft: 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 0 4px rgba(217,180,122,0.25);
-  --scrollbar-thumb: #3A3A3F;
-  --scrollbar-track: #18181B;
-  --autofill-bg: #1A1A1D;
+  --color-success: #5BB87C;
+  --color-surface: #131316;
+  --color-surface-2: #1B1B20;
+  --color-stamp-red: #E87171;
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 4px rgba(210, 168, 100, 0.25);
+  --shadow-archive: 0 24px 60px -28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --scrollbar-thumb: #3A3A40;
+  --scrollbar-track: #131316;
+  --autofill-bg: #131316;
+}
+
+/* ============================================================
+   全局: 美术馆纸纹覆盖
+   所有正文容器加 paper-grain 即可获得画廊质感
+   ============================================================ */
+.paper-grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-size: 240px 240px;
+  opacity: 0.04;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+.dark .paper-grain::before {
+  opacity: 0.06;
+  mix-blend-mode: screen;
+}
+
+/* ============================================================
+   R12 Studio Tech Console — utility class overrides
+   这些类历史上绑在 R8 美术馆风上 (Cormorant + JetBrains Mono + 0.5px hairline +
+   swash 首字母)。R12 把它们重定义为 Geist + 1px hairline + 干净文字。
+   类名保留 (历史包袱),大量 template 改动跳过,R8 视觉 → R12 视觉自动迁移。
+   ============================================================ */
+
+/* Display italic 重定义: R12 不用衬线 italic,改 Geist sans italic(原 .font-display
+   仍引 Cormorant,只在 R8 模板里使用,R12 不应使用) */
+.font-display-italic {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* Catalog 排版: R12 micro (12px / 0.04em / 500 / UPPERCASE / Geist Mono) */
+.catalog-no {
+  font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.30;
+}
+
+/* Swash: R12 不再有 italic 首字母装饰;仍保留类名以防少数页面引用,
+   但降级到普通 sans,不再触发 Cormorant swash */
+.swash::first-letter {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* Hairline: R8 0.5px 极细线 → R12 1px 标准边线(无减号所有 hairline-* 都升级) */
+.hairline {
+  border-width: 1px;
+  border-style: solid;
+}
+.hairline-t { border-top-width: 1px; }
+.hairline-b { border-bottom-width: 1px; }
+.hairline-l { border-left-width: 1px; }
+.hairline-r { border-right-width: 1px; }
+
+/* Index tab: R12 干净下划线 tab,无 swash 横线 */
+.archive-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #52525B; /* r12-ink-secondary */
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+  border: none;
+}
+.archive-tab::before { display: none; }
+.archive-tab:hover { color: #09090B; /* r12-ink-primary */ }
+.archive-tab.is-active {
+  color: #09090B;
+  font-weight: 500;
+  border-bottom: 2px solid #2563EB; /* r12-cobalt */
+}
+
+/* ============================================================
+   Plate 卡片: 美术馆作品卡片 (列表 / 详情用)
+   ============================================================ */
+.plate {
+  position: relative;
+  background: var(--color-surface);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.plate:hover {
+  transform: translateY(-4px);
+}
+.plate-frame {
+  position: relative;
+  overflow: hidden;
+  border: 0.5px solid var(--color-line);
+}
+.plate-frame img {
+  transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.6s ease;
+}
+.plate:hover .plate-frame img {
+  transform: scale(1.04);
+  filter: contrast(1.04) saturate(1.05);
+}
+
+/* ============================================================
+   Stamp / 印记 — R12 重定义为 status pill
+   R8 是斜 1.5px 印章 (9px JetBrains Mono 0.28em);R12 走 docs §Pills:
+   24px 高度 · mono micro (12px/0.04em) · 4px 圆角 · 1px 同色描边 · 无旋转
+   "stamp" 类名保留,IpCard.vue / 详情页 status 用 0 模板改动即可生效。
+   ============================================================ */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: none;
+  opacity: 1;
+  background-color: var(--color-surface);
+}
+
+/* ============================================================
+   Cropmark: 印刷裁切标记
+   ============================================================ */
+.cropmark {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--color-ink);
+  opacity: 0.35;
+}
+.cropmark-tl { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }
+.cropmark-tr { top: 4px; right: 4px; border-top: 1px solid; border-right: 1px solid; }
+.cropmark-bl { bottom: 4px; left: 4px; border-bottom: 1px solid; border-left: 1px solid; }
+.cropmark-br { bottom: 4px; right: 4px; border-bottom: 1px solid; border-right: 1px solid; }
+
+/* ============================================================
+   Marquee / Ticker: 顶部滚动条
+   ============================================================ */
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker 40s linear infinite;
 }

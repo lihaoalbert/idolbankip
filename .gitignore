@@ -12,6 +12,8 @@ build/
 .env.local
 .env.*.local
 !.env.example
+# 部署凭据 (scripts/deploy.env 含 ECS IP + SSH key 路径)
+scripts/deploy.env
 coverage/
 *.tsbuildinfo
 .idea/
@@ -34,6 +36,8 @@ prisma/migrations/dev/
 seed-assets/.cache
 seed-assets/ibi-ren-seed/.thumbnails-cache
 uploads/
+# Firecrawl CLI 本地缓存 (scrape/crawl 输出)
+.firecrawl/
 # tsc build 产物 (shared-contracts)
 packages/*/src/*.js
 packages/*/src/*.js.map
@@ -51,11 +55,23 @@ AGENTS.md
 形象-*.md
 形象-*.pdf
 形象-*.txt
-
-# 本地备份与凭据 (严禁入库)
+# 用户与第三方 AI 的讨论稿目录 (思考/草稿/调研, 不入库)
+sa/
+# .env 备份(可能含 dev DB 密码 — 误 commit 风险)
 .env.bak
+.env.*.bak
+# 部署凭据与本地环境文件 (严禁入库)
 scripts/deploy.env
-# 工具运行缓存
-.firecrawl/
+# Playwright MCP 本地缓存(截图/录制/trace)与测试产物
 .playwright-mcp/
-test-results/
+.firecrawl/
+apps/web/test-results/
+apps/admin/test-results/
+
+# 广告法违禁词真词表(购买,商业授权,不入仓)
+# 骨架在 ad-law-words.example.json 入仓, 真词表替换同名文件不入仓
+apps/api/src/moderation/keywords/ad-law-words.json
+
+# Claude Code taste-skill 本地安装产物 (.agents/skills/* + 锁文件)
+.agents/
+skills-lock.json

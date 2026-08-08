@@ -34,6 +34,52 @@ const routes: RouteRecordRaw[] = [
     name: 'cert-queue',
     component: () => import('@/pages/CertQueuePage.vue'),
   },
+  // #30.6.26 著作权代申请队列 + 详情
+  {
+    path: '/copyright-reg/queue',
+    name: 'copyright-queue',
+    component: () => import('@/pages/CopyrightQueuePage.vue'),
+  },
+  {
+    path: '/copyright-reg/:ipId',
+    name: 'copyright-detail-admin',
+    component: () => import('@/pages/CopyrightDetailAdminPage.vue'),
+    props: true,
+  },
+  // #30.6.26 LLM Provider Config — admin 后台可改 API key / model
+  {
+    path: '/settings/llm',
+    name: 'llm-config',
+    component: () => import('@/pages/LlmConfigPage.vue'),
+  },
+  // W2.5 质量评审 — 队列 + 详情
+  {
+    path: '/quality-eval',
+    name: 'quality-eval-queue',
+    component: () => import('@/pages/QualityEvalQueuePage.vue'),
+  },
+  {
+    path: '/quality-eval/rollout',
+    name: 'quality-eval-rollout',
+    component: () => import('@/pages/QualityEvalRolloutPage.vue'),
+  },
+  {
+    path: '/quality-eval/:id',
+    name: 'quality-eval-detail',
+    component: () => import('@/pages/QualityEvalDetailPage.vue'),
+    props: true,
+  },
+  {
+    path: '/tasks',
+    name: 'tasks',
+    component: () => import('@/pages/TasksPage.vue'),
+  },
+  {
+    path: '/tasks/:id',
+    name: 'task-detail-admin',
+    component: () => import('@/pages/TaskDetailAdminPage.vue'),
+    props: true,
+  },
   {
     path: '/orders',
     name: 'orders',

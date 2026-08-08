@@ -48,6 +48,27 @@ const ICONS: Record<string, string> = {
   IP_REGISTERED: '★',
   CERT_APPROVED: '✓',
   CERT_REJECTED: '✗',
+  // #30.6.26 著作权代申请 5 种状态
+  COPYRIGHT_REG_DRAFT: '✎',
+  COPYRIGHT_REG_SUBMITTED: '↗',
+  COPYRIGHT_REG_ACCEPTED: '✓',
+  COPYRIGHT_REG_CERTIFIED: '★',
+  COPYRIGHT_REG_REJECTED: '✗',
+  // #30.7.1 W2 #29 推送通知 — 买家发包 / 加价
+  BRIEF_PUBLISHED: '◐',
+  BRIEF_BUMPED: '↑',
+  // #30.7.1 W2 #31 过期自动 close / 买家手动 close
+  BRIEF_EXPIRED: '⏰',
+  BRIEF_CLOSED: '×',
+  // R11.1 P0-1: 中标订单支付完成
+  ORDER_DEPOSIT_PAID: '💰',
+  // R11.2 P1-4: 业务事件通知
+  BID_RECEIVED: '📩',
+  BID_ACCEPTED: '🎉',
+  WORKSPACE_SUBMITTED: '📤',
+  WORKSPACE_APPROVED: '✓',
+  WORKSPACE_REVISION: '↩',
+  DELIVERABLE_UPLOADED: '📦',
 };
 
 const ICON_COLOR: Record<string, string> = {
@@ -58,6 +79,26 @@ const ICON_COLOR: Record<string, string> = {
   IP_REGISTERED: 'text-gold',
   CERT_APPROVED: 'text-success',
   CERT_REJECTED: 'text-danger',
+  // #30.6.26
+  COPYRIGHT_REG_DRAFT: 'text-ink/60',
+  COPYRIGHT_REG_SUBMITTED: 'text-info',
+  COPYRIGHT_REG_ACCEPTED: 'text-info',
+  COPYRIGHT_REG_CERTIFIED: 'text-gold',
+  COPYRIGHT_REG_REJECTED: 'text-danger',
+  // #30.7.1 W2 #29
+  BRIEF_PUBLISHED: 'text-info',
+  BRIEF_BUMPED: 'text-gold',
+  // #30.7.1 W2 #31
+  BRIEF_EXPIRED: 'text-danger',
+  BRIEF_CLOSED: 'text-ink/60',
+  // R11.1 / R11.2
+  ORDER_DEPOSIT_PAID: 'text-success',
+  BID_RECEIVED: 'text-info',
+  BID_ACCEPTED: 'text-success',
+  WORKSPACE_SUBMITTED: 'text-info',
+  WORKSPACE_APPROVED: 'text-success',
+  WORKSPACE_REVISION: 'text-gold',
+  DELIVERABLE_UPLOADED: 'text-info',
 };
 
 onMounted(() => {

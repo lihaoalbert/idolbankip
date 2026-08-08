@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { KycModule } from './kyc/kyc.module';
 import { IpsModule } from './ips/ips.module';
+import { TasksModule } from './tasks/tasks.module';
 import { UploadModule } from './upload/upload.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { ProofingModule } from './proofing/proofing.module';
@@ -22,6 +23,33 @@ import { AuditModule } from './audit/audit.module';
 import { LeadsModule } from './leads/leads.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AgentModule } from './agent/agent.module';
+import { AiModule } from './ai/ai.module';
+import { HonorModule } from './honor/honor.module';
+import { NiApiModule } from './mock/ni-api/ni-api.module';
+import { BlueprintModule } from './blueprint/blueprint.module';
+import { CopyrightModule } from './copyright/copyright.module';
+import { LlmConfigModule } from './llm-config/llm-config.module';
+import { AssistantModule } from './assistant/assistant.module';
+import { BriefModule } from './brief/brief.module';
+import { BidModule } from './bid/bid.module';
+import { PricingModule } from './pricing/pricing.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { PlatformJudgeModule } from './platform-judge/platform-judge.module';
+import { EmailModule } from './email/email.module';
+import { WechatModule } from './wechat/wechat.module';
+import { BriefPushModule } from './brief-push/brief-push.module';
+import { QualityEvalModule } from './quality-eval/quality-eval.module';
+import { SmsModule } from './sms/sms.module';
+import { AuthPhoneModule } from './auth-phone/auth-phone.module';
+import { AuthWechatModule } from './auth-wechat/auth-wechat.module';
+import { WorkspaceModule } from './workspace/workspace.module';
+import { AiToolsModule } from './ai-tools/ai-tools.module';
+import { CreatorAssetsModule } from './creator-assets/creator-assets.module';
+import { SubmissionsModule } from './submissions/submissions.module';
+import { DeliverableModule } from './deliverable/deliverable.module';
+import { MediaModule } from './media/media.module';
+import { ReviewModule } from './review/review.module';
+import { CreditModule } from './credit/credit.module';
 import { configValidationSchema } from './config/config.validation';
 
 @Module({
@@ -49,10 +77,38 @@ import { configValidationSchema } from './config/config.validation';
     DownloadModule,
     CertModule,
     AdminModule,
+    TasksModule,
     HealthModule,
     LeadsModule,
     NotificationsModule,
     AgentModule,
+    AiModule,
+    HonorModule,
+    NiApiModule,
+    BlueprintModule,
+    CopyrightModule,
+    LlmConfigModule,
+    AssistantModule,
+    BriefModule,
+    BidModule,
+    PricingModule,
+    CatalogModule,
+    PlatformJudgeModule,
+    EmailModule,
+    WechatModule,
+    BriefPushModule,
+    QualityEvalModule,
+    SmsModule,
+    AuthPhoneModule,
+    AuthWechatModule,
+    WorkspaceModule,
+    AiToolsModule,
+    CreatorAssetsModule,
+    SubmissionsModule,
+    DeliverableModule,
+    MediaModule,
+    ReviewModule,
+    CreditModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -54,6 +55,10 @@ class AgentUploadPolicyDto {
   @IsEnum(AssetType) assetType!: AssetType;
   @IsString() filename!: string;
   @IsInt() @Min(0) size!: number;
+}
+
+class AgentAiFillDto {
+  @IsString() ipId!: string;
 }
 
 class BatchCreateIpsDto {
@@ -114,6 +119,15 @@ export class AgentController {
     };
   }
 
+  /**
+   * Agent 视角的 IP 列表 — 返回 externalRecordId / externalSource
+   * 可选 ?source=FEISHU_BITABLE 过滤. 用于本机 fetch 脚本跟飞书 record_id 匹配.
+   */
+  @Get('ips/mine')
+  listMyIps(@CurrentUser() user: any, @Query('source') source?: string) {
+    return this.service.listMyIps(user.id, source);
+  }
+
   @Post('ips/batch')
   batchCreateIps(@CurrentUser() user: any, @Body() body: BatchCreateIpsDto) {
     return this.service.batchCreateIps(user.id, body.items);
@@ -122,5 +136,14 @@ export class AgentController {
   @Post('ips/upload-policy')
   uploadPolicy(@CurrentUser() user: any, @Body() body: AgentUploadPolicyDto) {
     return this.service.generateUploadPolicy(user.id, body.ipId, body.assetType, body.filename, body.size);
+  }
+
+  /**
+   * #30.6.21 用 faceCloseupFileId 调 recognizeFace, AI 推断结果**全覆盖**写回 IP 元数据。
+   * 原值在 AuditLog(IP_AI_FILL) 保留, 不可逆. 适合 agent 批量场景 (本机 fetch 脚本).
+   */
+  @Post('ips/ai-fill')
+  aiFill(@CurrentUser() user: any, @Body() body: AgentAiFillDto) {
+    return this.service.aiFill(user.id, body.ipId);
   }
 }

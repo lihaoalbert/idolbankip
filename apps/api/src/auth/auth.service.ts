@@ -2,17 +2,19 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { User } from '@prisma/client';
+import { HonorAction, User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
 import { UserRole, parseRoles, serializeRoles } from '../common/util/roles.util';
 import type { JwtUser } from '../common/decorators/current-user.decorator';
+import { HonorService } from '../honor/honor.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -28,11 +30,14 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly honor: HonorService,
   ) {}
 
   async register(params: {
@@ -69,8 +74,29 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('邮箱或密码错误');
 
+    return this.loginOrThrow(user, userAgent);
+  }
+
+  /**
+   * W3 W1 D4 共用入口 — 给 phone / wechat 登录复用
+   * 颁发 token + 写荣誉流水, honor 失败不阻塞主流程
+   */
+  async loginOrThrow(user: User, userAgent: string): Promise<{ user: User; tokens: TokenPair }> {
     const tokens = await this.issueTokens(user, userAgent);
+    try {
+      await this.recordLoginHonor(user.id);
+    } catch (e: any) {
+      this.logger.warn(`honor recordLoginHonor failed: ${e?.message ?? e}`);
+    }
     return { user, tokens };
+  }
+
+  private async recordLoginHonor(userId: string): Promise<void> {
+    // updateStreakOnLogin 内部已处理: 幂等 (UTC+8 日内只生效一次), 断签重置, 里程碑发奖
+    await this.honor.updateStreakOnLogin(userId);
+    // 单独记 DAILY_LOGIN 流水 (record 内部会跳过 maxPerUser 检查)
+    // 先看 updateStreakOnLogin 是否已发奖 — 它不会发 DAILY_LOGIN, 只发 STREAK_*
+    await this.honor.record(userId, HonorAction.DAILY_LOGIN, { skipBadgeEval: true });
   }
 
   async refresh(refreshToken: string, userAgent: string): Promise<TokenPair> {

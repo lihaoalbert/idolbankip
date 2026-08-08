@@ -35,6 +35,8 @@ export class DownloadService {
     if (!['CONTRACT_SIGNED', 'DOWNLOAD_UNLOCKED', 'DELIVERED'].includes(order.status)) {
       throw new ForbiddenException('订单尚未签署完成,无法下载');
     }
+    // R10 P0-3: brief 中标订单 ip 为 null, 应走 workspace deliverable 流程而非 IP 下载
+    if (!order.ip) throw new ForbiddenException('该订单为发包中标,资产在工作台交付');
     return {
       order: { id: order.id, status: order.status, ipCode: order.ip.code },
       files: order.ip.files.map(f => ({

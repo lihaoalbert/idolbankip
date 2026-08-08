@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
@@ -13,9 +14,18 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
 
+  // Body parser 上限提到 8MB — Track B POST /blueprint/from-image 接收 base64 图片
+  // 后端 5MB 限制 × base64 1.33 倍 = 6.7MB,留 8MB 余量
+  // Express 默认 100KB,Track B 上线后必须扩
+  app.use(bodyParser.json({ limit: '8mb' }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '8mb' }));
+
   // 全局前缀
+  // why exclude v1/(.*): 数字人陪伴 App(mock/ni-api)的端点 namespace 是 /v1/...,
+  //                    跟 ibi.ren 自己的 /api/v1/... 是不同 namespace,不该被叠前缀.
+  //                    真实接入时 /v1 也照样保留作为 App 端的契约路径.
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health'],
+    exclude: ['health', 'v1/(.*)'],
   });
 
   // CORS
@@ -39,14 +49,22 @@ async function bootstrap() {
 
   // BigInt → string (Prisma BigInt 字段如 sizeBytes/blockHeight 在 JSON.stringify 会抛错)
   // 包装 express res.json,所有响应走 JSON.stringify(_, bigintReplacer)
+  //
+  // 注意: Express 4.22+ 把 app.response 从「构造器」改成了「默认 ServerResponse 实例」,
+  // 所以 expressApp.response.prototype 是 undefined。必须从实例反查原型。
+  // 之前的写法 (`expressApp.response?.prototype?.json`) 在新 Express 永远装不上 wrapper,
+  // 暴露症状: IP 有 files 时 /ips/mine/list 抛 "Do not know how to serialize a BigInt"
   const expressApp = app.getHttpAdapter().getInstance();
   const bigintReplacer = (_key: string, value: unknown) =>
     typeof value === 'bigint' ? value.toString() : value;
-  const originalJson = expressApp.response?.prototype?.json;
-  if (originalJson) {
-    expressApp.response.prototype.json = function (data: unknown) {
+  const responseProto = Object.getPrototypeOf(expressApp.response) as { json?: Function } | null;
+  if (responseProto && typeof responseProto.json === 'function') {
+    const originalJson = responseProto.json;
+    responseProto.json = function (data: unknown) {
       return originalJson.call(this, JSON.parse(JSON.stringify(data, bigintReplacer)));
     };
+  } else {
+    Logger.warn('Express response.json 未找到,BigInt 序列化兜底未安装', 'Bootstrap');
   }
 
   // Swagger

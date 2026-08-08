@@ -1,0 +1,278 @@
+/**
+ * AI 助手 composable — 管理前端 chat 状态
+ *
+ * 设计:
+ *   - messages: 仅前端 reactive state, localStorage 持久化(按 userId 隔离,避免跨账号污染)
+ *   - sendMessage: 拼接 history + routeContext → POST /assistant/chat → append user/assistant 两条
+ *   - clearMessages: 清空当前会话
+ *   - 自动捕获当前 route (vue-router) 作为 routeContext, 前端调用方不必手动传
+ *
+ * 不做:
+ *   - 不持久化到后端 DB (plan 边界)
+ *   - 不做 SSE streaming (MVP 非流式)
+ *   - 不做 token quota / cost 控制 (admin 在 /settings/llm 看总消费)
+ */
+
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { chatAssistant, chatWithAttachments, type ChatHistoryItem, type IntentType, type SuggestedAction, type ChatAttachment } from '@/api/assistant';
+import { useAuthStore } from '@/stores/auth';
+
+export interface AssistantMessage {
+  id: string; // 本地 uuid, 用于 key
+  role: 'user' | 'assistant';
+  content: string;
+  suggestedActions?: SuggestedAction[];
+  createdAt: number; // Date.now()
+  /** 用于 UI 显示: 是否是降级响应(model=fallback) */
+  fallback?: boolean;
+  /** W6-R1: LLM 选出的 intent (R2 弹卡片用) */
+  intent?: IntentType | null;
+  /** W6-R2: LLM 校验后的 params (CREATE_BRIEF 的 title/budget 等) */
+  intentParams?: Record<string, unknown>;
+  /** W6-R1: 写操作意图必须 UI 卡片确认 */
+  requiresConfirmation?: boolean;
+  /** W6-R2: 卡片执行结果 ('idle' | 'executing' | 'success' | 'error' | 'cancelled') */
+  intentStatus?: 'idle' | 'executing' | 'success' | 'error' | 'cancelled';
+  /** W6-R2: 执行后给用户的提示 (e.g. workspace 创建成功后的 workspaceId)
+   * W6-R6: 加 deliverableId (审批后跳转) / generationRecordId (AI 生成后切 ResultsPane) */
+  intentResult?: {
+    workspaceId?: string;
+    briefId?: string;
+    deliverableId?: string;
+    generationRecordId?: string;
+  } | null;
+  /** W6-R7: 用户上传的附件快照 — 同步显示在 user 消息气泡里 */
+  attachments?: ChatAttachment[];
+}
+
+/** W6-R1: 最后一次 chat 返回的 intent + params + confirm — 共享状态, FloatingChat 显示 chip */
+export interface LastIntentState {
+  intent: IntentType;
+  requiresConfirmation: boolean;
+  reply: string;
+}
+
+const HISTORY_LIMIT = 40; // 前端缓存最多 40 条 (用 last 20 转给后端)
+const LS_PREFIX = 'ibi.assistant.messages.';
+const LS_SESSION_PREFIX = 'ibi.assistant.session.'; // R9.1: sessionId 持久化
+
+function loadFromLs(userId: string): AssistantMessage[] {
+  if (!userId) return [];
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + userId);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.slice(-HISTORY_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToLs(userId: string, msgs: AssistantMessage[]) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(LS_PREFIX + userId, JSON.stringify(msgs.slice(-HISTORY_LIMIT)));
+  } catch {
+    /* quota 满等 — 静默 */
+  }
+}
+
+/** R9.1: 从 localStorage 读 sessionId — 每 user 一条, 登出不清 (让用户下次回来还能续上 CREATE_BRIEF 流程) */
+function loadSessionId(userId: string): string {
+  if (!userId) return '';
+  try {
+    return localStorage.getItem(LS_SESSION_PREFIX + userId) ?? '';
+  } catch {
+    return '';
+  }
+}
+function saveSessionId(userId: string, sessionId: string): void {
+  if (!userId || !sessionId) return;
+  try {
+    localStorage.setItem(LS_SESSION_PREFIX + userId, sessionId);
+  } catch {
+    /* quota — 静默 */
+  }
+}
+
+function genId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+/** 共享状态 — 跨组件(FloatingChat 和 AssistantPage)共用一个 messages */
+const messages = ref<AssistantMessage[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const lastIntent = ref<LastIntentState | null>(null);
+let currentUserId = '';
+let sessionId = ''; // R9.1: 当前会话 id, 跨 sendMessage 持久
+
+export function useAssistant() {
+  const auth = useAuthStore();
+  const route = useRoute();
+  const router = useRouter();
+
+  // 切换用户时重新加载历史
+  if (auth.user?.id !== currentUserId) {
+    currentUserId = auth.user?.id ?? '';
+    messages.value = loadFromLs(currentUserId);
+    // R9.1: 同步切换 sessionId — 每个账号独立会话, 跨账号不污染
+    sessionId = loadSessionId(currentUserId);
+  }
+
+  // 持久化 — 用 watch + flush:'post' 确保 messages 变更后立即写盘
+  watch(
+    messages,
+    (val) => saveToLs(currentUserId, val),
+    { deep: true, flush: 'post' },
+  );
+
+  function buildHistory(): ChatHistoryItem[] {
+    return messages.value
+      .filter((m) => !m.fallback || m.role === 'user') // 降级响应不参与下一轮 history(避免污染)
+      .slice(-20)
+      .map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  function buildRouteContext() {
+    const rc: { route?: string; query?: Record<string, string> } = { route: route.fullPath };
+    if (route.query && Object.keys(route.query).length > 0) {
+      const q: Record<string, string> = {};
+      for (const [k, v] of Object.entries(route.query)) {
+        if (typeof v === 'string') q[k] = v;
+      }
+      if (Object.keys(q).length > 0) rc.query = q;
+    }
+    return rc;
+  }
+
+  async function sendMessage(text: string, attachments?: File[]) {
+    const trimmed = text.trim();
+    if ((!trimmed && (!attachments || attachments.length === 0)) || loading.value) return;
+    error.value = null;
+
+    // R9.1: 确保 sessionId 存在 — 首次 sendMessage 时生成 uuid 并持久化
+    if (!sessionId) {
+      const cryptoObj: Crypto | undefined =
+        typeof globalThis !== 'undefined' && (globalThis as any).crypto
+          ? (globalThis as any).crypto
+          : undefined;
+      sessionId = cryptoObj && typeof cryptoObj.randomUUID === 'function'
+        ? cryptoObj.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      saveSessionId(currentUserId, sessionId);
+    }
+
+    const userMsg: AssistantMessage = {
+      id: genId(),
+      role: 'user',
+      content: trimmed || (attachments ? `上传了 ${attachments.length} 个附件` : ''),
+      createdAt: Date.now(),
+    };
+    messages.value.push(userMsg);
+
+    loading.value = true;
+    try {
+      // W6-R7: 有附件时走 multipart 端点,否则原 JSON 端点
+      const resp = attachments && attachments.length > 0
+        ? await chatWithAttachments({
+            message: trimmed,
+            files: attachments,
+            history: buildHistory(),
+            routeContext: buildRouteContext(),
+            sessionId,
+          })
+        : await chatAssistant({
+            message: trimmed,
+            history: buildHistory(),
+            routeContext: buildRouteContext(),
+            sessionId,
+          });
+      const isFallback = resp.reply.startsWith('AI 助手暂时无法回答');
+      // W6-R7: 把 assistant 返回的 attachments 挂到 user 消息上 (持久化展示)
+      if (resp.attachments && resp.attachments.length > 0) {
+        userMsg.attachments = resp.attachments;
+      }
+      messages.value.push({
+        id: genId(),
+        role: 'assistant',
+        content: resp.reply,
+        suggestedActions: resp.suggestedActions,
+        createdAt: Date.now(),
+        fallback: isFallback,
+        // W6-R1: 把 intent 挂到 message 上, R2 可在消息气泡内联卡片
+        intent: resp.intent ?? null,
+        intentParams: resp.intentParams ?? undefined,
+        requiresConfirmation: resp.requiresConfirmation ?? false,
+        intentStatus: 'idle',
+        intentResult: null,
+      });
+      // 同步给 FloatingChat chip 用 (R1 只显示, 不触发)
+      if (resp.intent) {
+        lastIntent.value = {
+          intent: resp.intent,
+          requiresConfirmation: resp.requiresConfirmation ?? false,
+          reply: resp.reply,
+        };
+      } else {
+        lastIntent.value = null;
+      }
+    } catch (e: any) {
+      // 网络/5xx — 降级
+      const errMsg =
+        e?.response?.data?.message ?? e?.message ?? '请求失败, 请稍后再试';
+      messages.value.push({
+        id: genId(),
+        role: 'assistant',
+        content: `请求失败: ${errMsg}`,
+        createdAt: Date.now(),
+        fallback: true,
+      });
+      error.value = errMsg;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  function clearMessages() {
+    messages.value = [];
+    lastIntent.value = null;
+  }
+
+  function goToAction(href: string) {
+    // 只走前端路由(同源),不接外链
+    if (href.startsWith('/')) router.push(href);
+  }
+
+  /** W6-R2: IntentCard 在点 [确认] / [取消] 后调用, 标记消息卡片的执行状态 */
+  function setIntentStatus(
+    messageId: string,
+    status: 'idle' | 'executing' | 'success' | 'error' | 'cancelled',
+    result?: {
+      workspaceId?: string;
+      briefId?: string;
+      deliverableId?: string;
+      generationRecordId?: string;
+    } | null,
+  ) {
+    const m = messages.value.find((x) => x.id === messageId);
+    if (!m) return;
+    m.intentStatus = status;
+    if (result !== undefined) m.intentResult = result;
+  }
+
+  const canSend = computed(() => auth.isAuthenticated);
+
+  return {
+    messages,
+    loading,
+    error,
+    lastIntent,
+    canSend,
+    sendMessage,
+    clearMessages,
+    goToAction,
+    setIntentStatus,
+  };
+}
