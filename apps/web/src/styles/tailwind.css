@@ -10,8 +10,8 @@
 @layer base {
   body {
     font-family: 'Geist', 'Noto Sans SC', system-ui, sans-serif;
-    color: var(--color-ink);
-    background-color: var(--color-cream);
+    color: rgb(var(--color-ink));
+    background-color: rgb(var(--color-cream));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -25,17 +25,19 @@
    tailwind.config.js 的 colors 全部映射到这些 var
    ============================================================ */
 :root {
-  --color-cream: #F6F2EA;
-  --color-ink: #0E0E0F;
-  --color-gold: #B6925A;
-  --color-line: #DAD3C4;
-  --color-danger: #C2433C;
-  --color-success: #3D8B5F;
-  --color-surface: #FDFBF6;
-  --color-surface-2: #F0EBE0;
+  /* RGB 三元组 (非 hex) — tailwind.config 用 rgb(var(--x) / <alpha-value>) 包装,
+     否则 text-ink/50 这类透明度修饰类根本不会生成 (2026-08-22 /cases 弹层 backdrop 丢失事故) */
+  --color-cream: 246 242 234;   /* #F6F2EA */
+  --color-ink: 14 14 15;        /* #0E0E0F */
+  --color-gold: 182 146 90;     /* #B6925A */
+  --color-line: 218 211 196;    /* #DAD3C4 */
+  --color-danger: 194 67 60;    /* #C2433C */
+  --color-success: 61 139 95;   /* #3D8B5F */
+  --color-surface: 253 251 246; /* #FDFBF6 */
+  --color-surface-2: 240 235 224; /* #F0EBE0 */
   /* Phase C Beta 加:stamp-red 印章红 — 选中态 / 当前步 / 立即保存按钮等关键强调色。
      之前用了但没定义,所有 bg-stamp-red / text-stamp-red / border-stamp-red 都是无效 class。 */
-  --color-stamp-red: #B83A2C;
+  --color-stamp-red: 184 58 44; /* #B83A2C */
   --shadow-soft: 0 6px 24px rgba(14, 14, 15, 0.05);
   --shadow-glow: 0 0 0 4px rgba(182, 146, 90, 0.18);
   --shadow-archive: 0 24px 60px -28px rgba(14, 14, 15, 0.28), 0 2px 8px rgba(14, 14, 15, 0.04);
@@ -46,15 +48,15 @@
 }
 
 .dark {
-  --color-cream: #0B0B0D;
-  --color-ink: #F2EEE5;
-  --color-gold: #D2A864;
-  --color-line: #232326;
-  --color-danger: #E87171;
-  --color-success: #5BB87C;
-  --color-surface: #131316;
-  --color-surface-2: #1B1B20;
-  --color-stamp-red: #E87171;
+  --color-cream: 11 11 13;      /* #0B0B0D */
+  --color-ink: 242 238 229;     /* #F2EEE5 */
+  --color-gold: 210 168 100;    /* #D2A864 */
+  --color-line: 35 35 38;       /* #232326 */
+  --color-danger: 232 113 113;  /* #E87171 */
+  --color-success: 91 184 124;  /* #5BB87C */
+  --color-surface: 19 19 22;    /* #131316 */
+  --color-surface-2: 27 27 32;  /* #1B1B20 */
+  --color-stamp-red: 232 113 113; /* #E87171 */
   --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 4px rgba(210, 168, 100, 0.25);
   --shadow-archive: 0 24px 60px -28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -153,7 +155,7 @@
    ============================================================ */
 .plate {
   position: relative;
-  background: var(--color-surface);
+  background: rgb(var(--color-surface));
   transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .plate:hover {
@@ -162,7 +164,7 @@
 .plate-frame {
   position: relative;
   overflow: hidden;
-  border: 0.5px solid var(--color-line);
+  border: 0.5px solid rgb(var(--color-line));
 }
 .plate-frame img {
   transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.6s ease;
@@ -193,7 +195,7 @@
   text-transform: uppercase;
   transform: none;
   opacity: 1;
-  background-color: var(--color-surface);
+  background-color: rgb(var(--color-surface));
 }
 
 /* ============================================================
@@ -203,7 +205,7 @@
   position: absolute;
   width: 12px;
   height: 12px;
-  border-color: var(--color-ink);
+  border-color: rgb(var(--color-ink));
   opacity: 0.35;
 }
 .cropmark-tl { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }

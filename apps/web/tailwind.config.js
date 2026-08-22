@@ -6,17 +6,19 @@ export default {
     extend: {
       colors: {
         // R8 调色板用 CSS 变量, .dark 类切换 (composables/useDarkMode.ts 控制)
-        cream: 'var(--color-cream)',
-        ink: 'var(--color-ink)',
-        gold: 'var(--color-gold)',
-        line: 'var(--color-line)',
-        danger: 'var(--color-danger)',
-        success: 'var(--color-success)',
+        // 2026-08-22: 变量改存 RGB 三元组 + <alpha-value> 包装 — 否则 ink/95 这类
+        // 透明度修饰类静默不生成 (/cases 弹层 backdrop 丢失事故)
+        cream: 'rgb(var(--color-cream) / <alpha-value>)',
+        ink: 'rgb(var(--color-ink) / <alpha-value>)',
+        gold: 'rgb(var(--color-gold) / <alpha-value>)',
+        line: 'rgb(var(--color-line) / <alpha-value>)',
+        danger: 'rgb(var(--color-danger) / <alpha-value>)',
+        success: 'rgb(var(--color-success) / <alpha-value>)',
         // 印章红 — 选中态/当前步/立即保存按钮/危险强调
-        'stamp-red': 'var(--color-stamp-red)',
+        'stamp-red': 'rgb(var(--color-stamp-red) / <alpha-value>)',
         // 暗色模式专用: 与 cream/ink 解耦, 因为部分组件 bg-white 在暗色需切换
-        surface: 'var(--color-surface)',
-        'surface-2': 'var(--color-surface-2)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        'surface-2': 'rgb(var(--color-surface-2) / <alpha-value>)',
 
         // === R12 Studio Tech Console (additive; 静态 hex, 暂不与暗色模式联动) ===
         //    docs/design-system.md §2 — R12 visual baseline (R12.0 token commit)

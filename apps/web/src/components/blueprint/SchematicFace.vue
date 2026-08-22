@@ -663,6 +663,6 @@ defineExpose({
 
 <style scoped>
 .schematic-face {
-  background: var(--color-cream);
+  background: rgb(var(--color-cream));
 }
 </style>

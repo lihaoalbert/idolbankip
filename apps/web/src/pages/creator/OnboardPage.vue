@@ -160,7 +160,7 @@ onMounted(fetchStatus);
                 kycStatus === 'REJECTED' ? 'text-danger border-danger' :
                 'text-gold border-gold'
               ]"
-              :style="{ background: 'var(--color-cream)' }"
+              :style="{ background: 'rgb(var(--color-cream))' }"
             >STEP 01</div>
           </div>
 
@@ -268,7 +268,7 @@ onMounted(fetchStatus);
         <!-- 步骤 2 · 进入捏者中心 -->
         <section v-if="kycStatus === 'APPROVED'" class="bg-surface border-0.5 border-ink p-8 md:p-10 relative">
           <div class="absolute -top-3 left-8">
-            <div class="stamp text-gold border-gold" :style="{ background: 'var(--color-cream)' }">STEP 02</div>
+            <div class="stamp text-gold border-gold" :style="{ background: 'rgb(var(--color-cream))' }">STEP 02</div>
           </div>
           <div class="flex items-start gap-6">
             <div class="w-14 h-14 shrink-0 flex items-center justify-center font-display text-2xl bg-gold/15 text-gold border-0.5 border-gold">

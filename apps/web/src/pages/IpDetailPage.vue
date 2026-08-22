@@ -584,7 +584,7 @@ onMounted(async () => {
             <!-- 圆形进度 -->
             <div class="relative w-32 h-32 mx-auto my-4">
               <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--color-line)" stroke-width="1.5" />
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgb(var(--color-line))" stroke-width="1.5" />
                 <circle
                   cx="18" cy="18" r="15.9"
                   fill="none"

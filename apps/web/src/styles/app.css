@@ -4,8 +4,8 @@ html, body, #app {
 
 /* 主题切换平滑过渡 */
 html {
-  background-color: var(--color-cream);
-  color: var(--color-ink);
+  background-color: rgb(var(--color-cream));
+  color: rgb(var(--color-ink));
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
