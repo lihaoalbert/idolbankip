@@ -6,6 +6,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: () => import('@/pages/HomePage.vue') },
   { path: '/ips', name: 'ip-list', component: () => import('@/pages/IpListPage.vue') },
   { path: '/cases', name: 'cases', component: () => import('@/pages/CasesPage.vue'), meta: { public: true } },
+  // 营销落地页 — 抖音/视频号/小红书投放承接 (2026-08 需求端起量计划 P0)
+  { path: '/promo', name: 'promo', component: () => import('@/pages/PromoPage.vue'), meta: { public: true } },
   { path: '/ips/:code', name: 'ip-detail', component: () => import('@/pages/IpDetailPage.vue'), props: true },
   { path: '/login', name: 'login', component: () => import('@/pages/LoginPage.vue'), meta: { public: true } },
   { path: '/register', name: 'register', component: () => import('@/pages/RegisterPage.vue'), meta: { public: true } },

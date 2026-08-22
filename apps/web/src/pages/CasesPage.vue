@@ -1,31 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { ossUrl } from '@/api/client';
 import BecomeCreatorLink from '@/components/BecomeCreatorLink.vue';
+import { CASE_WORKS, casePosterUrl, caseVideoUrl, type CaseWork } from '@/data/case-works';
 
 /**
  * 案例集 — 平台认证工作室的交付实物
  * 为 h1 假设验证服务: 销售跟客户谈 SKU 时, 现场打开本页放片。
- * 视频托管在 OSS public bucket `cases/` 前缀, 由 EC2 端一次性同步 (2026-07-24)。
+ * 视频数据见 @/data/case-works (/promo 落地页共用)。
  */
 
-interface CaseWork {
-  src: string;
-  title: string;
-  meta: string;
-  cat: '商业广告' | '剧情短片' | '动画';
-}
-
-const WORKS: CaseWork[] = [
-  { src: '03-golf-shoes',    title: '《一双舒服的鞋》', meta: '商业广告 · 横屏 0:34',   cat: '商业广告' },
-  { src: '04-boss-shoes',    title: '《大佬带货》',     meta: '剧情带货 · 竖屏 1:29',   cat: '商业广告' },
-  { src: '02-huaxing',       title: '《化形》',         meta: 'AI 真人玄幻剧 · 横屏 6:20', cat: '剧情短片' },
-  { src: '05-mansion-night', title: '《深宅夜宴》',     meta: '古装剧情 · 横屏 0:56',   cat: '剧情短片' },
-  { src: '07-jade-disc',     title: '《完璧归赵》',     meta: '历史短剧 · 竖屏 0:53',   cat: '剧情短片' },
-  { src: '06-one-cart-bricks', title: '《一车砖》',     meta: '写实情感 · 4:3 画幅 1:19', cat: '剧情短片' },
-  { src: '01-coffee-voyage', title: '《咖啡豆环游记》', meta: '3D 卡通 IP · 竖屏 1:06', cat: '动画' },
-  { src: '08-elevator-home', title: '《回家的电梯》',   meta: '粘土动画 · 横屏 1:56',   cat: '动画' },
-];
+const WORKS = CASE_WORKS;
 
 const FILTERS = ['全部', '商业广告', '剧情短片', '动画'] as const;
 const activeFilter = ref<(typeof FILTERS)[number]>('全部');
@@ -33,12 +17,8 @@ const filtered = computed(() =>
   activeFilter.value === '全部' ? WORKS : WORKS.filter((w) => w.cat === activeFilter.value),
 );
 
-function videoUrl(src: string): string {
-  return ossUrl(`cases/${src}.mp4`);
-}
-function posterUrl(src: string): string {
-  return ossUrl(`cases/${src}.jpg`);
-}
+const videoUrl = caseVideoUrl;
+const posterUrl = casePosterUrl;
 
 /* ---------- 悬停预览 (仅桌面) ---------- */
 const canHover = window.matchMedia('(hover: hover)').matches;

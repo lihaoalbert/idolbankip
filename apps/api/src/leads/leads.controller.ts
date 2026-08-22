@@ -9,7 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -20,10 +21,10 @@ import { LeadsService } from './leads.service';
 class CreateLeadDto {
   @IsString() @MinLength(2) @MaxLength(64) name!: string;
   @IsOptional() @IsString() @MaxLength(128) company?: string;
-  @IsOptional() @IsString() @MaxLength(32) phone?: string;
+  @IsOptional() @IsString() @MaxLength(32) @Matches(/^1[3-9]\d{9}$/, { message: '手机号格式不正确' }) phone?: string;
   @IsOptional() @IsString() @MaxLength(64) wechat?: string;
   @IsOptional() @IsEmail() email?: string;
-  @IsString() @MinLength(2) @MaxLength(2000) message!: string;
+  @IsString() @MinLength(2) @MaxLength(500) message!: string;
   @IsOptional() @IsString() @MaxLength(64) source?: string;
 }
 
@@ -39,13 +40,14 @@ export class LeadsController {
 
   /**
    * 公开留资 — 任何人都可以提交,不需登录
-   * 受 Throttler 60/min 全局限流保护
+   * 限流 10/min/IP (广告投放期防刷, 覆盖全局 300/min 默认)
    */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post()
   async create(@Body() body: CreateLeadDto) {
-    const lead = await this.leads.create(body);
-    return { lead };
+    const { lead, duplicated } = await this.leads.create(body);
+    return { lead, duplicated };
   }
 
   /**

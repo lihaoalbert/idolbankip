@@ -6,6 +6,7 @@
 import { ref } from 'vue';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/composables/useToast';
+import { buildLeadSource } from '@/utils/utm';
 
 const toast = useToast();
 
@@ -37,7 +38,8 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await apiClient.post('/leads', { ...form.value, source: 'contact-page' });
+    // source 带 UTM 归因: contact|douyin|launch-0829, 无 utm 时 contact|direct
+    await apiClient.post('/leads', { ...form.value, source: buildLeadSource('contact') });
     submitted.value = true;
     toast.success('已收到您的留言, 商务 1 个工作日内联系您');
     form.value = { name: '', company: '', phone: '', wechat: '', email: '', message: '' };

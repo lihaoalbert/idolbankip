@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
 import { ossUrl } from '@/api/client';
@@ -18,6 +19,11 @@ onMounted(async () => {
 const showCreatorLink = computed(() => auth.hasAnyRole(['CREATOR']));
 const showBuyerLinks = computed(() => auth.hasAnyRole(['BUYER']));
 
+// /promo 投放落地页隐藏全站 header/footer — 导航在移动端无折叠菜单会挤爆首屏,
+// 且落地页自带顶部标识条与底部悬浮 CTA, 不需要站点导航分散转化
+const route = useRoute();
+const isPromo = computed(() => route.path === '/promo');
+
 // 用户菜单 — header 头像下拉
 const menuOpen = ref(false);
 const menuRef = ref<HTMLElement | null>(null);
@@ -32,7 +38,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 
 <template>
   <div class="min-h-screen flex flex-col">
-    <header class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40 print:hidden">
+    <header v-if="!isPromo" class="border-b border-line bg-cream/90 backdrop-blur sticky top-0 z-40 print:hidden">
       <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2 font-display text-xl font-medium tracking-[0.04em] leading-none">
           <img src="/logo.svg" alt="IBIren" class="w-8 h-8" />
@@ -171,7 +177,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
 
     <FloatingChat />
 
-    <footer class="border-t border-line mt-12 py-10 print:hidden">
+    <footer v-if="!isPromo" class="border-t border-line mt-12 py-10 print:hidden">
       <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-sm">
         <div>
           <div class="flex items-center gap-2 font-display text-xl font-medium tracking-[0.04em] leading-none mb-2">

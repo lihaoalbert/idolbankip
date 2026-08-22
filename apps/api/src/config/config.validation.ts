@@ -94,4 +94,8 @@ export const configValidationSchema = Joi.object({
   // false 时所有 /api/v1/blueprint/* 返 404,前端路由 redirect 到 /creator
   // 默认 ON — 2026-06-24 Phase C 上线时启用
   BLUEPRINT_WIZARD_ENABLED: Joi.boolean().default(true),
+
+  // 新留资线索企微群机器人 webhook (POST /api/v1/leads 创建成功后通知)
+  // 留空 = 跳过通知 (LeadsService 打一条 warn), 不影响留资主流程
+  LEADS_WECOM_WEBHOOK: Joi.string().allow('').default(''),
 });
