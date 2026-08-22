@@ -285,6 +285,8 @@ async function main() {
           });
           uploaded++;
         }
+        // OSS 新对象默认 private (AGENTS.md 5.12) — 公共桶匿名读靠对象级 public-read ACL
+        await oss.putACL(ossKey, 'public-read');
       }
 
       // 写库: IpAsset + IpFile(FACE_CLOSEUP) + BlockchainProof (mock, 仿 seed-ips.ts)
