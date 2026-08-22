@@ -21,3 +21,18 @@ IBC-EA-0172
 IBC-EA-0186
 # 人工判断不通过：江南 origin 但面相偏欧裔
 IBC-EA-0055
+# 2026-08-22 目视复核标重生 14 条 (西式时代装束把人脸带成白人/性别错/afro配古装, 详见 cast/ledger/audit-2026-08-22.md)
+IBC-EA-0031
+IBC-EA-0049
+IBC-EA-0056
+IBC-EA-0061
+IBC-EA-0081
+IBC-EA-0087
+IBC-EA-0106
+IBC-EA-0117
+IBC-EA-0118
+IBC-EA-0126
+IBC-EA-0130
+IBC-EA-0158
+IBC-EA-0188
+IBC-EA-0194
