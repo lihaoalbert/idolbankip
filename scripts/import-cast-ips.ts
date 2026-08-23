@@ -78,6 +78,23 @@ function mapAgeBucket(band: string): AgeBucket {
   return b;
 }
 
+// 人种桶 → schema Ethnicity (ME/LA/NA 归 MIXED, 见 schema 注释 "混合 / 拉美 / 中东 / 其他")
+const ETHNICITY_MAP: Record<string, Ethnicity> = {
+  EA: Ethnicity.EAST_ASIAN,
+  SA: Ethnicity.SOUTH_ASIAN,
+  AF: Ethnicity.AFRICAN,
+  EU: Ethnicity.EUROPEAN,
+  ME: Ethnicity.MIXED,
+  LA: Ethnicity.MIXED,
+  NA: Ethnicity.MIXED,
+};
+
+function mapEthnicity(reg: string): Ethnicity {
+  const e = ETHNICITY_MAP[reg];
+  if (!e) throw new Error(`未知 reg: ${reg}`);
+  return e;
+}
+
 function buildTagline(sc: CastSidecar): string {
   const genderLabel = sc.gender === 'M' ? '男性' : '女性';
   return `${sc.origin} · ${sc.age}岁${genderLabel} · ${sc.occupation || sc.era_label}`;
@@ -303,7 +320,7 @@ async function main() {
           description: buildDescription(sc),
           gender: mapGender(sc.gender),
           ageBucket: mapAgeBucket(sc.age_band),
-          ethnicity: Ethnicity.EAST_ASIAN,
+          ethnicity: mapEthnicity(sc.reg),
           styleTags: sc.era_label,
           scenarioTags: SCENARIO_TAGS,
           depositPriceFen: DEPOSIT_PRICE_FEN,
