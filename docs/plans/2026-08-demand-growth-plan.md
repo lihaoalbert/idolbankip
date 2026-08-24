@@ -158,3 +158,32 @@
 - 有效线索数与单线索成本（≤¥100 合格）
 - 线索→成交率（≥15% 合格）与首周成交单数
 - 交付准点率 100%（首周宁可少接）
+
+---
+
+## 9. 执行状态快照（2026-08-23 晚，会话暂停点）
+
+### 已完成（全部上线并验证）
+
+- **P0 平台改造**：`/promo` 落地页（移动端优先 + 3 项留资表单 + SKU 卡）、UTM→`ContactLead.source` 打通、leads 接口加固（10/min 限流、手机号校验、防重、企微 webhook 待配 ID）、百度统计按 `VITE_BAIDU_TJ_ID` 条件注入。commit `671d8a7`
+- **生产部署**：smoke 全绿，hash 交叉校验一致
+- **cast 官方角色入库**：178 条在库（EA 164 + EU 14），导入脚本 `scripts/import-cast-ips.ts`（幂等、ethnicity 按桶映射、putACL public-read）。剔除清单 `scripts/data/import-cast-skip.txt`（35 id）
+- **改编号重建档**：14 条标签错配角色按图实测改号 IBC-EU-0121~0134 入库；0081 性别订正回库；0194 等旧号退役。cast 侧记录：`cast/ledger/audit-2026-08-22.md` + `cast/specs/conventions.md` §8
+- **故障修复**：ibi-waf 误杀修复（排除 /assets/ 404、阈值 150、cron 兜底解 ban，脚本入库 `infra/aliyun/ibi-waf.sh`）；nginx 补 `/cases/` OSS 反代；Tailwind 调色板改 RGB 三元组（全站 /NN 透明度类此前静默失效，现已按设计生效）；删重复资产 IBI-2026-0056（与 0059 同图，DB+OSS 12 对象已清）
+- 资产库总数 265
+
+### 待办（按优先级）
+
+1. **企微群机器人** → `LEADS_WECOM_WEBHOOK` 写进 ECS `/opt/ibiren/infra/.env` + `systemctl restart ibiren-api`（不配则商务要盯 admin 后台）
+2. **百度统计注册** → `VITE_BAIDU_TJ_ID` 填 `apps/web/.env.production` 重新 build 部署（不配则投放无页面统计，只有 UTM+留资数据）
+3. **支付宝/微信商户号申请** — 卡第二阶段在线定金
+4. **catalog ad SKU 价格冲突待决策**：`scripts/seed-catalog.ts` 是 ¥800/1,700/3,000，销售文档 ¥2,999/5,999/9,999；落地页目前硬编码文档价
+5. **cast 22 条待重生**（首轮 20 + afro 配古装 2）：`batch_run --force --ids`，重生后重跑导入自动补库
+6. **D-Day 8/29 投放启动**：素材储备 ≥20 条、三平台企业号、落地页文案/SLA 演练（见 §7 倒计时表）
+7. 观察 `/var/log/ibi-waf.log` 新阈值下有无误杀（投放用户集中出口 IP 风险）
+8. 遗留小问题：工作树有 38 张根目录截图的未提交删除（历史遗留，用户自行处置）；`roles.util.ts` 的 `string_contains` 写法疑似查不到行（潜伏 bug 未修）；admin 端调色板同样问题未排查
+
+### 关键记忆指针
+
+- ECS/SSH/域名：`scripts/deploy.env`（gitignored）；部署 `bash scripts/deploy.sh all`
+- cast 数据源已同步 ECS `/opt/ibiren/cast-data/characters/{EA,EU}`（改编号/退役后须先同步 sidecar 再跑导入）
