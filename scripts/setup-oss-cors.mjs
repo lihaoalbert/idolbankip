@@ -1,6 +1,6 @@
-// 设置 OSS 桶 CORS — 允许 ibi.ren / admin.ibi.ren 主域名 + 本地 dev 上传
+// 设置 OSS 桶 CORS — 允许 work.ibi.ren / admin.work.ibi.ren 主域名 + 本地 dev 上传
 //
-// 现象: 浏览器从 https://ibi.ren PUT 到 OSS bucket 触发 preflight,
+// 现象: 浏览器从 https://work.ibi.ren PUT 到 OSS bucket 触发 preflight,
 //       桶 CORS 没放行这个 origin,前端的 "OSS 网络错误" toast + 实际图传不到 OSS
 //
 // 跑法: 本地 `node scripts/setup-oss-cors.mjs`
@@ -38,12 +38,10 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',         // api dev
   'http://localhost:5173',         // web vite dev
   'http://localhost:8080',         // 镜像端口
-  'https://ibi.ren',               // 生产主域 (2026-06-30 备案完成)
-  'https://www.ibi.ren',
-  'https://admin.ibi.ren',         // 后台独立子域
-  'http://ibi.ren',
-  'http://www.ibi.ren',
-  'http://admin.ibi.ren',
+  'https://work.ibi.ren',          // 生产主域 (2026-09-25 由 ibi.ren 降级, 根域让给 IPs 官网)
+  'https://admin.work.ibi.ren',    // 后台独立子域
+  'http://work.ibi.ren',
+  'http://admin.work.ibi.ren',
 ];
 
 const buckets = [env.OSS_BUCKET_PRIVATE, env.OSS_BUCKET_PUBLIC, env.OSS_BUCKET_CONTRACTS]

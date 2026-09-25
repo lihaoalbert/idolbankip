@@ -74,7 +74,7 @@ export const configValidationSchema = Joi.object({
   WECHAT_OAUTH_DRIVER: Joi.string().valid('mock', 'real').default('mock'),
   WECHAT_OAUTH_APP_ID: Joi.string().allow('').default(''),
   WECHAT_OAUTH_APP_SECRET: Joi.string().allow('').default(''),
-  WECHAT_OAUTH_REDIRECT_URI: Joi.string().uri().default('https://ibi.ren/api/v1/auth/wechat/callback'),
+  WECHAT_OAUTH_REDIRECT_URI: Joi.string().uri().default('https://work.ibi.ren/api/v1/auth/wechat/callback'),
 
   // W3 W1: 多通道登录 — 手机号格式
   PHONE_REGEX: Joi.string().default('^1[3-9]\\d{9}$'),

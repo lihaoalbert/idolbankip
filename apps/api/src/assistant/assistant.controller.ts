@@ -62,7 +62,7 @@ export class AssistantController {
    *   - 落 OSS public 桶, 1 月 CDN 缓存, 过期不补
    *
    * curl 示例:
-   *   curl -X POST https://ibi.ren/api/v1/assistant/chat-with-attachments \
+   *   curl -X POST https://work.ibi.ren/api/v1/assistant/chat-with-attachments \
    *     -H "Authorization: Bearer $TOKEN" \
    *     -F "message=看看这张脸帮我写人物小传" \
    *     -F "files=@face.jpg"

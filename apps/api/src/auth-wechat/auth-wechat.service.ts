@@ -52,12 +52,12 @@ export class AuthWechatService {
   ) {}
 
   private getRedirectUri(): string {
-    return this.config.get<string>('WECHAT_OAUTH_REDIRECT_URI', 'https://ibi.ren/api/v1/auth/wechat/callback');
+    return this.config.get<string>('WECHAT_OAUTH_REDIRECT_URI', 'https://work.ibi.ren/api/v1/auth/wechat/callback');
   }
 
   private getFrontendCallbackUrl(): string {
     // 微信回调 → /api/v1/auth/wechat/callback → 302 → 前端 /auth/wechat/callback?code&state
-    return this.config.get<string>('WECHAT_OAUTH_FRONTEND_CALLBACK', 'https://ibi.ren/auth/wechat/callback');
+    return this.config.get<string>('WECHAT_OAUTH_FRONTEND_CALLBACK', 'https://work.ibi.ren/auth/wechat/callback');
   }
 
   /**

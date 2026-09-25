@@ -2,7 +2,7 @@
 # scripts/smoke-auth.sh — W3 W1 多通道登录冒烟测试
 # 用法:
 #   bash scripts/smoke-auth.sh local          # 本地: 127.0.0.1:3000 (dev API)
-#   bash scripts/smoke-auth.sh prod           # 生产: 走 https://ibi.ren/api/v1
+#   bash scripts/smoke-auth.sh prod           # 生产: 走 https://work.ibi.ren/api/v1
 #   bash scripts/smoke-auth.sh ecs            # 兼容: = prod
 #   bash scripts/smoke-auth.sh <url>          # 自定义 base URL
 #
@@ -50,7 +50,7 @@ case "$TARGET" in
     MODE_DESC="local(127.0.0.1:3000)"
     ;;
   prod|ecs)
-    WEB_DOMAIN="${PROD_WEB_DOMAIN:-https://ibi.ren}"
+    WEB_DOMAIN="${PROD_WEB_DOMAIN:-https://work.ibi.ren}"
     API_BASE="${WEB_DOMAIN}/api/v1"
     DB_MODE="ecs-ssh"
     MODE_DESC="prod(${WEB_DOMAIN})"

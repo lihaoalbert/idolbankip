@@ -52,7 +52,7 @@ ossutil set-acl oss://ibi-public public-read
 # 配置 CORS
 cat > cors-public.json <<'EOF'
 [{
-  "allowedOrigin": ["https://ibi.ren", "https://www.ibi.ren", "https://admin.ibi.ren"],
+  "allowedOrigin": ["https://work.ibi.ren", "https://admin.work.ibi.ren"],
   "allowedMethod": ["GET", "HEAD"],
   "allowedHeader": ["*"],
   "exposeHeader": ["ETag", "Content-Length", "Content-Type"],
@@ -63,7 +63,7 @@ ossutil cors --method put oss://ibi-public cors-public.json
 
 # 配置 Referer 白名单 (防盗链)
 ossutil referer --method put oss://ibi-public referer-public.json \
-  --referer-white-list "https://ibi.ren https://www.ibi.ren" \
+  --referer-white-list "https://work.ibi.ren https://admin.work.ibi.ren" \
   --allow-empty-referer false
 ```
 

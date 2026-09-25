@@ -110,7 +110,7 @@ export class BriefPushService {
     const isPublish = kind === 'BRIEF_PUBLISHED';
     const catLabel = CATEGORY_LABEL[brief.category] ?? brief.category;
     const price = brief.currentPrice ? Number(brief.currentPrice) : 0;
-    const briefUrl = `https://ibi.ren/creator/briefs/${brief.id}`;
+    const briefUrl = `https://work.ibi.ren/creator/briefs/${brief.id}`;
     const title = isPublish
       ? `📦 新 ${catLabel} 任务包,¥${price}`
       : `💰 任务包加价,现 ¥${price}`;

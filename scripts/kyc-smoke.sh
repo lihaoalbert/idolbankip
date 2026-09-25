@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-BASE="${KYC_SMOKE_BASE:-https://ibi.ren}"
+BASE="${KYC_SMOKE_BASE:-https://work.ibi.ren}"
 RAND=$(date +%s%N | tail -c 7)
 EMAIL="kyc-smoke-${RAND}@ibi.ren"
 PASSWORD="SmokeTest2026!@#"

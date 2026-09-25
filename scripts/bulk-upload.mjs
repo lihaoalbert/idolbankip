@@ -8,7 +8,7 @@
  * Usage:
  *   IBI_API_KEY=ibi_sk_xxx node scripts/bulk-upload.mjs ./manifest.json
  *   node scripts/bulk-upload.mjs ./manifest.json --api-key ibi_sk_xxx
- *   node scripts/bulk-upload.mjs ./manifest.json --api-key xxx --api-base https://ibi.ren
+ *   node scripts/bulk-upload.mjs ./manifest.json --api-key xxx --api-base https://work.ibi.ren
  *
  * manifest.json 格式:
  * {
@@ -48,7 +48,7 @@ const flags = Object.fromEntries(
     }),
 );
 
-const API_BASE = flags['api-base'] || process.env.IBI_API_BASE || 'https://ibi.ren';
+const API_BASE = flags['api-base'] || process.env.IBI_API_BASE || 'https://work.ibi.ren';
 const API_KEY = flags['api-key'] || process.env.IBI_API_KEY;
 const manifestPath = positional[0];
 

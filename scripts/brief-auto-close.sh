@@ -23,7 +23,7 @@ fi
 : "${ADMIN_EMAIL:?需要 ADMIN_EMAIL (scripts/deploy.env)}"
 : "${ADMIN_PASSWORD:?需要 ADMIN_PASSWORD (scripts/deploy.env)}"
 
-API_BASE="${API_BASE:-https://ibi.ren/api/v1}"
+API_BASE="${API_BASE:-https://work.ibi.ren/api/v1}"
 PERM=$(stat -f%Lp "$SSH_KEY_PATH" 2>/dev/null || stat -c%a "$SSH_KEY_PATH")
 [[ "$PERM" != "600" ]] && chmod 600 "$SSH_KEY_PATH"
 

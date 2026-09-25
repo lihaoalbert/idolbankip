@@ -88,13 +88,14 @@ nginx -t && systemctl reload nginx
 echo "==> 9. SSL 证书 (acme.sh 申请)"
 if [ ! -d /root/.acme.sh ]; then
   curl https://get.acme.sh | sh -s email=ibi@intfocus.com
-  # 用 DNS 验证(阿里云解析)签发 *.ibi.ren 通配符证书
+  # 用 DNS 验证(阿里云解析)签发 work.ibi.ren + admin.work.ibi.ren 证书
   # export Ali_Key="LTAI..." Ali_Secret="..."
-  # acme.sh --issue --dns dns_ali -d "ibi.ren" -d "*.ibi.ren"
-  # acme.sh --install-cert -d "ibi.ren" \
-  #   --cert-file /etc/nginx/ssl/ibi.ren.crt \
-  #   --key-file  /etc/nginx/ssl/ibi.ren.key \
+  # acme.sh --issue --dns dns_ali -d "work.ibi.ren" -d "admin.work.ibi.ren"
+  # acme.sh --install-cert -d "work.ibi.ren" \
+  #   --cert-file /etc/nginx/ssl/work.ibi.ren.crt \
+  #   --key-file  /etc/nginx/ssl/work.ibi.ren.key \
   #   --fullchain-file /etc/nginx/ssl/fullchain.pem
+  # admin 子域同理另签 /etc/nginx/ssl/admin.work.ibi.ren.{crt,key}
 fi
 
 echo "==> 10. 日志轮转"
